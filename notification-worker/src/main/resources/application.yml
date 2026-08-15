@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: notification-worker
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=notification_worker
+    username: ${DB_USER:fiapx}
+    password: ${DB_PASSWORD:fiapx}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: notification_worker
+  flyway:
+    schemas: notification_worker
+    default-schema: notification_worker
+    create-schemas: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:false}
+          starttls:
+            enable: ${SMTP_STARTTLS:false}
+
+server:
+  port: ${SERVER_PORT:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Banco próprio (schema notification_worker) — ver LLD 5.5 e ADR-008 no Obsidian
+fiapx:
+  notification:
+    from-address: ${NOTIFICATION_FROM:no-reply@fiapx.local}
+    webhook-fallback-url: ${NOTIFICATION_WEBHOOK_URL:}
+  queues:
+    notification: ${QUEUE_NOTIFICATION:video.notification}
+
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId}]"

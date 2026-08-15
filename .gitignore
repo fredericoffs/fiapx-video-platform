@@ -1,0 +1,7 @@
+.env
+.DS_Store
+.idea/
+*.iml
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/

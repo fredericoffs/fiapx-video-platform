@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: video-worker
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        prefetch: ${RABBITMQ_PREFETCH:1}
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2000
+          multiplier: 2.0
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# video-worker é stateless por decisão (ver ADR-008 no Obsidian) — sem datasource aqui de propósito.
+fiapx:
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    bucket-raw: ${STORAGE_BUCKET_RAW:videos-raw}
+    bucket-processed: ${STORAGE_BUCKET_PROCESSED:videos-processed}
+  ffmpeg:
+    binary-path: ${FFMPEG_PATH:ffmpeg}
+    fps: ${FFMPEG_FPS:1}
+  queues:
+    processing: ${QUEUE_PROCESSING:video.processing}
+    status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
+
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId}]"

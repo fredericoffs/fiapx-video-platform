@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: video-api
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=video_api
+    username: ${DB_USER:fiapx}
+    password: ${DB_PASSWORD:fiapx}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: video_api
+  flyway:
+    schemas: video_api
+    default-schema: video_api
+    create-schemas: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Configuração específica do domínio — ver Linguagem-Ubiqua e ADR-004/ADR-008 no Obsidian
+fiapx:
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    bucket-raw: ${STORAGE_BUCKET_RAW:videos-raw}
+    bucket-processed: ${STORAGE_BUCKET_PROCESSED:videos-processed}
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-min-32-chars-please}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:30}
+  queues:
+    status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
+    notification: ${QUEUE_NOTIFICATION:video.notification}
+    processing: ${QUEUE_PROCESSING:video.processing}
+
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId}]"
