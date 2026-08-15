@@ -1,6 +1,9 @@
 spring:
   application:
     name: notification-worker
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=notification_worker
     username: ${DB_USER:fiapx}
@@ -45,7 +48,7 @@ management:
     tags:
       application: ${spring.application.name}
 
-# Banco próprio (schema notification_worker) — ver LLD 5.5 e ADR-008 no Obsidian
+# Banco próprio (schema notification_worker) — ver docs/architecture/hld-lld-adr-rfc.md (LLD 5.5, ADR-008)
 fiapx:
   notification:
     from-address: ${NOTIFICATION_FROM:no-reply@fiapx.local}

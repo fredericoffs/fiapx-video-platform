@@ -1,6 +1,6 @@
 # FIAP X — Plataforma de Processamento de Vídeos
 
-Reescrita arquitetural do protótipo original (`projeto-fiapx/`), feita para o Hackathon da Fase 5. Documentação completa de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD, plano de sprints e checklist de entregáveis) vive no Obsidian, em `FIAP/Fase 5 - LGPD e Gestão e liderança/4. Hackaton/` — este README cobre só o "como rodar".
+Reescrita arquitetural do protótipo original (`projeto-fiapx`), feita para o Hackathon da Fase 5. Documentação completa de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD, plano de sprints e checklist de entregáveis) vive em [`docs/`](./docs) — este README cobre só o "como rodar".
 
 ## Arquitetura em uma frase
 
@@ -9,10 +9,10 @@ Upload de vídeo → fila (RabbitMQ) → extração de frames (`ffmpeg`) → zip
 | Serviço | Responsabilidade | Porta | Banco próprio |
 |---|---|---|---|
 | `video-api` | Upload, autenticação (JWT), listagem/consulta de status, download | 8081 | Postgres, schema `video_api` |
-| `video-worker` | Consome a fila, roda `ffmpeg`, gera o `.zip` — **stateless**, sem acesso a banco (ver ADR-008) | 8082 | nenhum |
+| `video-worker` | Consome a fila, roda `ffmpeg`, gera o `.zip` — **stateless**, sem acesso a banco (ver [ADR-008](./docs/architecture/hld-lld-adr-rfc.md#adr-008)) | 8082 | nenhum |
 | `notification-worker` | Consome eventos de falha, envia e-mail (+ webhook, incremento futuro) | 8083 | Postgres, schema `notification_worker` |
 
-Infra: PostgreSQL, RabbitMQ, Redis, MinIO (S3-compatible), Mailhog (SMTP local). Detalhes e diagramas completos em `Hackaton - Documentação de Arquitetura (HLD, LLD, ADR, RFC)` no Obsidian.
+Infra: PostgreSQL, RabbitMQ, Redis, MinIO (S3-compatible), Mailhog (SMTP local). Diagramas completos em [`docs/architecture/hld-lld-adr-rfc.md`](./docs/architecture/hld-lld-adr-rfc.md).
 
 ## Requisitos locais
 
@@ -61,7 +61,7 @@ Cada um deve responder `{"status":"UP"}`.
 
 ## Build e testes
 
-Cada serviço é um projeto Maven independente (não é um multi-módulo reactor) — propositalmente, para que qualquer um possa ser extraído para um repositório próprio no futuro sem alterar código (ver `Plano de Implementação - Sprints Detalhados` no Obsidian).
+Cada serviço é um projeto Maven independente (não é um multi-módulo reactor) — propositalmente, para que qualquer um possa ser extraído para um repositório próprio no futuro sem alterar código (ver [`docs/plano-implementacao.md`](./docs/plano-implementacao.md)).
 
 ```bash
 cd video-api && ./mvnw -B verify
@@ -71,11 +71,16 @@ cd notification-worker && ./mvnw -B verify
 
 CI: cada serviço tem seu próprio workflow em `.github/workflows/`, disparado só quando arquivos daquele serviço mudam (`paths:` filter) — simula pipeline independente por microsserviço mesmo dentro do monorepo.
 
+## Concorrência: virtual threads
+
+Os 3 serviços rodam com `spring.threads.virtual.enabled=true` (Java 21, JEP 444) — relevante principalmente no `video-api`, que precisa aceitar muitos uploads concorrentes sem esgotar um pool fixo de threads (RF1/RF2 do enunciado).
+
+## Fluxo de branches
+
+Todo trabalho acontece em `develop`. A `main` fica protegida e só recebe código via Pull Request — nunca commit direto (inclusive de quem administra o repositório).
+
 ## Estado atual
 
-**Sprint 0 concluída**: esqueleto dos 3 serviços (Spring Boot 4.1.0 — ver nota abaixo —, Java 21), `docker-compose.yml` local completo, Dockerfiles multi-stage, CI mínimo (`mvn verify` por serviço com path-filter). Ainda sem lógica de negócio — isso é a Sprint 1 (pipeline fim a fim: upload → fila → `ffmpeg` → zip → status).
+**Sprint 0 concluída**: esqueleto dos 3 serviços (Spring Boot 4.1.0, Java 21 — ver [`docs/architecture/hld-lld-adr-rfc.md`](./docs/architecture/hld-lld-adr-rfc.md#adr-007), ADR-007), `docker-compose.yml` local completo, Dockerfiles multi-stage, CI mínimo (`mvn verify` por serviço com path-filter). Ainda sem lógica de negócio — isso é a Sprint 1 (pipeline fim a fim: upload → fila → `ffmpeg` → zip → status).
 
-Acompanhamento detalhado, sprint a sprint: `Checklist-Geral-Hackathon.md` e `Plano de Implementação - Sprints Detalhados (50 dias).md` no Obsidian.
-
-> [!note] Desvio consciente do ADR-007 original
-> O ADR-007 (Obsidian) decidiu "Java 21 + Spring Boot 3". Ao gerar o esqueleto em 2026-08-15, o Spring Initializr recusou Spring Boot 3.x (`compatibility range is >=4.0.0` — a linha 3.x está em manutenção, sem novas features). Optamos por **Spring Boot 4.1.0**, mantendo Java 21 como decidido. A justificativa original do ADR-007 (ecossistema maduro, risco de execução baixo) continua válida — é a mesma stack, só a versão maior mudou. ADR a atualizar no Obsidian antes da Sprint 7 (fechamento de documentação).
+Acompanhamento detalhado, sprint a sprint: [`docs/checklist.md`](./docs/checklist.md) e [`docs/plano-implementacao.md`](./docs/plano-implementacao.md).

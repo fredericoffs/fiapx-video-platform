@@ -1,6 +1,9 @@
 spring:
   application:
     name: video-worker
+  threads:
+    virtual:
+      enabled: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -27,7 +30,7 @@ management:
     tags:
       application: ${spring.application.name}
 
-# video-worker é stateless por decisão (ver ADR-008 no Obsidian) — sem datasource aqui de propósito.
+# video-worker é stateless por decisão (ver docs/architecture/hld-lld-adr-rfc.md, ADR-008) — sem datasource aqui de propósito.
 fiapx:
   storage:
     endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
