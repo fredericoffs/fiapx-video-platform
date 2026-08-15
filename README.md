@@ -1,6 +1,6 @@
 # FIAP X — Plataforma de Processamento de Vídeos
 
-Reescrita arquitetural do protótipo original (`projeto-fiapx`), feita para o Hackathon da Fase 5. Documentação completa de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD, plano de sprints e checklist de entregáveis) vive em [`docs/`](./docs) — este README cobre só o "como rodar".
+Reescrita arquitetural do protótipo original (`projeto-fiapx`), feita para o Hackathon da Fase 5. Documentação de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD) vive em [`docs/`](./docs) — este README cobre só o "como rodar".
 
 ## Arquitetura em uma frase
 
@@ -61,7 +61,7 @@ Cada um deve responder `{"status":"UP"}`.
 
 ## Build e testes
 
-Cada serviço é um projeto Maven independente (não é um multi-módulo reactor) — propositalmente, para que qualquer um possa ser extraído para um repositório próprio no futuro sem alterar código (ver [`docs/plano-implementacao.md`](./docs/plano-implementacao.md)).
+Cada serviço é um projeto Maven independente (não é um multi-módulo reactor) — propositalmente, para que qualquer um possa ser extraído para um repositório próprio no futuro sem alterar código.
 
 ```bash
 cd video-api && ./mvnw -B verify
@@ -81,6 +81,4 @@ Todo trabalho acontece em `develop`. A `main` fica protegida e só recebe códig
 
 ## Estado atual
 
-**Sprint 0 concluída**: esqueleto dos 3 serviços (Spring Boot 4.1.0, Java 21 — ver [`docs/architecture/hld-lld-adr-rfc.md`](./docs/architecture/hld-lld-adr-rfc.md#adr-007), ADR-007), `docker-compose.yml` local completo, Dockerfiles multi-stage, CI mínimo (`mvn verify` por serviço com path-filter). Ainda sem lógica de negócio — isso é a Sprint 1 (pipeline fim a fim: upload → fila → `ffmpeg` → zip → status).
-
-Acompanhamento detalhado, sprint a sprint: [`docs/checklist.md`](./docs/checklist.md) e [`docs/plano-implementacao.md`](./docs/plano-implementacao.md).
+**Sprint 0 concluída**: esqueleto dos 3 serviços (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)), `docker-compose.yml` local completo, Dockerfiles multi-stage, CI mínimo (`mvn verify` por serviço com path-filter). Ainda sem lógica de negócio — isso é a Sprint 1 (pipeline fim a fim: upload → fila → `ffmpeg` → zip → status).
