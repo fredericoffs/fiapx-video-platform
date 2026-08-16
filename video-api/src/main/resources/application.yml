@@ -24,10 +24,21 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 2000
+          multiplier: 2.0
+          max-retries: 3
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 520MB
 
 server:
   port: ${SERVER_PORT:8081}
@@ -59,6 +70,9 @@ fiapx:
     status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
     notification: ${QUEUE_NOTIFICATION:video.notification}
     processing: ${QUEUE_PROCESSING:video.processing}
+  outbox:
+    publish-interval-ms: ${OUTBOX_PUBLISH_INTERVAL_MS:3000}
+    batch-size: ${OUTBOX_BATCH_SIZE:50}
 
 logging:
   pattern:
