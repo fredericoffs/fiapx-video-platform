@@ -14,9 +14,9 @@ spring:
         prefetch: ${RABBITMQ_PREFETCH:1}
         retry:
           enabled: true
-          max-attempts: 3
           initial-interval: 2000
           multiplier: 2.0
+          max-retries: 3
 
 server:
   port: ${SERVER_PORT:8082}
@@ -44,6 +44,8 @@ fiapx:
   queues:
     processing: ${QUEUE_PROCESSING:video.processing}
     status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
+    processing-dlx: ${QUEUE_PROCESSING_DLX:video.processing.dlx}
+    processing-dlq: ${QUEUE_PROCESSING_DLQ:video.processing.dlq}
 
 logging:
   pattern:
