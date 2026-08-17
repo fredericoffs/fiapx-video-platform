@@ -37,10 +37,19 @@ projectJDK: "21" #(Applied in CI/CD pipeline)
 # testCoverageThresholds - configures minimum code coverage on a whole project and newly added code
 # dependencyLicenses - fails the run on prohibited or unknown dependency licenses
 # Code Coverage is available in Ultimate and Ultimate Plus plans
-#failureConditions:
-#  severityThresholds:
-#    any: 15
-#    critical: 5
+#
+# Limiares definidos a partir de um baseline real (Sprint 3, tarefa 11, 2026-08-16):
+# `qodana scan --image jetbrains/qodana-jvm-community:2026.2` sobre os 4 serviços
+# (video-api, video-worker, notification-worker, video-gateway) com o perfil
+# qodana.starter retornou 0 problemas. O gate abaixo trava em qualquer achado
+# crítico e dá uma folga pequena para achados de menor severidade (o linter
+# Ultimate usado no CI pode sinalizar um pouco mais que o Community usado no
+# baseline local). testCoverageThresholds/dependencyLicenses seguem desativados
+# — cobertura mínima já é tratada via JaCoCo na Sprint 3, tarefa 8.
+failureConditions:
+  severityThresholds:
+    critical: 0
+    any: 10
 #  testCoverageThresholds:
 #    fresh: 70
 #    total: 50

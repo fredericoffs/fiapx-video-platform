@@ -6,6 +6,7 @@ import java.util.UUID;
 public class Video {
 
   private final UUID id;
+  private final UUID userId;
   private final String originalFilename;
   private final String storageKey;
   private String zipStorageKey;
@@ -13,10 +14,11 @@ public class Video {
   private String errorMessage;
   private final Instant createdAt;
   private Instant updatedAt;
-  private Long version;
+  private final Long version;
 
   public Video(
       UUID id,
+      UUID userId,
       String originalFilename,
       String storageKey,
       String zipStorageKey,
@@ -27,6 +29,7 @@ public class Video {
       Long version
   ) {
     this.id = id;
+    this.userId = userId;
     this.originalFilename = originalFilename;
     this.storageKey = storageKey;
     this.zipStorageKey = zipStorageKey;
@@ -37,9 +40,13 @@ public class Video {
     this.version = version;
   }
 
-  public static Video newQueued(UUID id, String originalFilename, String storageKey) {
+  public static Video newQueued(UUID id, UUID userId, String originalFilename, String storageKey) {
     Instant now = Instant.now();
-    return new Video(id, originalFilename, storageKey, null, VideoStatus.QUEUED, null, now, now, null);
+    return new Video(id, userId, originalFilename, storageKey, null, VideoStatus.QUEUED, null, now, now, null);
+  }
+
+  public boolean belongsTo(UUID requesterId) {
+    return userId != null && userId.equals(requesterId);
   }
 
   public void complete(String zipStorageKey) {
@@ -61,6 +68,10 @@ public class Video {
 
   public UUID getId() {
     return id;
+  }
+
+  public UUID getUserId() {
+    return userId;
   }
 
   public String getOriginalFilename() {

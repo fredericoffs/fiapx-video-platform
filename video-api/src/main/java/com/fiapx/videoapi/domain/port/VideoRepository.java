@@ -1,13 +1,16 @@
 package com.fiapx.videoapi.domain.port;
 
+import com.fiapx.videoapi.domain.model.PageResult;
+import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.model.VideoStatus;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.fiapx.videoapi.domain.model.Video;
-
 public interface VideoRepository {
 
-	Video save(Video video);
+  Video save(Video video);
 
-	Optional<Video> findById(UUID id);
+  Optional<Video> findById(UUID id);
+
+  PageResult<Video> findByUserId(UUID userId, VideoStatus statusFilter, int page, int size);
 }

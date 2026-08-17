@@ -11,6 +11,7 @@ public final class VideoMapper {
   public static VideoEntity toEntity(Video video) {
     VideoEntity entity = new VideoEntity();
     entity.setId(video.getId());
+    entity.setUserId(video.getUserId());
     entity.setOriginalFilename(video.getOriginalFilename());
     entity.setStorageKey(video.getStorageKey());
     entity.setZipStorageKey(video.getZipStorageKey());
@@ -25,6 +26,7 @@ public final class VideoMapper {
   public static Video toDomain(VideoEntity entity) {
     return new Video(
         entity.getId(),
+        entity.getUserId(),
         entity.getOriginalFilename(),
         entity.getStorageKey(),
         entity.getZipStorageKey(),

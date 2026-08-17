@@ -53,7 +53,7 @@ public class RequestVideoProcessingUseCase {
         command.contentType()
     );
 
-    Video video = Video.newQueued(videoId, command.originalFilename(), storageKey);
+    Video video = Video.newQueued(videoId, command.userId(), command.originalFilename(), storageKey);
     videoRepository.save(video);
 
     VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(

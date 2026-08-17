@@ -5,3 +5,6 @@
 target/
 !**/src/main/**/target/
 !**/src/test/**/target/
+.qodana/
+qodana-results/
+qodana-baseline-results/
