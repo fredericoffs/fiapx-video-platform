@@ -56,4 +56,44 @@ class VideoStatusUpdateListenerIntegrationTest {
       assertThat(updated.getZipStorageKey()).isEqualTo("processed/" + entity.getId() + ".zip");
     });
   }
+
+  @Test
+  void ignoresRedeliveredResultEventOnceVideoIsAlreadyTerminal() throws InterruptedException {
+    VideoEntity entity = new VideoEntity();
+    entity.setId(UUID.randomUUID());
+    entity.setOriginalFilename("movie.mp4");
+    entity.setStorageKey("raw/movie.mp4");
+    entity.setStatus(VideoStatus.QUEUED);
+    entity.setCreatedAt(Instant.now());
+    entity.setUpdatedAt(Instant.now());
+    videoRepository.save(entity);
+
+    String firstZipKey = "processed/" + entity.getId() + "-first.zip";
+    ProcessingResultMessage firstMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED,
+        entity.getId(), firstZipKey, null);
+    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(), objectMapper.writeValueAsString(firstMessage));
+
+    await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+      VideoEntity updated = videoRepository.findById(entity.getId()).orElseThrow();
+      assertThat(updated.getStatus()).isEqualTo(VideoStatus.COMPLETED);
+      assertThat(updated.getZipStorageKey()).isEqualTo(firstZipKey);
+    });
+
+    // Redelivery simulado com payload divergente (não apenas duplicado) para provar que o
+    // guard de estado terminal em ApplyProcessingResultUseCase realmente ignora o evento,
+    // e não apenas coincide por os dois payloads serem idênticos.
+    ProcessingResultMessage duplicateMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED,
+        entity.getId(), null, "erro-nao-deveria-ser-aplicado");
+    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(),
+        objectMapper.writeValueAsString(duplicateMessage));
+
+    // Espera fixa: aqui provamos ausência de mudança, não presença — não há uma condição
+    // positiva para o Awaitility aguardar.
+    Thread.sleep(2_000);
+
+    VideoEntity afterRedelivery = videoRepository.findById(entity.getId()).orElseThrow();
+    assertThat(afterRedelivery.getStatus()).isEqualTo(VideoStatus.COMPLETED);
+    assertThat(afterRedelivery.getZipStorageKey()).isEqualTo(firstZipKey);
+    assertThat(afterRedelivery.getErrorMessage()).isNull();
+  }
 }
