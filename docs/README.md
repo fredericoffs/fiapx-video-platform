@@ -10,6 +10,10 @@
 
 - [`architecture/hld-lld-adr-rfc.md`](./architecture/hld-lld-adr-rfc.md) — documento principal: RFC (motivação e proposta), HLD (visão de containers e topologia de implantação), LLD (modelo de dados, contratos de API, diagramas de sequência) e os 13 ADRs técnicos (broker, outbox, storage, autenticação, observabilidade, linguagem/runtime, comunicação entre serviços, API Gateway, Kubernetes, notificação multicanal, política de nuvem, consulta de status).
 
+## API
+
+- [`postman/fiapx-video-api.postman_collection.json`](./postman/fiapx-video-api.postman_collection.json) — collection Postman do `video-api` (auth + upload/listagem/status/download de vídeos), exportada a partir do OpenAPI real (`/v3/api-docs`, springdoc). Cada serviço também expõe Swagger UI em `/swagger-ui.html`.
+
 ## DDD (Domain-Driven Design)
 
 - [`ddd/linguagem-ubiqua.md`](./ddd/linguagem-ubiqua.md) — glossário de termos do domínio de processamento de vídeo.

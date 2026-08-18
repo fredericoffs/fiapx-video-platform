@@ -27,8 +27,15 @@ public class SecurityConfig {
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .anonymous(AbstractHttpConfigurer::disable)
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/auth/**", "/actuator/**").permitAll()
-            .anyRequest().authenticated()
+            .requestMatchers(
+                "/auth/**",
+                "/actuator/**",
+                "/swagger-ui.html",
+                "/swagger-ui/**",
+                "/v3/api-docs/**"
+            ).permitAll()
+            .anyRequest()
+            .authenticated()
         )
         .exceptionHandling(handling -> handling
             .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))

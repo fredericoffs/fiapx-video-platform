@@ -1,0 +1,256 @@
+{
+  "info": {
+    "name": "FIAP X — Video API",
+    "description": "Upload, autenticação e consulta de status de processamento de vídeos. Exportada a partir do OpenAPI real gerado pelo video-api (springdoc, /v3/api-docs) — ver docs/README.md. Por padrão aponta para o video-gateway (baseUrl); use apiDirectUrl para bypassar o gateway em debug local.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "apiDirectUrl",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "user-{{$randomUUID}}@fiapx.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "senha-secreta-123",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "videoId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Cria um usuário (email único, senha 8-100 chars, hash BCrypt). 201 Created em caso de sucesso, 409 se o e-mail já existir."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Retorna JWT (accessToken, tokenType=Bearer, expiresIn). 401 em credenciais inválidas, 429 se o rate limit de login (5 tentativas/60s por e-mail) for excedido. O script de teste salva accessToken na variável de coleção automaticamente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Videos",
+      "item": [
+        {
+          "name": "Upload video",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('videoId', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/videos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "videos"
+              ]
+            },
+            "description": "Multipart, campo `file` (extensões aceitas: mp4, mov, avi, mkv, webm — ver VideoFormatValidator). 201 Created com status QUEUED; requer Bearer token. 400 se o formato não for suportado, 401 sem token."
+          },
+          "response": []
+        },
+        {
+          "name": "List videos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/videos?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "videos"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "QUEUED | PROCESSING | COMPLETED | FAILED"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Lista paginada dos vídeos do usuário autenticado (nunca de outro usuário), com filtro opcional por status."
+          },
+          "response": []
+        },
+        {
+          "name": "Get video status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/videos/{{videoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "videos",
+                "{{videoId}}"
+              ]
+            },
+            "description": "404 tanto para vídeo inexistente quanto para vídeo de outro usuário (não vaza existência de recurso alheio)."
+          },
+          "response": []
+        },
+        {
+          "name": "Download processed zip",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/videos/{{videoId}}/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "videos",
+                "{{videoId}}",
+                "download"
+              ]
+            },
+            "description": "application/octet-stream com o zip de frames. 409 se o vídeo ainda não estiver COMPLETED, 404 se não for do usuário autenticado."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

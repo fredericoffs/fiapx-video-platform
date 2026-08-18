@@ -6,12 +6,12 @@ Reescrita arquitetural do protótipo original (`projeto-fiapx`), feita para o Ha
 
 Upload de vídeo → fila (RabbitMQ) → extração de frames (`ffmpeg`) → zip → notificação em caso de erro. Quatro serviços independentes, sem banco compartilhado entre eles.
 
-| Serviço | Responsabilidade | Porta | Banco próprio |
-|---|---|---|---|
-| `video-gateway` | API Gateway (roteamento, CORS, rate limiting de borda) — ver [ADR-009](./docs/architecture/hld-lld-adr-rfc.md#adr-009--api-gateway-spring-cloud-gateway-em-vez-de-kong) | 8080 | nenhum |
-| `video-api` | Upload, autenticação (JWT), listagem/consulta de status, download | 8081 | Postgres, schema `video_api` |
-| `video-worker` | Consome a fila, roda `ffmpeg`, gera o `.zip` — **stateless**, sem acesso a banco (ver [ADR-008](./docs/architecture/hld-lld-adr-rfc.md#adr-008)) | 8082 | nenhum |
-| `notification-worker` | Consome eventos de falha, envia e-mail (+ webhook, incremento futuro) | 8083 | Postgres, schema `notification_worker` |
+| Serviço               | Responsabilidade                                                                                                                                                        | Porta | Banco próprio                          |
+|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|----------------------------------------|
+| `video-gateway`       | API Gateway (roteamento, CORS, rate limiting de borda) — ver [ADR-009](./docs/architecture/hld-lld-adr-rfc.md#adr-009--api-gateway-spring-cloud-gateway-em-vez-de-kong) | 8080  | nenhum                                 |
+| `video-api`           | Upload, autenticação (JWT), listagem/consulta de status, download                                                                                                       | 8081  | Postgres, schema `video_api`           |
+| `video-worker`        | Consome a fila, roda `ffmpeg`, gera o `.zip` — **stateless**, sem acesso a banco (ver [ADR-008](./docs/architecture/hld-lld-adr-rfc.md#adr-008))                        | 8082  | nenhum                                 |
+| `notification-worker` | Consome eventos de falha, envia e-mail (+ webhook, incremento futuro)                                                                                                   | 8083  | Postgres, schema `notification_worker` |
 
 Infra: PostgreSQL, RabbitMQ, Redis, MinIO (S3-compatible), Mailhog (SMTP local). Diagramas completos em [`docs/architecture/hld-lld-adr-rfc.md`](./docs/architecture/hld-lld-adr-rfc.md).
 
@@ -74,7 +74,9 @@ cd video-gateway && ./mvnw -B verify
 
 CI: cada serviço tem seu próprio workflow em `.github/workflows/`, disparado só quando arquivos daquele serviço mudam (`paths:` filter) — simula pipeline independente por microsserviço mesmo dentro do monorepo.
 
-**Qualidade e segurança**: análise estática de qualidade de código via [Qodana](https://www.jetbrains.com/qodana/) (`qodana.yaml` + `.github/workflows/qodana_code_quality.yml`, roda sobre o repositório inteiro a cada PR/push em `develop`) e análise de vulnerabilidades (OWASP Dependency-Check nas dependências Maven + Trivy nas imagens Docker, prevista para a Sprint 3) fazem parte formal da entrega, não só do processo interno de desenvolvimento.
+**Qualidade e segurança**: análise estática de qualidade de código via [Qodana](https://www.jetbrains.com/qodana/) (`qodana.yaml` + `.github/workflows/qodana_code_quality.yml`, roda sobre o repositório inteiro a cada PR/push em `develop`); cobertura de teste com piso de 90% (linha, JaCoCo) nos 4 serviços — gate no `mvn verify` (`jacoco:check`), relatório publicado como artefato do CI; e análise de vulnerabilidades (OWASP Dependency-Check nas dependências Maven + Trivy nas imagens Docker, ambos disparados no CI e publicados como artefato) fazem parte formal da entrega, não só do processo interno de desenvolvimento.
+
+**Documentação da API**: cada serviço expõe Swagger UI em `/swagger-ui.html` (OpenAPI 3.1 em `/v3/api-docs`, via [springdoc-openapi](https://springdoc.org/)) — mais relevante no `video-api`, que tem os endpoints de negócio (`/auth/**`, `/videos/**`). Postman collection correspondente versionada em [`docs/postman/fiapx-video-api.postman_collection.json`](./docs/postman/fiapx-video-api.postman_collection.json).
 
 ## Concorrência: virtual threads
 
