@@ -71,7 +71,7 @@ public class VideoController {
       @ApiResponse(responseCode = "400", description = "Formato de vídeo não suportado", content = @Content),
       @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content)
   })
-  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<VideoUploadResponse> upload(
       @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
       @Parameter(description = "Arquivo de vídeo (mp4, mov, avi, mkv ou webm)", required = true)
@@ -97,7 +97,7 @@ public class VideoController {
           content = @Content(schema = @Schema(implementation = VideoListResponse.class))),
       @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content)
   })
-  @GetMapping
+  @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
   public VideoListResponse list(
       @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
       @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
@@ -119,7 +119,7 @@ public class VideoController {
       @ApiResponse(responseCode = "404", description = "Vídeo não encontrado (ou pertence a outro usuário)",
           content = @Content)
   })
-  @GetMapping("/{id}")
+  @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
   public VideoStatusResponse getStatus(
       @Parameter(description = "ID do vídeo", in = ParameterIn.PATH) @PathVariable UUID id,
       @Parameter(hidden = true) @AuthenticationPrincipal UUID userId

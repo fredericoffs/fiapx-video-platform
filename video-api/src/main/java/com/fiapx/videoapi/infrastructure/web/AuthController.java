@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,7 +51,7 @@ public class AuthController {
           content = @Content),
       @ApiResponse(responseCode = "409", description = "E-mail já cadastrado", content = @Content)
   })
-  @PostMapping("/register")
+  @PostMapping(value = "/register", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
     RegisterUserResult result = registerUserUseCase.handle(new RegisterUserCommand(request.email(), request.password()));
     return ResponseEntity.status(HttpStatus.CREATED).body(RegisterResponse.from(result));
@@ -68,7 +69,7 @@ public class AuthController {
       @ApiResponse(responseCode = "429", description = "Rate limit de tentativas de login excedido",
           content = @Content)
   })
-  @PostMapping("/login")
+  @PostMapping(value = "/login", produces = MediaType.APPLICATION_JSON_VALUE)
   public LoginResponse login(@Valid @RequestBody LoginRequest request) {
     LoginResult result = loginUseCase.handle(new LoginCommand(request.email(), request.password()));
     return LoginResponse.from(result);
