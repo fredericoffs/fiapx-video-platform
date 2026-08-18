@@ -2,6 +2,7 @@ package com.fiapx.videoapi.application.usecase;
 
 import com.fiapx.videoapi.application.dto.VideoUploadCommand;
 import com.fiapx.videoapi.application.dto.VideoUploadResult;
+import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.model.VideoStatus;
@@ -19,10 +20,13 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,5 +79,17 @@ class RequestVideoProcessingUseCaseTest {
     assertThat(savedEvent.getAggregateId()).isEqualTo(savedVideo.getId());
     assertThat(savedEvent.getPayload()).contains(savedVideo.getId().toString()).contains("movie.mp4");
     assertThat(savedEvent.isPublished()).isFalse();
+  }
+
+  @Test
+  void rejectsUnsupportedFormatWithoutUploadingOrPersisting() {
+    InputStream content = new ByteArrayInputStream("fake-bytes".getBytes());
+    VideoUploadCommand command = new VideoUploadCommand(UUID.randomUUID(), "movie.txt", content, 10L, "text/plain");
+
+    assertThatThrownBy(() -> useCase.handle(command)).isInstanceOf(UnsupportedVideoFormatException.class);
+
+    verify(storageClient, never()).upload(anyString(), anyString(), any(), anyLong(), anyString());
+    verify(videoRepository, never()).save(any(Video.class));
+    verify(outboxEventRepository, never()).save(any(OutboxEvent.class));
   }
 }

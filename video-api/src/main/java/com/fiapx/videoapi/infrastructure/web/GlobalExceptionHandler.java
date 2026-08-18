@@ -3,6 +3,7 @@ package com.fiapx.videoapi.infrastructure.web;
 import com.fiapx.videoapi.domain.exception.EmailAlreadyRegisteredException;
 import com.fiapx.videoapi.domain.exception.InvalidCredentialsException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
+import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
 import com.fiapx.videoapi.domain.exception.VideoNotCompletedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -36,5 +37,10 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(LoginRateLimitExceededException.class)
   public ResponseEntity<String> handleLoginRateLimitExceeded(LoginRateLimitExceededException e) {
     return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(e.getMessage());
+  }
+
+  @ExceptionHandler(UnsupportedVideoFormatException.class)
+  public ResponseEntity<String> handleUnsupportedVideoFormat(UnsupportedVideoFormatException e) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
   }
 }

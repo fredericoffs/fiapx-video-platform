@@ -8,6 +8,7 @@ import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.domain.port.StorageClient;
 import com.fiapx.videoapi.domain.port.VideoRepository;
+import com.fiapx.videoapi.domain.service.VideoFormatValidator;
 import com.fiapx.videoapi.infrastructure.config.StorageProperties;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,8 @@ public class RequestVideoProcessingUseCase {
 
   @Transactional
   public VideoUploadResult handle(VideoUploadCommand command) {
+    VideoFormatValidator.validate(command.originalFilename());
+
     UUID videoId = UUID.randomUUID();
     String storageKey = "raw/" + videoId + "/" + command.originalFilename();
 
