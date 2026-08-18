@@ -46,3 +46,40 @@ jobs:
           name: video-api-coverage-report
           path: video-api/target/site/jacoco/
           retention-days: 7
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw -B dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-dependency-check-report
+          path: video-api/target/dependency-check-report.html
+          retention-days: 7
+
+      - name: Build Docker image
+        run: docker build -t video-api:ci .
+
+      # trivy-action pinned by commit SHA (not a tag): tags 0.0.1-0.34.2 were compromised in a
+      # 2026-03 supply-chain attack (GHSA-69fq-xp46-6x23). SHA below is the v0.36.0 tag, released
+      # after the fix. trivy-version is pinned explicitly for the same reason (avoid the
+      # compromised trivy CLI v0.69.4 / DockerHub v0.69.5-v0.69.6 window from the same incident).
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: video-api:ci
+          trivy-version: v0.74.0
+          format: sarif
+          output: video-api/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-trivy-report
+          path: video-api/trivy-results.sarif
+          retention-days: 7

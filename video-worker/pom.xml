@@ -173,6 +173,18 @@
         </executions>
       </plugin>
       <plugin>
+        <!-- Não vinculado a nenhuma fase — não roda em `mvn verify` local; disparado
+             explicitamente no CI via `./mvnw dependency-check:check` (ver workflow) para
+             não pagar o custo de sincronizar a base NVD em todo build local. -->
+        <groupId>org.owasp</groupId>
+        <artifactId>dependency-check-maven</artifactId>
+        <version>13.0.0</version>
+        <configuration>
+          <format>HTML</format>
+          <nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <executions>
