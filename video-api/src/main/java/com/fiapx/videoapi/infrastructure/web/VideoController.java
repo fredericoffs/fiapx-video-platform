@@ -13,6 +13,14 @@ import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.infrastructure.web.dto.VideoListResponse;
 import com.fiapx.videoapi.infrastructure.web.dto.VideoStatusResponse;
 import com.fiapx.videoapi.infrastructure.web.dto.VideoUploadResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.util.UUID;
 import org.springframework.core.io.InputStreamResource;
@@ -31,6 +39,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/videos")
+@Tag(name = "Videos", description = "Upload, listagem, consulta de status e download de vídeos. "
+    + "Todos os endpoints exigem Bearer JWT e só enxergam vídeos do próprio usuário autenticado (vídeo de outro usuário é tratado como inexistente).")
 public class VideoController {
 
   private final RequestVideoProcessingUseCase requestVideoProcessingUseCase;
@@ -50,9 +60,21 @@ public class VideoController {
     this.downloadVideoUseCase = downloadVideoUseCase;
   }
 
+  @Operation(
+      summary = "Envia um vídeo para processamento",
+      description = "Faz upload de um arquivo de vídeo (multipart), persiste com status QUEUED e publica um evento "
+          + "assíncrono para o video-worker extrair os frames. Formatos aceitos: mp4, mov, avi, mkv, webm (ver VideoFormatValidator)."
+  )
+  @ApiResponses({
+      @ApiResponse(responseCode = "201", description = "Vídeo aceito e enfileirado para processamento",
+          content = @Content(schema = @Schema(implementation = VideoUploadResponse.class))),
+      @ApiResponse(responseCode = "400", description = "Formato de vídeo não suportado", content = @Content),
+      @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content)
+  })
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<VideoUploadResponse> upload(
-      @AuthenticationPrincipal UUID userId,
+      @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
+      @Parameter(description = "Arquivo de vídeo (mp4, mov, avi, mkv ou webm)", required = true)
       @RequestParam("file") MultipartFile file
   ) throws IOException {
     VideoUploadCommand command = new VideoUploadCommand(
@@ -66,27 +88,64 @@ public class VideoController {
     return ResponseEntity.status(HttpStatus.CREATED).body(VideoUploadResponse.from(result));
   }
 
+  @Operation(
+      summary = "Lista os vídeos do usuário autenticado",
+      description = "Listagem paginada, opcionalmente filtrada por status. Nunca retorna vídeos de outros usuários."
+  )
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "OK",
+          content = @Content(schema = @Schema(implementation = VideoListResponse.class))),
+      @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content)
+  })
   @GetMapping
   public VideoListResponse list(
-      @AuthenticationPrincipal UUID userId,
-      @RequestParam(required = false) VideoStatus status,
-      @RequestParam(defaultValue = "0") int page,
-      @RequestParam(defaultValue = "20") int size
+      @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
+      @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
+      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
+      @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
   ) {
     PageResult<Video> result = listVideosUseCase.handle(userId, status, page, size);
     return VideoListResponse.from(result);
   }
 
+  @Operation(
+      summary = "Consulta o status de um vídeo",
+      description = "404 tanto para vídeo inexistente quanto para vídeo de outro usuário — não vaza a existência de um recurso alheio."
+  )
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "OK",
+          content = @Content(schema = @Schema(implementation = VideoStatusResponse.class))),
+      @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content),
+      @ApiResponse(responseCode = "404", description = "Vídeo não encontrado (ou pertence a outro usuário)",
+          content = @Content)
+  })
   @GetMapping("/{id}")
-  public VideoStatusResponse getStatus(@PathVariable UUID id, @AuthenticationPrincipal UUID userId) {
+  public VideoStatusResponse getStatus(
+      @Parameter(description = "ID do vídeo", in = ParameterIn.PATH) @PathVariable UUID id,
+      @Parameter(hidden = true) @AuthenticationPrincipal UUID userId
+  ) {
     Video video = getVideoStatusUseCase.handle(id, userId);
     return VideoStatusResponse.from(video);
   }
 
+  @Operation(
+      summary = "Baixa o zip de frames de um vídeo já processado",
+      description = "Retorna o zip como application/octet-stream, transmitido diretamente do storage (proxy de bytes) — não uma URL pré-assinada."
+  )
+  @ApiResponses({
+      @ApiResponse(responseCode = "200", description = "Zip com os frames extraídos",
+          content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+              schema = @Schema(type = "string", format = "binary"))),
+      @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content),
+      @ApiResponse(responseCode = "404", description = "Vídeo não encontrado (ou pertence a outro usuário)",
+          content = @Content),
+      @ApiResponse(responseCode = "409", description = "Vídeo ainda não está com status COMPLETED",
+          content = @Content)
+  })
   @GetMapping("/{id}/download")
   public ResponseEntity<InputStreamResource> download(
-      @PathVariable UUID id,
-      @AuthenticationPrincipal UUID userId
+      @Parameter(description = "ID do vídeo", in = ParameterIn.PATH) @PathVariable UUID id,
+      @Parameter(hidden = true) @AuthenticationPrincipal UUID userId
   ) {
     VideoDownload download = downloadVideoUseCase.handle(id, userId);
     return ResponseEntity.ok()
