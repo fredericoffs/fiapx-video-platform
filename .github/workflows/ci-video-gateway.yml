@@ -2,7 +2,7 @@ name: CI - video-gateway
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - "video-gateway/**"
       - ".github/workflows/ci-video-gateway.yml"
@@ -37,4 +37,12 @@ jobs:
         with:
           name: video-gateway-test-reports
           path: video-gateway/target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-gateway-coverage-report
+          path: video-gateway/target/site/jacoco/
           retention-days: 7

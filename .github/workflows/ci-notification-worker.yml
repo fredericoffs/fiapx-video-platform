@@ -2,7 +2,7 @@ name: CI - notification-worker
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - "notification-worker/**"
       - ".github/workflows/ci-notification-worker.yml"
@@ -37,4 +37,12 @@ jobs:
         with:
           name: notification-worker-test-reports
           path: notification-worker/target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-worker-coverage-report
+          path: notification-worker/target/site/jacoco/
           retention-days: 7

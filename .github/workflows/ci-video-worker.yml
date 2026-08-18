@@ -2,7 +2,7 @@ name: CI - video-worker
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - "video-worker/**"
       - ".github/workflows/ci-video-worker.yml"
@@ -37,4 +37,12 @@ jobs:
         with:
           name: video-worker-test-reports
           path: video-worker/target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-worker-coverage-report
+          path: video-worker/target/site/jacoco/
           retention-days: 7

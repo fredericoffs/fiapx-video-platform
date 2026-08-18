@@ -2,7 +2,7 @@ name: CI - video-api
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - "video-api/**"
       - ".github/workflows/ci-video-api.yml"
@@ -37,4 +37,12 @@ jobs:
         with:
           name: video-api-test-reports
           path: video-api/target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-coverage-report
+          path: video-api/target/site/jacoco/
           retention-days: 7
