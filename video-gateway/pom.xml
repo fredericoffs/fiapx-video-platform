@@ -48,6 +48,16 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
+    <!-- Backend HTTP do RestClient usado por HandlerFunctions.http() (proxy do gateway).
+         Sem isso, Spring cai no java.net.http.HttpClient embutido do JDK, que tem um bug
+         conhecido de NPE intermitente em conexões HTTP/1.1 reaproveitadas rapidamente
+         (jdk.internal.net.http.Http1Exchange$Http1RequestBodySubscriber.request) — visto
+         no CI em GatewayRoutingIntegrationTest#edgeRateLimitBlocksAfterCapacityExceeded,
+         que dispara requisições em sequência rápida. -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>com.tngtech.archunit</groupId>
@@ -154,7 +164,7 @@
           <nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable>
           <!-- Diretório fixo fora de target/ e compartilhado pelos 4 serviços (um nível
                acima de cada módulo) para que o CI cacheie a base NVD uma única vez em vez
-               de uma cópia por serviço — ver .github/workflows/ci-*.yml. -->
+               de uma cópia por serviço — ver .github/workflows/ci.yml. -->
           <dataDirectory>${project.basedir}/../.dependency-check-data</dataDirectory>
         </configuration>
       </plugin>
