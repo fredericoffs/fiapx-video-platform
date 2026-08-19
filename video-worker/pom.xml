@@ -187,6 +187,10 @@
         <configuration>
           <format>HTML</format>
           <nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable>
+          <!-- Diretório fixo fora de target/ e compartilhado pelos 4 serviços (um nível
+               acima de cada módulo) para que o CI cacheie a base NVD uma única vez em vez
+               de uma cópia por serviço — ver .github/workflows/ci-*.yml. -->
+          <dataDirectory>${project.basedir}/../.dependency-check-data</dataDirectory>
         </configuration>
       </plugin>
       <plugin>

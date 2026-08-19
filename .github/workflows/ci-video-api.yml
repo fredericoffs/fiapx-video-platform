@@ -47,6 +47,23 @@ jobs:
           path: video-api/target/site/jacoco/
           retention-days: 7
 
+      # Cache da base NVD compartilhado pelos 4 serviços (mesma key em todos os workflows,
+      # path definido via dataDirectory no pom.xml) — sem isso, cada job re-sincroniza a
+      # base inteira do zero (runner efêmero), o que é lento mesmo com NVD_API_KEY. Key por
+      # hora: a base muda com o tempo independente do pom; restore-keys busca a cópia mais
+      # recente disponível para sync incremental em vez de do zero.
+      - name: Get date for Dependency-Check cache key
+        id: get-date
+        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Dependency-Check NVD cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          restore-keys: |
+            dependency-check-nvd-
+
       - name: OWASP Dependency-Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
@@ -83,3 +100,12 @@ jobs:
           name: video-api-trivy-report
           path: video-api/trivy-results.sarif
           retention-days: 7
+
+      # if: always() garante que a base fica salva mesmo se um passo depois do
+      # Dependency-Check (build/scan da imagem, Trivy) falhar.
+      - name: Save Dependency-Check NVD cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}

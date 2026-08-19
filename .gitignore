@@ -8,3 +8,4 @@ target/
 .qodana/
 qodana-results/
 qodana-baseline-results/
+.dependency-check-data/
