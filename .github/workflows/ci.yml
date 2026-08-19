@@ -181,19 +181,20 @@ jobs:
           cache: "maven"
 
       # Cache da base NVD compartilhado pelos 4 serviços (mesma key em todos os jobs de
-      # segurança, path definido via dataDirectory no pom.xml) — sem isso, cada job
-      # re-sincroniza a base inteira do zero, o que é lento mesmo com NVD_API_KEY. Key por
-      # hora: a base muda com o tempo independente do pom; restore-keys busca a cópia mais
-      # recente disponível para sync incremental em vez de do zero.
+      # segurança, path definido via dataDirectory no pom.xml). Key por dia: a base do NVD
+      # não precisa de frescor de hora em hora para fins de scan, e uma key por hora gerava
+      # uma entrada de cache nova a cada execução, pressionando o limite de 10GB do
+      # repositório e arriscando despejar outros caches (ex.: o do Maven). restore-keys
+      # busca a cópia mais recente disponível para sync incremental em vez de do zero.
       - name: Get date for Dependency-Check cache key
         id: get-date
-        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
 
       - name: Restore Dependency-Check NVD cache
         uses: actions/cache/restore@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
           restore-keys: |
             dependency-check-nvd-
 
@@ -241,7 +242,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
 
   security-video-worker:
     needs: [ changes, build-test-video-worker, security-video-gateway ]
@@ -263,13 +264,13 @@ jobs:
 
       - name: Get date for Dependency-Check cache key
         id: get-date
-        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
 
       - name: Restore Dependency-Check NVD cache
         uses: actions/cache/restore@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
           restore-keys: |
             dependency-check-nvd-
 
@@ -311,7 +312,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
 
   security-video-api:
     needs: [ changes, build-test-video-api, security-video-worker ]
@@ -333,13 +334,13 @@ jobs:
 
       - name: Get date for Dependency-Check cache key
         id: get-date
-        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
 
       - name: Restore Dependency-Check NVD cache
         uses: actions/cache/restore@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
           restore-keys: |
             dependency-check-nvd-
 
@@ -381,7 +382,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
 
   security-notification-worker:
     needs: [ changes, build-test-notification-worker, security-video-api ]
@@ -403,13 +404,13 @@ jobs:
 
       - name: Get date for Dependency-Check cache key
         id: get-date
-        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
 
       - name: Restore Dependency-Check NVD cache
         uses: actions/cache/restore@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
           restore-keys: |
             dependency-check-nvd-
 
@@ -451,4 +452,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
