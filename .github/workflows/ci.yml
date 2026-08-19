@@ -1,0 +1,454 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changes: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            video-gateway:
+              - 'video-gateway/**'
+              - '.github/workflows/ci.yml'
+            video-worker:
+              - 'video-worker/**'
+              - '.github/workflows/ci.yml'
+            video-api:
+              - 'video-api/**'
+              - '.github/workflows/ci.yml'
+            notification-worker:
+              - 'notification-worker/**'
+              - '.github/workflows/ci.yml'
+
+  build-test-video-gateway:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changes), 'video-gateway')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+      - name: Build and test
+        run: ./mvnw -B verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-gateway-test-reports
+          path: video-gateway/target/surefire-reports/
+          retention-days: 7
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-gateway-coverage-report
+          path: video-gateway/target/site/jacoco/
+          retention-days: 7
+
+  build-test-video-worker:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changes), 'video-worker')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+      - name: Build and test
+        run: ./mvnw -B verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-worker-test-reports
+          path: video-worker/target/surefire-reports/
+          retention-days: 7
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-worker-coverage-report
+          path: video-worker/target/site/jacoco/
+          retention-days: 7
+
+  build-test-video-api:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changes), 'video-api')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+      - name: Build and test
+        run: ./mvnw -B verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-test-reports
+          path: video-api/target/surefire-reports/
+          retention-days: 7
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-coverage-report
+          path: video-api/target/site/jacoco/
+          retention-days: 7
+
+  build-test-notification-worker:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changes), 'notification-worker')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: notification-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+      - name: Build and test
+        run: ./mvnw -B verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-worker-test-reports
+          path: notification-worker/target/surefire-reports/
+          retention-days: 7
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-worker-coverage-report
+          path: notification-worker/target/site/jacoco/
+          retention-days: 7
+
+  # Os 4 jobs de segurança abaixo formam uma corrente sequencial fixa
+  # (gateway -> worker -> api -> notification-worker) via `needs`, para nunca ter mais de
+  # um job batendo na NVD API ao mesmo tempo: rodando em paralelo, os 4 tentavam baixar a
+  # base inteira simultaneamente e a NVD começava a devolver 503 (rate limit) para quem não
+  # terminava a tempo. Só o primeiro da fila paga o download completo a frio; os seguintes
+  # encontram a base já quente (mesma key do dia) e fazem sync incremental em ~1-2min.
+  # `always() + needs.<build-test>.result == 'success'` em vez do `if` implícito: sem isso,
+  # se o elo anterior da corrente for pulado (serviço sem mudança) ou falhar, o job seguinte
+  # seria pulado em cascata mesmo quando o SEU próprio serviço mudou e precisa ser escaneado.
+  # Não depende do target/ do job de build-test: o Dockerfile roda `mvn package` sozinho
+  # dentro do multi-stage build, e o dependency-check só precisa resolver as dependências,
+  # não dos .class já compilados.
+  security-video-gateway:
+    needs: [ changes, build-test-video-gateway ]
+    if: contains(fromJSON(needs.changes.outputs.changes), 'video-gateway')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      # Cache da base NVD compartilhado pelos 4 serviços (mesma key em todos os jobs de
+      # segurança, path definido via dataDirectory no pom.xml) — sem isso, cada job
+      # re-sincroniza a base inteira do zero, o que é lento mesmo com NVD_API_KEY. Key por
+      # hora: a base muda com o tempo independente do pom; restore-keys busca a cópia mais
+      # recente disponível para sync incremental em vez de do zero.
+      - name: Get date for Dependency-Check cache key
+        id: get-date
+        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Dependency-Check NVD cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          restore-keys: |
+            dependency-check-nvd-
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw -B dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-gateway-dependency-check-report
+          path: video-gateway/target/dependency-check-report.html
+          retention-days: 7
+
+      - name: Build Docker image
+        run: docker build -t video-gateway:ci .
+
+      # trivy-action pinned by commit SHA (not a tag): tags 0.0.1-0.34.2 were compromised in a
+      # 2026-03 supply-chain attack (GHSA-69fq-xp46-6x23). SHA below is the v0.36.0 tag, released
+      # after the fix. trivy-version is pinned explicitly for the same reason (avoid the
+      # compromised trivy CLI v0.69.4 / DockerHub v0.69.5-v0.69.6 window from the same incident).
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: video-gateway:ci
+          trivy-version: v0.74.0
+          format: sarif
+          output: video-gateway/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-gateway-trivy-report
+          path: video-gateway/trivy-results.sarif
+          retention-days: 7
+
+      # if: always() garante que a base fica salva mesmo se um passo depois do
+      # Dependency-Check (build/scan da imagem, Trivy) falhar.
+      - name: Save Dependency-Check NVD cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+
+  security-video-worker:
+    needs: [ changes, build-test-video-worker, security-video-gateway ]
+    if: |
+      always() &&
+      contains(fromJSON(needs.changes.outputs.changes), 'video-worker') &&
+      needs.build-test-video-worker.result == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Get date for Dependency-Check cache key
+        id: get-date
+        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Dependency-Check NVD cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          restore-keys: |
+            dependency-check-nvd-
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw -B dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-worker-dependency-check-report
+          path: video-worker/target/dependency-check-report.html
+          retention-days: 7
+
+      - name: Build Docker image
+        run: docker build -t video-worker:ci .
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: video-worker:ci
+          trivy-version: v0.74.0
+          format: sarif
+          output: video-worker/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-worker-trivy-report
+          path: video-worker/trivy-results.sarif
+          retention-days: 7
+
+      - name: Save Dependency-Check NVD cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+
+  security-video-api:
+    needs: [ changes, build-test-video-api, security-video-worker ]
+    if: |
+      always() &&
+      contains(fromJSON(needs.changes.outputs.changes), 'video-api') &&
+      needs.build-test-video-api.result == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Get date for Dependency-Check cache key
+        id: get-date
+        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Dependency-Check NVD cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          restore-keys: |
+            dependency-check-nvd-
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw -B dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-dependency-check-report
+          path: video-api/target/dependency-check-report.html
+          retention-days: 7
+
+      - name: Build Docker image
+        run: docker build -t video-api:ci .
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: video-api:ci
+          trivy-version: v0.74.0
+          format: sarif
+          output: video-api/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-api-trivy-report
+          path: video-api/trivy-results.sarif
+          retention-days: 7
+
+      - name: Save Dependency-Check NVD cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+
+  security-notification-worker:
+    needs: [ changes, build-test-notification-worker, security-video-api ]
+    if: |
+      always() &&
+      contains(fromJSON(needs.changes.outputs.changes), 'notification-worker') &&
+      needs.build-test-notification-worker.result == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: notification-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Get date for Dependency-Check cache key
+        id: get-date
+        run: echo "datetime=$(/bin/date -u "+%Y%m%d%H")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Dependency-Check NVD cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
+          restore-keys: |
+            dependency-check-nvd-
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw -B dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-worker-dependency-check-report
+          path: notification-worker/target/dependency-check-report.html
+          retention-days: 7
+
+      - name: Build Docker image
+        run: docker build -t notification-worker:ci .
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: notification-worker:ci
+          trivy-version: v0.74.0
+          format: sarif
+          output: notification-worker/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-worker-trivy-report
+          path: notification-worker/trivy-results.sarif
+          retention-days: 7
+
+      - name: Save Dependency-Check NVD cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.datetime }}
