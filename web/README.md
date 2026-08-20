@@ -1,32 +1,47 @@
-# React + TypeScript + Vite
+# fiapx video platform — web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+SPA (React 19 + TypeScript + Vite) que consome exclusivamente o `video-gateway`.
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cp .env.example .env   # ajuste VITE_API_BASE_URL se necessário
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Scripts
+
+- `npm run dev` — servidor de desenvolvimento (Vite).
+- `npm run build` — typecheck (`tsc -b`) + build de produção.
+- `npm run lint` — ESLint (`typescript-eslint` strict, `eslint-plugin-boundaries`).
+- `npm run typecheck` — só o typecheck.
+- `npm run format` / `format:check` — Prettier.
+- `npm run codegen` — regenera `src/shared/api/schema.gen.ts` a partir do OpenAPI real do
+  `video-api`. **Precisa do `video-api` de pé em `http://localhost:8081`**:
+  ```bash
+  cd .. && docker compose --profile app up -d postgres rabbitmq redis minio minio-init video-api
+  cd web && npm run codegen
+  ```
+  O CI falha se o schema commitado divergir do gerado (`git diff --exit-code` depois de rodar
+  o codegen contra o serviço real) — sempre rode `npm run codegen` e commite o resultado depois
+  de qualquer mudança de contrato no `video-api`.
+
+## Estrutura
+
+Organização feature-based (reforçada por `eslint-plugin-boundaries` — sem import cruzado entre
+`features/*` a não ser via `shared/`):
+
+```
+src/
+  app/            # bootstrap: providers, layout raiz, rotas
+  features/
+    auth/         # login, registro
+    upload/       # tela e lógica de upload
+    videos/       # listagem de status, download
+  shared/
+    api/          # cliente gerado (OpenAPI) + wrapper openapi-fetch
+    ui/           # componentes shadcn/ui reutilizáveis
+    hooks/
+    lib/          # session store (Zustand), utils
+```
