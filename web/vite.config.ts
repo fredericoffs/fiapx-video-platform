@@ -11,6 +11,7 @@ export default defineConfig({
       routesDirectory: './src/app/routes',
       generatedRouteTree: './src/app/routeTree.gen.ts',
       routeFileIgnorePrefix: '-',
+      autoCodeSplitting: true,
     }),
     react(),
     tailwindcss(),
