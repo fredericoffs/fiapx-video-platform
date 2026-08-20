@@ -2,7 +2,6 @@ import { create } from 'zustand'
 
 export interface Session {
   token: string
-  userId: string
   email: string
 }
 
