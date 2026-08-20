@@ -5,7 +5,10 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="flex items-center justify-between border-b px-6 py-3">
-        <span className="font-semibold">fiapx video platform</span>
+        <span className="flex items-center gap-2 font-heading text-lg font-bold tracking-tight">
+          <span className="size-2.5 bg-primary" aria-hidden />
+          fiapx<span className="text-primary">.</span>video
+        </span>
         <ThemeToggle />
       </header>
       <main className="flex-1 px-6 py-8">{children}</main>
