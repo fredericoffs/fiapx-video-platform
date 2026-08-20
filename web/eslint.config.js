@@ -46,14 +46,34 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
-      'boundaries/element-types': [
+      'boundaries/dependencies': [
         'error',
         {
           default: 'disallow',
-          rules: [
-            { from: 'app', allow: ['app', 'feature', 'shared'] },
-            { from: 'feature', allow: ['shared', ['feature', { feature: '${from.feature}' }]] },
-            { from: 'shared', allow: ['shared'] },
+          policies: [
+            {
+              from: { element: { type: 'app' } },
+              allow: [
+                { to: { element: { type: 'app' } } },
+                { to: { element: { type: 'feature' } } },
+                { to: { element: { type: 'shared' } } },
+              ],
+            },
+            {
+              from: { element: { type: 'feature' } },
+              allow: [
+                { to: { element: { type: 'shared' } } },
+                {
+                  to: {
+                    element: { type: 'feature', captured: { feature: '{{from.feature}}' } },
+                  },
+                },
+              ],
+            },
+            {
+              from: { element: { type: 'shared' } },
+              allow: [{ to: { element: { type: 'shared' } } }],
+            },
           ],
         },
       ],
