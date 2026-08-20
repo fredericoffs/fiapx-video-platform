@@ -1,0 +1,16 @@
+# ClusterIP-only, sem overlay que troque o tipo — video-api nunca é exposto fora do
+# cluster (fecha a pendência da Sprint 2; só video-gateway é externo).
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-api
+  labels:
+    app.kubernetes.io/name: video-api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: video-api
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081

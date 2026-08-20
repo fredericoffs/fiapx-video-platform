@@ -1,0 +1,25 @@
+# Cluster kind local para a Sprint 4 (Kubernetes local) — ver
+# docs/architecture/hld-lld-adr-rfc.md (ADR-010) e o Plano de Implementação, Sprint 4.
+#
+# 1 nó só (control-plane, também agenda pods): testado ao vivo em 2026-08-19 com
+# control-plane + 2 workers e travou uma máquina de 8GB inteira (host ficou com ~68MB
+# livres, até o Postgres — rodando sozinho havia mais de 1h — começou a falhar
+# `pg_isready` por timeout). kind não isola CPU/memória por nó "de verdade" quando
+# todos os nós são containers Docker no mesmo host — 3 nós só multiplicam overhead de
+# scheduler/kubelet sem ganhar isolamento real de recursos. HPA/KEDA continuam
+# provando escala real (1 réplica -> N sob carga -> volta ao mínimo), só não há
+# separação física entre onde a réplica extra é agendada.
+#
+# extraPortMappings expõe o NodePort do video-gateway (30080, fixado no overlay
+# k8s/apps/overlays/local) na porta 8080 do host — único ponto de entrada externo,
+# igual ao docker-compose local. video-api/video-worker/notification-worker
+# permanecem ClusterIP-only (fecha a pendência da Sprint 2).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: fiapx
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP

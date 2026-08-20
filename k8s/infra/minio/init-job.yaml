@@ -1,0 +1,26 @@
+# Equivalente Kubernetes do serviço "minio-init" do docker-compose.yml — mesma
+# imagem (minio/mc), mesmos 2 buckets. Mesmo motivo de nome fixo + delete-antes-de-
+# aplicar do migration-job.yaml do video-api (Job é imutável).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: fiapx
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          envFrom:
+            - secretRef:
+                name: minio
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
+              mc mb -p local/videos-raw &&
+              mc mb -p local/videos-processed

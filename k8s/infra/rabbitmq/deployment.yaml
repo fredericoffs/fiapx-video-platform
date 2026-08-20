@@ -1,0 +1,66 @@
+# Manifest próprio em vez de Helm/Bitnami: docker.io/bitnami/rabbitmq não tem mais
+# nenhuma tag pública (Broadcom moveu para o catálogo pago "Bitnami Secure Images"),
+# confirmado consultando a API do Docker Hub durante a Sprint 4 (count: 0 tags).
+# Usa a MESMA imagem oficial já validada no docker-compose.yml — sem imagem nova para
+# confiar, só uma forma diferente de rodá-la.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: fiapx
+  labels:
+    app.kubernetes.io/name: rabbitmq
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # PVC ReadWriteOnce — evita 2 pods disputando o mesmo volume num rollout
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management-alpine
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+          envFrom:
+            - secretRef:
+                name: rabbitmq
+          # timeoutSeconds explícito: rabbitmq-diagnostics sobe seu próprio nó Erlang
+          # para conectar por Erlang distribuído — o default de 1s do probe não é
+          # suficiente mesmo com o RabbitMQ já saudável (visto na prática: probe
+          # "timed out after 1s" derrubando o pod em loop mesmo com o server já com
+          # "Server startup complete" no log).
+          readinessProbe:
+            exec:
+              command: [ "rabbitmq-diagnostics", "-q", "ping" ]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: [ "rabbitmq-diagnostics", "-q", "ping" ]
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data

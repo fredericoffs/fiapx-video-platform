@@ -1,0 +1,27 @@
+# Bitnami postgresql — banco único compartilhado por video-api (schema video_api) e
+# notification-worker (schema notification_worker, a partir da Sprint 6), ver ADR-008.
+# Credenciais iguais ao default do docker-compose.yml/.env.example — uso local apenas,
+# nunca produção (mesmo aviso já presente no .env.example).
+auth:
+  username: fiapx
+  password: fiapx
+  database: fiapx
+
+primary:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 1Gi
+  readinessProbe:
+    enabled: true
+  livenessProbe:
+    enabled: true
+
+volumePermissions:
+  enabled: false

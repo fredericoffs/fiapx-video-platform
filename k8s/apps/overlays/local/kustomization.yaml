@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fiapx
+
+resources:
+  - ../../base
+  - secret.yaml
+
+# NodePort fixo (30080), casando com o extraPortMappings do kind
+# (k8s/kind/cluster-config.yaml): host 8080 -> nó 30080 -> video-gateway.
+# SPRING_FLYWAY_ENABLED=false no video-api: em Kubernetes quem migra é o
+# migration-job.yaml (base), não o app subindo sozinho — ver comentário no
+# deployment.yaml do video-api.
+patches:
+  - target:
+      kind: Service
+      name: video-gateway
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30080
+  - target:
+      kind: Deployment
+      name: video-api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value: []
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_FLYWAY_ENABLED
+          value: "false"

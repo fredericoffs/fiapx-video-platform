@@ -1,0 +1,24 @@
+# Placeholder — prova que o padrão de overlay do ADR-010 (emenda "caminho explícito
+# para AWS", docs/architecture/hld-lld-adr-rfc.md linha ~520) existe e é usável, não um
+# alvo real hoje. Nada neste overlay é aplicado em nenhum cluster (ADR-012: sem nuvem
+# pública como padrão de execução) — falta ingressClassName real (ex.: alb, se EKS+
+# AWS Load Balancer Controller), host/TLS e cert-manager, tudo fora de escopo enquanto
+# ADR-012 não for revisitado.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: video-gateway
+  annotations:
+    kubernetes.io/ingress.class: "REPLACE_ME" # ex.: alb
+spec:
+  rules:
+    - host: REPLACE_ME.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080

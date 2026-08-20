@@ -1,0 +1,57 @@
+# Sem migration-job dedicado (ao contrário do video-api): ainda não existem *.sql em
+# notification-worker/src/main/resources/db/migration (chegam na Sprint 6, LLD 5.5).
+# Até lá, o Flyway do próprio app cria só o schema vazio "notification_worker" no
+# startup (create-schemas: true, zero migrations = no-op) — comportamento idêntico ao
+# que já roda hoje em docker-compose.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-worker
+  labels:
+    app.kubernetes.io/name: notification-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: notification-worker
+    spec:
+      containers:
+        - name: notification-worker
+          image: fiapx/notification-worker:local
+          ports:
+            - name: http
+              containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: fiapx-config
+            - secretRef:
+                name: fiapx-secrets
+          # startupProbe: ver comentário equivalente em video-api/deployment.yaml — mesmo
+          # problema de boot lento do Spring sob CPU limitada do kind.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

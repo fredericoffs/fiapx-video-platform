@@ -1,0 +1,16 @@
+# ClusterIP só para scrape do /actuator/prometheus (Sprint 7) — video-worker não
+# recebe tráfego HTTP de negócio, consome fila.
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-worker
+  labels:
+    app.kubernetes.io/name: video-worker
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: video-worker
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082

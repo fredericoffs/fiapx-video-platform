@@ -4,6 +4,12 @@ on:
   push:
     branches: [ main, develop ]
   pull_request:
+  # k8s-smoke-test (Sprint 4) só roda sob demanda: `main` ainda não existe no remoto,
+  # então o deploy automático em push/merge é escopo da Sprint 7 (que também cria a
+  # main de verdade) — aqui só validamos manualmente que os manifests/scripts
+  # funcionam de ponta a ponta, sem atrasar o CI normal de todo push/PR com um
+  # cluster kind inteiro.
+  workflow_dispatch:
 
 jobs:
   changes:
@@ -389,6 +395,73 @@ jobs:
         with:
           path: .dependency-check-data
           key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
+
+  # Validação de ponta a ponta dos manifests da Sprint 4 (k8s/) — sobe um cluster kind
+  # de verdade no runner, aplica os mesmos manifests/scripts usados localmente
+  # (scripts/k8s-up.sh, não uma cópia divergente) e prova que o KEDA escala o
+  # video-worker sob carga. workflow_dispatch-only, ver comentário no gatilho `on:`.
+  # kubectl/kind/helm instalados via download oficial (não Actions de terceiros) —
+  # mesma cautela de cadeia de suprimentos do Trivy (ver security-video-gateway).
+  k8s-smoke-test:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install kubectl
+        run: |
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+      - name: Install kind
+        run: |
+          KIND_VERSION="$(curl -Ls https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
+          curl -Lo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+
+      - name: Install helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Ensure ffmpeg is present
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Bring up local Kubernetes environment
+        run: ./scripts/k8s-up.sh
+
+      - name: Run load test
+        run: ./scripts/k8s-loadtest.sh 20
+
+      # video-worker começa com 1 réplica (minReplicaCount do ScaledObject) — sob os 20
+      # uploads do load test, a fila video.processing deve passar do threshold
+      # (queueLength=5) e o KEDA escalar antes do timeout de 5min abaixo.
+      - name: Assert video-worker scaled beyond minimum
+        run: |
+          for _attempt in $(seq 1 30); do
+            REPLICAS="$(kubectl -n fiapx get deployment video-worker -o jsonpath='{.status.replicas}')"
+            echo "video-worker replicas: ${REPLICAS}"
+            if [ "${REPLICAS}" -gt 1 ]; then
+              echo "escalou para ${REPLICAS} réplicas"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "video-worker nunca escalou acima do mínimo em 5 min"
+          exit 1
+
+      - name: Dump pod status on failure
+        if: failure()
+        run: |
+          kubectl -n fiapx get pods
+          kubectl -n fiapx describe pods
+          kubectl -n fiapx logs -l app.kubernetes.io/name=video-worker --tail=200
+
+      - name: Tear down cluster
+        if: always()
+        run: ./scripts/k8s-down.sh
 
   security-notification-worker:
     needs: [ changes, build-test-notification-worker, security-video-api ]

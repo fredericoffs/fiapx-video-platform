@@ -1,0 +1,46 @@
+# KEDA ScaledObject combinando os dois triggers pedidos no Plano de Implementação
+# (Sprint 4, tarefa 5): profundidade da fila video.processing (trigger principal —
+# um worker CPU-bound processando um vídeo grande pode ter CPU alta com fila ainda
+# maior esperando, daí não bastar só CPU) + CPU como sinal complementar. Qualquer
+# trigger acima do alvo dispara o scale-out (comportamento padrão do KEDA com
+# múltiplos triggers).
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: fiapx-secrets
+      key: RABBITMQ_MANAGEMENT_URL
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: video-worker
+spec:
+  scaleTargetRef:
+    name: video-worker
+  # maxReplicaCount reduzido de 5 para 3 — mesmo motivo do hpa.yaml do video-api (teste
+  # ao vivo em 2026-08-19, máquina de 8GB).
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  pollingInterval: 15
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata:
+        queueName: video.processing
+        mode: QueueLength
+        value: "5"
+        protocol: http
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+    # `metadata.type` é a forma antiga (removida na versão do KEDA instalada por
+    # k8s/addons/install.sh) — descoberto ao vivo via `KEDAScalerFailed: error parsing
+    # cpu metadata`. `metricType` é campo irmão de `type`/`metadata`, não chave dentro
+    # de `metadata`.
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-gateway
+  labels:
+    app.kubernetes.io/name: video-gateway
+spec:
+  # 1 réplica de repouso — reduzido de 2 depois do teste ao vivo em 2026-08-19 mostrar
+  # que 2 réplicas de cada um dos 4 serviços simultaneamente não cabe confortavelmente
+  # numa máquina de 8GB (ver comentário em k8s/kind/cluster-config.yaml). Sem HPA aqui
+  # (só video-api tem HPA por CPU); se der problema real de capacidade sob carga no
+  # gateway, subir manualmente é só mudar este número.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: video-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: video-gateway
+    spec:
+      containers:
+        - name: video-gateway
+          image: fiapx/video-gateway:local
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: fiapx-config
+          # startupProbe: ver comentário equivalente em video-api/deployment.yaml — mesmo
+          # problema de boot lento do Spring sob CPU limitada do kind.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

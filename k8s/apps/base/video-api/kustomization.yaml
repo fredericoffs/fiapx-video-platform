@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - migration-job.yaml
+
+# Gera o ConfigMap montado pelo migration-job.yaml a partir das *.sql reais do
+# video-api — fonte única de verdade, nada duplicado à mão aqui. Kustomize sufixa o
+# nome com um hash do conteúdo e reescreve a referência no Job automaticamente.
+configMapGenerator:
+  - name: video-api-migrations-sql
+    files:
+      - ../../../../video-api/src/main/resources/db/migration/V1__init.sql
+      - ../../../../video-api/src/main/resources/db/migration/V2__users.sql

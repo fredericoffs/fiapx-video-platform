@@ -1,0 +1,53 @@
+# Job dedicado de migração — roda as MESMAS *.sql de video-api/src/main/resources/
+# db/migration (montadas via ConfigMap gerado no kustomization.yaml deste diretório),
+# usando o CLI oficial do Flyway em vez de subir o JAR inteiro do video-api só para
+# migrar. Só cobre o schema video_api: notification_worker ainda não tem migrations
+# reais (chegam na Sprint 6) — até lá ele continua se automigrando (sem-op) no próprio
+# startup do notification-worker, como já faz hoje.
+#
+# Nome fixo ("video-api-migrate") de propósito: os scripts de deploy fazem
+# `kubectl delete job/video-api-migrate --ignore-not-found` antes de reaplicar, porque
+# o campo .spec.template de um Job é imutável — não dá para só "kubectl apply" de novo
+# por cima com conteúdo novo.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: video-api-migrate
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: flyway
+          image: flyway/flyway:10-alpine
+          args:
+            - migrate
+          env:
+            - name: FLYWAY_URL
+              value: jdbc:postgresql://postgres-postgresql:5432/fiapx
+            - name: FLYWAY_SCHEMAS
+              value: video_api
+            - name: FLYWAY_DEFAULT_SCHEMA
+              value: video_api
+            - name: FLYWAY_CREATE_SCHEMAS
+              value: "true"
+            - name: FLYWAY_LOCATIONS
+              value: filesystem:/flyway/sql
+            - name: FLYWAY_USER
+              valueFrom:
+                secretKeyRef:
+                  name: fiapx-secrets
+                  key: DB_USER
+            - name: FLYWAY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fiapx-secrets
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: migrations
+              mountPath: /flyway/sql
+      volumes:
+        - name: migrations
+          configMap:
+            name: video-api-migrations-sql

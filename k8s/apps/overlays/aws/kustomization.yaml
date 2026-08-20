@@ -1,0 +1,18 @@
+# Stub — ver comentário em ingress.yaml. Existe para provar o padrão "mesmos
+# manifests via overlay Kustomize" do ADR-010; não é build/deploy alvo desta sprint.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fiapx
+
+resources:
+  - ../../base
+  - ingress.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: video-api
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 4

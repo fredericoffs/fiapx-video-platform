@@ -1,0 +1,47 @@
+# Config não sensível compartilhada pelos 4 serviços — superset de env vars; cada
+# Deployment usa envFrom e ignora as chaves que não lê. Hostnames (postgres/rabbitmq/
+# redis/minio) batem com os releases Helm em k8s/infra/install.sh, que por sua vez
+# batem com os nomes de serviço já usados no docker-compose.yml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fiapx-config
+data:
+  # "postgres-postgresql", não "postgres": nome real do Service gerado pelo chart
+  # Bitnami (confirmado via `kubectl get svc` — o helper de nomenclatura do chart não
+  # colapsa release+chart num nome só aqui, ao contrário do que a doc do chart dava a
+  # entender). rabbitmq/minio abaixo são nomes literais dos Services próprios em
+  # k8s/infra/{rabbitmq,minio}/service.yaml, esses sim exatamente "rabbitmq"/"minio".
+  DB_HOST: "postgres-postgresql"
+  DB_PORT: "5432"
+  DB_NAME: "fiapx"
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  REDIS_HOST: "redis-master"
+  REDIS_PORT: "6379"
+  STORAGE_ENDPOINT: "http://minio:9000"
+  STORAGE_BUCKET_RAW: "videos-raw"
+  STORAGE_BUCKET_PROCESSED: "videos-processed"
+  JWT_EXPIRATION_MINUTES: "30"
+  LOGIN_RATE_LIMIT_MAX_ATTEMPTS: "5"
+  LOGIN_RATE_LIMIT_WINDOW_SECONDS: "60"
+  VIDEO_API_URI: "http://video-api:8081"
+  GATEWAY_RATE_LIMIT_CAPACITY: "20"
+  GATEWAY_RATE_LIMIT_PERIOD_SECONDS: "60"
+  QUEUE_STATUS_UPDATES: "video.status-updates"
+  QUEUE_NOTIFICATION: "video.notification"
+  QUEUE_PROCESSING: "video.processing"
+  QUEUE_PROCESSING_DLX: "video.processing.dlx"
+  QUEUE_PROCESSING_DLQ: "video.processing.dlq"
+  FFMPEG_FPS: "1"
+  SMTP_HOST: "mailhog"
+  SMTP_PORT: "1025"
+  # Mailhog não é implantado no cluster (sem uso real ainda — RF5/Sprint 6). Sem isso,
+  # o health indicator de mail do Actuator (ativo por padrão com
+  # spring-boot-starter-mail no classpath) tenta abrir conexão SMTP de verdade e marca
+  # /actuator/health como DOWN (503) só por isso — descoberto ao vivo: startupProbe do
+  # notification-worker nunca passava, `UnknownHostException: mailhog` no log. Uma
+  # dependência externa fora do ar não deveria derrubar a liveness do pod — é
+  # exatamente o tipo de falha que o Circuit Breaker por canal da Sprint 6 existe para
+  # isolar graciosamente, não para crash-loopar o container.
+  MANAGEMENT_HEALTH_MAIL_ENABLED: "false"

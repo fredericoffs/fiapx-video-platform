@@ -1,0 +1,20 @@
+# Bitnami redis — standalone (sem réplicas/sentinel, igual ao docker-compose local),
+# sem auth (mesmo comportamento do redis:7-alpine sem senha usado hoje em Compose).
+architecture: standalone
+
+auth:
+  enabled: false
+
+master:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  persistence:
+    enabled: false
+
+replica:
+  replicaCount: 0

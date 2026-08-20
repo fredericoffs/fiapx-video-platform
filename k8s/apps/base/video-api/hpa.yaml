@@ -1,0 +1,26 @@
+# HPA por CPU (RT2) — depende do metrics-server instalado por k8s/addons/install.sh.
+# min/max reduzidos de 2/6 para 1/3 depois do teste ao vivo em 2026-08-19 mostrar que
+# rodar tudo em capacidade alta simultaneamente não cabe numa máquina de 8GB (ver
+# comentário em k8s/kind/cluster-config.yaml) — o ponto do HPA é provar que 1 réplica
+# vira mais sob carga real, não manter várias ociosas em repouso.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: video-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: video-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60

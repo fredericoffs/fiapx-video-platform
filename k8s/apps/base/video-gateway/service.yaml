@@ -1,0 +1,16 @@
+# ClusterIP no base — o overlay decide como expor externamente (NodePort em
+# k8s/apps/overlays/local via kind extraPortMappings, Ingress em overlays/aws).
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-gateway
+  labels:
+    app.kubernetes.io/name: video-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: video-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
