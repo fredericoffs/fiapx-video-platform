@@ -1,12 +1,11 @@
+import { RouterProvider } from '@tanstack/react-router'
 import { Providers } from '@/app/providers'
-import { Layout } from '@/app/layout'
+import { router } from '@/app/router'
 
 function App() {
   return (
     <Providers>
-      <Layout>
-        <p className="text-muted-foreground">Sprint 5 em construção.</p>
-      </Layout>
+      <RouterProvider router={router} />
     </Providers>
   )
 }

@@ -1,0 +1,2 @@
+src/shared/api/schema.gen.ts
+src/app/routeTree.gen.ts

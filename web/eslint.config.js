@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  { ignores: ['dist', 'src/shared/api/schema.gen.ts', 'src/app/routes/routeTree.gen.ts'] },
+  { ignores: ['dist', 'src/shared/api/schema.gen.ts', 'src/app/routeTree.gen.ts'] },
   {
     extends: [
       js.configs.recommended,
