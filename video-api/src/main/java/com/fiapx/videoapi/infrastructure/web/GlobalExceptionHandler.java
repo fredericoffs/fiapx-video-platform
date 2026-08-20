@@ -7,61 +7,56 @@ import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
 import com.fiapx.videoapi.domain.exception.VideoNotCompletedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * Todas as respostas aqui são {@code text/plain} explícito (nunca HTML) — mesmo quando a
- * mensagem embute input do usuário (e-mail, nome de arquivo), o navegador não interpreta
- * texto puro como script; combinado ao header {@code X-Content-Type-Options: nosniff}
- * (padrão do Spring Security, não desativado em SecurityConfig), fecha a classe de XSS
- * refletido que scanners de SAST costumam apontar de forma genérica em qualquer sink de
- * resposta HTTP, independentemente do Content-Type real.
+ * Todas as respostas aqui são {@code application/problem+json} (RFC 7807, via
+ * {@link ProblemDetail}) — nunca HTML. Erros não tratados aqui (ex.: falha de validação em
+ * {@code @Valid}) seguem o mesmo formato porque {@code spring.mvc.problemdetails.enabled=true}
+ * está ligado em application.yml. O navegador não interpreta JSON como script; combinado ao
+ * header {@code X-Content-Type-Options: nosniff} (padrão do Spring Security, não desativado em
+ * SecurityConfig), fecha a classe de XSS refletido que scanners de SAST costumam apontar de
+ * forma genérica em qualquer sink de resposta HTTP que embuta input do usuário (e-mail, nome
+ * de arquivo), independentemente do Content-Type real.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
   @ExceptionHandler(VideoNotFoundException.class)
-  public ResponseEntity<String> handleVideoNotFound(VideoNotFoundException e) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        .contentType(MediaType.TEXT_PLAIN)
-        .body(e.getMessage());
+  public ProblemDetail handleVideoNotFound(VideoNotFoundException e) {
+    return problem(HttpStatus.NOT_FOUND, "Vídeo não encontrado", e.getMessage());
   }
 
   @ExceptionHandler(VideoNotCompletedException.class)
-  public ResponseEntity<String> handleVideoNotCompleted(VideoNotCompletedException e) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .contentType(MediaType.TEXT_PLAIN)
-        .body(e.getMessage());
+  public ProblemDetail handleVideoNotCompleted(VideoNotCompletedException e) {
+    return problem(HttpStatus.CONFLICT, "Vídeo ainda não processado", e.getMessage());
   }
 
   @ExceptionHandler(EmailAlreadyRegisteredException.class)
-  public ResponseEntity<String> handleEmailAlreadyRegistered(EmailAlreadyRegisteredException e) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .contentType(MediaType.TEXT_PLAIN)
-        .body(e.getMessage());
+  public ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException e) {
+    return problem(HttpStatus.CONFLICT, "E-mail já cadastrado", e.getMessage());
   }
 
   @ExceptionHandler(InvalidCredentialsException.class)
-  public ResponseEntity<String> handleInvalidCredentials(InvalidCredentialsException e) {
-    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-        .contentType(MediaType.TEXT_PLAIN)
-        .body(e.getMessage());
+  public ProblemDetail handleInvalidCredentials(InvalidCredentialsException e) {
+    return problem(HttpStatus.UNAUTHORIZED, "Credenciais inválidas", e.getMessage());
   }
 
   @ExceptionHandler(LoginRateLimitExceededException.class)
-  public ResponseEntity<String> handleLoginRateLimitExceeded(LoginRateLimitExceededException e) {
-    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-        .contentType(MediaType.TEXT_PLAIN)
-        .body(e.getMessage());
+  public ProblemDetail handleLoginRateLimitExceeded(LoginRateLimitExceededException e) {
+    return problem(HttpStatus.TOO_MANY_REQUESTS, "Muitas tentativas de login", e.getMessage());
   }
 
   @ExceptionHandler(UnsupportedVideoFormatException.class)
-  public ResponseEntity<String> handleUnsupportedVideoFormat(UnsupportedVideoFormatException e) {
-    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .contentType(MediaType.TEXT_PLAIN)
-        .body(e.getMessage());
+  public ProblemDetail handleUnsupportedVideoFormat(UnsupportedVideoFormatException e) {
+    return problem(HttpStatus.BAD_REQUEST, "Formato de vídeo não suportado", e.getMessage());
+  }
+
+  private ProblemDetail problem(HttpStatus status, String title, String detail) {
+    ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, detail);
+    problemDetail.setTitle(title);
+    return problemDetail;
   }
 }

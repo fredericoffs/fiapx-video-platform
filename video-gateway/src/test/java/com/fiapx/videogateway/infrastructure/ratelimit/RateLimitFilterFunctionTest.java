@@ -4,10 +4,13 @@ import java.net.InetSocketAddress;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.function.HandlerFunction;
 import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
+
+import com.fiapx.videogateway.infrastructure.config.GatewayRouteProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -26,7 +29,9 @@ class RateLimitFilterFunctionTest {
   @BeforeEach
   void setUp() {
     rateLimiter = mock(EdgeRateLimiter.class);
-    filterFunction = new RateLimitFilterFunction(rateLimiter);
+    GatewayRouteProperties properties = new GatewayRouteProperties(
+        "http://localhost:8081", new GatewayRouteProperties.RateLimit(20, 60));
+    filterFunction = new RateLimitFilterFunction(rateLimiter, properties);
     request = mock(ServerRequest.class);
     next = mock(HandlerFunction.class);
     when(request.remoteAddress()).thenReturn(Optional.of(new InetSocketAddress("192.168.0.10", 54321)));
@@ -50,6 +55,7 @@ class RateLimitFilterFunctionTest {
     ServerResponse response = filterFunction.filter(request, next);
 
     assertThat(response.statusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    assertThat(response.headers().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("60");
     verify(next, never()).handle(request);
   }
 
