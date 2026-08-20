@@ -1,15 +1,13 @@
-import { ThemeProvider } from '@/app/theme-provider'
+import { Providers } from '@/app/providers'
 import { Layout } from '@/app/layout'
-import { Toaster } from '@/shared/ui/sonner'
 
 function App() {
   return (
-    <ThemeProvider>
+    <Providers>
       <Layout>
         <p className="text-muted-foreground">Sprint 5 em construção.</p>
       </Layout>
-      <Toaster />
-    </ThemeProvider>
+    </Providers>
   )
 }
 
