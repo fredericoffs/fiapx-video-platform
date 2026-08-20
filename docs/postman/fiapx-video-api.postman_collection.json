@@ -17,8 +17,9 @@
     },
     {
       "key": "email",
-      "value": "user-{{$randomUUID}}@fiapx.com",
-      "type": "string"
+      "value": "",
+      "type": "string",
+      "description": "Preenchido automaticamente pelo pre-request script do Register (evita reavaliar {{$randomUUID}} a cada request e gerar e-mails diferentes entre Register/Login)."
     },
     {
       "key": "password",
@@ -42,6 +43,18 @@
       "item": [
         {
           "name": "Register",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const uuid = pm.variables.replaceIn('{{$randomUUID}}');",
+                  "pm.collectionVariables.set('email', `user-${uuid}@fiapx.com`);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -64,7 +77,7 @@
                 "register"
               ]
             },
-            "description": "Cria um usuário (email único, senha 8-100 chars, hash BCrypt). 201 Created em caso de sucesso, 409 se o e-mail já existir."
+            "description": "Cria um usuário (email único, senha 8-100 chars, hash BCrypt). 201 Created em caso de sucesso, 409 se o e-mail já existir.\n\nO pre-request script gera um e-mail aleatório e o grava na variável de coleção `email` ANTES de montar o body, então Login e outras requisições reutilizam exatamente o mesmo e-mail registrado aqui."
           },
           "response": []
         },
@@ -233,6 +246,10 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/octet-stream"
               }
             ],
             "url": {
@@ -246,7 +263,7 @@
                 "download"
               ]
             },
-            "description": "application/octet-stream com o zip de frames. 409 se o vídeo ainda não estiver COMPLETED, 404 se não for do usuário autenticado."
+            "description": "application/octet-stream com o zip de frames. 409 se o vídeo ainda não estiver COMPLETED, 404 se não for do usuário autenticado.\n\nO botão \"Send\" normal do Postman sempre renderiza a resposta inline no body (por isso aparecem bytes binários como texto). Para salvar o arquivo em disco, use a seta ao lado do botão Send e escolha \"Send and Download\" — aí o Postman abre o diálogo nativo de salvar arquivo, respeitando o filename do header Content-Disposition."
           },
           "response": []
         }
