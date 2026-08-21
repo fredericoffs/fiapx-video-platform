@@ -39,6 +39,14 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
+    <!-- /actuator/prometheus já estava na lista de exposição do Actuator, mas sem este
+         registry o endpoint não emite formato Prometheus de verdade (Sprint 7). Como
+         bônus, as métricas de Circuit Breaker do Resilience4j (email-channel,
+         webhook-channel) passam a ser exportadas automaticamente, sem config extra. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-amqp</artifactId>
