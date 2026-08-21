@@ -87,7 +87,8 @@ class ApplyProcessingResultUseCaseTest {
     Video video = Video.newQueued(UUID.randomUUID(), userId, "movie.mp4", "raw/movie.mp4");
     when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
     when(userRepository.findById(userId))
-        .thenReturn(Optional.of(new User(userId, "dono@example.com", "hash", java.time.Instant.now())));
+        .thenReturn(Optional.of(
+            new User(userId, "dono@example.com", "hash", com.fiapx.videoapi.domain.model.Role.USER, java.time.Instant.now())));
 
     useCase.handle(
         new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED, video.getId(), null, "ffmpeg falhou"));

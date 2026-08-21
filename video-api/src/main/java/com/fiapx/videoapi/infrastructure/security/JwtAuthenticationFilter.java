@@ -1,6 +1,7 @@
 package com.fiapx.videoapi.infrastructure.security;
 
 import com.fiapx.videoapi.domain.exception.InvalidTokenException;
+import com.fiapx.videoapi.domain.model.Role;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -38,8 +40,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       String token = header.substring(BEARER_PREFIX.length());
       try {
         UUID userId = jwtService.parseUserId(token);
+        Role role = jwtService.parseRole(token);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-            userId, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))
+            userId, null, authoritiesFor(role)
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
       } catch (InvalidTokenException e) {
@@ -47,5 +50,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       }
     }
     filterChain.doFilter(request, response);
+  }
+
+  private List<GrantedAuthority> authoritiesFor(Role role) {
+    return role == Role.ADMIN
+        ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
+        : List.of(new SimpleGrantedAuthority("ROLE_USER"));
   }
 }

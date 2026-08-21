@@ -4,6 +4,7 @@ import com.fiapx.videoapi.application.dto.LoginCommand;
 import com.fiapx.videoapi.application.dto.LoginResult;
 import com.fiapx.videoapi.domain.exception.InvalidCredentialsException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
+import com.fiapx.videoapi.domain.model.Role;
 import com.fiapx.videoapi.domain.model.User;
 import com.fiapx.videoapi.domain.port.LoginRateLimiter;
 import com.fiapx.videoapi.domain.port.UserRepository;
@@ -39,7 +40,7 @@ class LoginUseCaseTest {
 
   @BeforeEach
   void setUp() {
-    user = new User(UUID.randomUUID(), email, passwordEncoder.encode(rawPassword), null);
+    user = new User(UUID.randomUUID(), email, passwordEncoder.encode(rawPassword), Role.USER, null);
   }
 
   @Test
@@ -50,6 +51,7 @@ class LoginUseCaseTest {
     LoginResult result = useCase.handle(new LoginCommand(email, rawPassword));
 
     assertThat(jwtService.parseUserId(result.accessToken())).isEqualTo(user.getId());
+    assertThat(result.role()).isEqualTo(Role.USER);
     verify(loginRateLimiter).reset(email);
     verify(loginRateLimiter, never()).registerFailedAttempt(email);
   }

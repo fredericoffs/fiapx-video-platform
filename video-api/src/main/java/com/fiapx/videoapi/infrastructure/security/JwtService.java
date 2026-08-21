@@ -1,8 +1,10 @@
 package com.fiapx.videoapi.infrastructure.security;
 
 import com.fiapx.videoapi.domain.exception.InvalidTokenException;
+import com.fiapx.videoapi.domain.model.Role;
 import com.fiapx.videoapi.domain.port.TokenIssuer;
 import com.fiapx.videoapi.infrastructure.config.JwtProperties;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtService implements TokenIssuer {
 
+  private static final String ROLE_CLAIM = "role";
+
   private final JwtProperties jwtProperties;
   private final SecretKey signingKey;
 
@@ -26,11 +30,12 @@ public class JwtService implements TokenIssuer {
   }
 
   @Override
-  public String generateToken(UUID userId) {
+  public String generateToken(UUID userId, Role role) {
     Instant now = Instant.now();
     Instant expiresAt = now.plus(Duration.ofMinutes(jwtProperties.expirationMinutes()));
     return Jwts.builder()
         .subject(userId.toString())
+        .claim(ROLE_CLAIM, role.name())
         .issuedAt(Date.from(now))
         .expiration(Date.from(expiresAt))
         .signWith(signingKey)
@@ -39,14 +44,21 @@ public class JwtService implements TokenIssuer {
 
   @Override
   public UUID parseUserId(String token) {
+    return UUID.fromString(parseClaims(token).getSubject());
+  }
+
+  @Override
+  public Role parseRole(String token) {
+    return Role.valueOf(parseClaims(token).get(ROLE_CLAIM, String.class));
+  }
+
+  private Claims parseClaims(String token) {
     try {
-      String subject = Jwts.parser()
+      return Jwts.parser()
           .verifyWith(signingKey)
           .build()
           .parseSignedClaims(token)
-          .getPayload()
-          .getSubject();
-      return UUID.fromString(subject);
+          .getPayload();
     } catch (JwtException | IllegalArgumentException e) {
       throw new InvalidTokenException("Token JWT inválido ou expirado", e);
     }

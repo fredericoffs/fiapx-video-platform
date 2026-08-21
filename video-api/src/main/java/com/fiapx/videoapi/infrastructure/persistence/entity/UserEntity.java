@@ -1,7 +1,10 @@
 package com.fiapx.videoapi.infrastructure.persistence.entity;
 
+import com.fiapx.videoapi.domain.model.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -25,6 +28,10 @@ public class UserEntity {
 
   @Column(name = "password_hash", nullable = false)
   private String passwordHash;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private Role role;
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
