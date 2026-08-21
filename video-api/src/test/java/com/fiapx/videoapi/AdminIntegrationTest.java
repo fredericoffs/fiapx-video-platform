@@ -51,8 +51,9 @@ class AdminIntegrationTest {
 
   @Test
   void adminSeesUsersAndVideosFromEveryone() throws Exception {
-    String userToken = registerAndLogin(newEmail());
-    uploadVideo(userToken);
+    String email = newEmail();
+    String userToken = registerAndLogin(email);
+    UUID videoId = uploadVideo(userToken);
     String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
 
     MvcResult usersResult = mockMvc
@@ -68,6 +69,18 @@ class AdminIntegrationTest {
         .andReturn();
     JsonNode videos = objectMapper.readTree(videosResult.getResponse().getContentAsString());
     assertThat(videos.get("totalElements").asLong()).isGreaterThanOrEqualTo(1);
+    JsonNode uploadedVideo = findVideoById(videos.get("items"), videoId);
+    assertThat(uploadedVideo).isNotNull();
+    assertThat(uploadedVideo.get("ownerEmail").asString()).isEqualTo(email);
+  }
+
+  private JsonNode findVideoById(JsonNode items, UUID videoId) {
+    for (JsonNode item : items) {
+      if (UUID.fromString(item.get("id").asString()).equals(videoId)) {
+        return item;
+      }
+    }
+    return null;
   }
 
   @Test

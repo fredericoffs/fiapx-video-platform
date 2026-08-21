@@ -1,14 +1,14 @@
 package com.fiapx.videoapi.infrastructure.web;
 
+import com.fiapx.videoapi.application.dto.VideoWithOwner;
 import com.fiapx.videoapi.application.usecase.DeleteUserUseCase;
 import com.fiapx.videoapi.application.usecase.ListAllUsersUseCase;
 import com.fiapx.videoapi.application.usecase.ListAllVideosUseCase;
 import com.fiapx.videoapi.domain.model.PageResult;
 import com.fiapx.videoapi.domain.model.User;
-import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.infrastructure.web.dto.AdminUserListResponse;
-import com.fiapx.videoapi.infrastructure.web.dto.VideoListResponse;
+import com.fiapx.videoapi.infrastructure.web.dto.AdminVideoListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -77,19 +77,22 @@ public class AdminController {
     return ResponseEntity.noContent().build();
   }
 
-  @Operation(summary = "Lista todos os vídeos do sistema", description = "Paginado, de qualquer usuário.")
+  @Operation(
+      summary = "Lista todos os vídeos do sistema",
+      description = "Paginado, de qualquer usuário, com o e-mail do dono de cada vídeo."
+  )
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "OK",
-          content = @Content(schema = @Schema(implementation = VideoListResponse.class))),
+          content = @Content(schema = @Schema(implementation = AdminVideoListResponse.class))),
       @ApiResponse(responseCode = "403", description = "Usuário autenticado não é admin", content = @Content)
   })
   @GetMapping(value = "/videos", produces = MediaType.APPLICATION_JSON_VALUE)
-  public VideoListResponse listVideos(
+  public AdminVideoListResponse listVideos(
       @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
       @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
       @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
   ) {
-    PageResult<Video> result = listAllVideosUseCase.handle(status, page, size);
-    return VideoListResponse.from(result);
+    PageResult<VideoWithOwner> result = listAllVideosUseCase.handle(status, page, size);
+    return AdminVideoListResponse.from(result);
   }
 }
