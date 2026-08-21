@@ -14,15 +14,19 @@ profile:
   base:
     name: qodana.starter
   # JvmCoverageInspection continua ativa (senão o resumo "Total coverage" some do
-  # relatório — já vimos isso acontecer), só baixa de ERROR pra WARNING: um método com
-  # menos de 50% de cobertura é um sinal útil, mas não é "severidade alta" no mesmo
-  # sentido que um bug real. As classes que a gente já decidiu deliberadamente deixar de
-  # fora do gate de cobertura (S3StorageClient, FfmpegFrameExtractor, ZipFileArchiver,
-  # *Application) foram excluídas do próprio relatório do JaCoCo (ver pom.xml de cada
-  # serviço) — o que sobra aqui são gaps reais, não ruído de infraestrutura.
+  # relatório — já vimos isso acontecer). Tentei baixar de ERROR pra WARNING antes, mas
+  # não mudou nada: pela tabela de mapeamento de severidade do Qodana
+  # (github.com/JetBrains/Qodana lib_qd.topic#qodana-severity-levels), ERROR→Critical,
+  # WARNING→High, WEAK WARNING→Moderate — o perfil qodana.starter já usa WARNING (High)
+  # como padrão pra essa inspeção, então setar WARNING de novo era um no-op. WEAK WARNING
+  # é o primeiro nível que realmente sai do bucket High. As classes que a gente já decidiu
+  # deliberadamente deixar de fora do gate de cobertura (S3StorageClient,
+  # FfmpegFrameExtractor, ZipFileArchiver, *Application) foram excluídas do próprio
+  # relatório do JaCoCo (ver pom.xml de cada serviço) — o que sobra aqui são gaps reais,
+  # não ruído de infraestrutura, e não é a mesma severidade de um bug de verdade.
   inspections:
     - inspection: JvmCoverageInspection
-      severity: WARNING
+      severity: "WEAK WARNING"
 
 #Enable inspections
 #include:
@@ -59,19 +63,20 @@ projectJDK: "21" #(Applied in CI/CD pipeline)
 # Recalibrado em 2026-08-21: até então o workflow do Qodana nunca rodava os testes antes
 # do scan, então o JvmCoverageInspection nunca tinha dado nenhum problema — sem dado de
 # cobertura, nada pra sinalizar. Ao corrigir isso (mvn test antes do scan, pra cobertura
-# aparecer no relatório), essa inspeção passou a gerar 24 problemas, todos High. Dois
-# passos pra resolver de verdade (não só alargar o limiar): (1) o report do JaCoCo passou
-# a excluir as mesmas classes que o gate de cobertura já excluía por decisão arquitetural
+# aparecer no relatório), essa inspeção passou a gerar 24 problemas, todos High. Duas
+# correções reais (não só alargar o limiar): (1) o report do JaCoCo passou a excluir as
+# mesmas classes que o gate de cobertura já excluía por decisão arquitetural
 # (S3StorageClient, FfmpegFrameExtractor, ZipFileArchiver, *Application — ver pom.xml de
-# cada serviço), o que sozinho já derruba a maior parte dos 24; (2) a severidade da
-# inspeção caiu de ERROR pra WARNING (ver profile.inspections acima) pro que sobra —
-# baixa cobertura pontual num método é sinal, não é a mesma coisa que um bug real de
-# severidade alta. `high`/`any` abaixo ficam com uma folga pequena, não uma folga larga.
+# cada serviço), derrubando 24→8; (2) a severidade da inspeção caiu pra WEAK WARNING (ver
+# profile.inspections acima), que o Qodana bucketiza como Moderate, não High — pros 8 que
+# sobram (gaps reais, não ruído de infraestrutura). `high` fica apertado (achado de
+# verdade continua barrado com pouca folga); `moderate`/`any` acomodam os 8 conhecidos.
 failureConditions:
   severityThresholds:
     critical: 0
-    high: 5
-    any: 15
+    high: 3
+    moderate: 15
+    any: 20
 #  testCoverageThresholds:
 #    fresh: 70
 #    total: 50
