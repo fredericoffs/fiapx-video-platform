@@ -11,25 +11,31 @@ version: '1.0'
 
 #Specify inspection profile for code analysis
 profile:
-  name: qodana.starter
+  base:
+    name: qodana.starter
+  # JsCoverageInspection continua ativa (senão o resumo "Total coverage" some do
+  # relatório — já vimos isso acontecer), só baixa de ERROR pra WARNING: um método com
+  # menos de 50% de cobertura (callbacks de onSuccess/onError dos formulários, alguns
+  # sub-componentes de card.tsx) é um sinal real de gap de teste, mas não é "severidade
+  # alta" no mesmo sentido que um bug — vale escrever teste pra esses casos numa
+  # próxima passada, não é ruído a esconder.
+  inspections:
+    - inspection: JsCoverageInspection
+      severity: WARNING
 
 # Config próprio do web/ (React/TypeScript) — linter diferente do JVM usado no resto do
 # repo (../qodana.yaml), então precisa de um projeto/token separado no Qodana Cloud
 # (secret QODANA_TOKEN_WEB no workflow .github/workflows/qodana_code_quality.yml).
 #
-# Limiares calibrados contra o primeiro scan real (2026-08-21), 11 problemas: 9 High do
-# JsCoverageInspection (sinaliza método a método quem está abaixo de 50% de cobertura —
-# não é bug, é o próprio sinal de cobertura funcionando; cobertura de verdade é tratada
-# pelo vitest/v8 em lcov, ferramenta de referência aqui) + 2 Moderate de "UMD global
-# variable" (import de React faltando em skeleton.tsx/sonner.tsx, corrigidos no código).
-# Chegou a existir um `exclude: JsCoverageInspection` aqui, mas isso também apagava o
-# resumo "Total coverage" do relatório — voltou a ser o problema original (Qodana sem
-# mostrar cobertura nenhuma). `high`/`any` abaixo têm folga sobre os 9 conhecidos.
+# Limiares recalibrados em 2026-08-21 depois de rebaixar a severidade do
+# JsCoverageInspection acima: os 2 achados de "UMD global variable" (import de React
+# faltando em skeleton.tsx/sonner.tsx) já foram corrigidos no código, e os 9 de cobertura
+# não contam mais como High. `high`/`any` ficam com uma folga pequena, não uma folga larga.
 failureConditions:
   severityThresholds:
     critical: 0
-    high: 15
-    any: 20
+    high: 3
+    any: 15
 #  testCoverageThresholds:
 #    fresh: 70
 #    total: 50

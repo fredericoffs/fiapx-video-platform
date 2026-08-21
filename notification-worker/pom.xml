@@ -188,6 +188,15 @@
             <goals>
               <goal>report</goal>
             </goals>
+            <configuration>
+              <!-- Mesma lista do execution "check" abaixo — sem isso, o jacoco.xml que o
+                   Qodana lê inclui a classe Application com cobertura zero e a inspeção de
+                   cobertura sinaliza como achado de severidade alta algo que a gente já
+                   decidiu, por escrito, que fica fora do gate. -->
+              <excludes>
+                <exclude>**/*Application.class</exclude>
+              </excludes>
+            </configuration>
           </execution>
           <execution>
             <id>check</id>

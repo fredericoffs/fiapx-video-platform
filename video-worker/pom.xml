@@ -139,6 +139,18 @@
             <goals>
               <goal>report</goal>
             </goals>
+            <configuration>
+              <!-- Mesma lista do execution "check" abaixo — sem isso, o jacoco.xml que o
+                   Qodana lê inclui essas classes com cobertura baixa/zero e a inspeção de
+                   cobertura sinaliza como achado de severidade alta algo que a gente já
+                   decidiu, por escrito, que fica fora do gate. -->
+              <excludes>
+                <exclude>**/*Application.class</exclude>
+                <exclude>**/infrastructure/ffmpeg/**</exclude>
+                <exclude>**/infrastructure/archive/**</exclude>
+                <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
+              </excludes>
+            </configuration>
           </execution>
           <execution>
             <id>check</id>

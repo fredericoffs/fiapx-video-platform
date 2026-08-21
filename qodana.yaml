@@ -11,7 +11,18 @@ version: "1.0"
 
 #Specify inspection profile for code analysis
 profile:
-  name: qodana.starter
+  base:
+    name: qodana.starter
+  # JvmCoverageInspection continua ativa (senão o resumo "Total coverage" some do
+  # relatório — já vimos isso acontecer), só baixa de ERROR pra WARNING: um método com
+  # menos de 50% de cobertura é um sinal útil, mas não é "severidade alta" no mesmo
+  # sentido que um bug real. As classes que a gente já decidiu deliberadamente deixar de
+  # fora do gate de cobertura (S3StorageClient, FfmpegFrameExtractor, ZipFileArchiver,
+  # *Application) foram excluídas do próprio relatório do JaCoCo (ver pom.xml de cada
+  # serviço) — o que sobra aqui são gaps reais, não ruído de infraestrutura.
+  inspections:
+    - inspection: JvmCoverageInspection
+      severity: WARNING
 
 #Enable inspections
 #include:
@@ -46,19 +57,21 @@ projectJDK: "21" #(Applied in CI/CD pipeline)
 # — cobertura mínima já é tratada via JaCoCo na Sprint 3, tarefa 8.
 #
 # Recalibrado em 2026-08-21: até então o workflow do Qodana nunca rodava os testes antes
-# do scan, então o JvmCoverageInspection (severidade High, sinaliza método a método quem
-# está abaixo do limiar de cobertura) nunca tinha dado nenhum problema — sem dado de
+# do scan, então o JvmCoverageInspection nunca tinha dado nenhum problema — sem dado de
 # cobertura, nada pra sinalizar. Ao corrigir isso (mvn test antes do scan, pra cobertura
-# aparecer no relatório — era o pedido original), essa inspeção passou a gerar 24
-# problemas reais, todos High, batendo no limiar antigo (10). Excluir a inspeção resolvia
-# o CI mas também apagava o resumo "Total coverage" do relatório — voltou a ser o problema
-# original. `high`/`any` abaixo têm folga sobre esses 24 (que não são bug, são o próprio
-# sinal de cobertura funcionando); `critical: 0` continua travando qualquer achado grave.
+# aparecer no relatório), essa inspeção passou a gerar 24 problemas, todos High. Dois
+# passos pra resolver de verdade (não só alargar o limiar): (1) o report do JaCoCo passou
+# a excluir as mesmas classes que o gate de cobertura já excluía por decisão arquitetural
+# (S3StorageClient, FfmpegFrameExtractor, ZipFileArchiver, *Application — ver pom.xml de
+# cada serviço), o que sozinho já derruba a maior parte dos 24; (2) a severidade da
+# inspeção caiu de ERROR pra WARNING (ver profile.inspections acima) pro que sobra —
+# baixa cobertura pontual num método é sinal, não é a mesma coisa que um bug real de
+# severidade alta. `high`/`any` abaixo ficam com uma folga pequena, não uma folga larga.
 failureConditions:
   severityThresholds:
     critical: 0
-    high: 30
-    any: 35
+    high: 5
+    any: 15
 #  testCoverageThresholds:
 #    fresh: 70
 #    total: 50
