@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "codegen": "openapi-typescript http://localhost:8081/v3/api-docs -o src/shared/api/schema.gen.ts && prettier --write src/shared/api/schema.gen.ts",
     "prepare": "cd .. && npx husky 2>/dev/null || true"

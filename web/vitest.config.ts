@@ -14,5 +14,12 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: true,
     exclude: ['node_modules', 'dist', 'e2e'],
+    coverage: {
+      provider: 'v8',
+      // lcov em coverage/lcov.info é o caminho padrão que o Qodana for JS detecta
+      // sozinho (mesma lógica do jacoco.xml pros serviços Java).
+      reporter: ['text', 'lcov', 'html'],
+      reportsDirectory: './coverage',
+    },
   },
 })

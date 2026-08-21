@@ -23,6 +23,23 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+      # Sem isso, nenhum target/site/jacoco/jacoco.xml existe no checkout no momento do
+      # scan e o Qodana não mostra cobertura pra nenhum serviço (detecção automática dele
+      # só encontra relatórios já gerados, não roda os testes sozinho). `test` (não
+      # `verify`) porque o goal `report` do JaCoCo já está no phase `test` em todos os 4
+      # poms — o gate de 90% (`check`, no phase `verify`) já é aplicado pelo ci.yml, não
+      # precisa rodar de novo aqui só pra gerar o XML.
+      - name: Gerar relatórios de cobertura (JaCoCo) para o Qodana detectar
+        run: |
+          set -e
+          for service in video-api video-worker notification-worker video-gateway; do
+            (cd "$service" && ./mvnw -B test)
+          done
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2026.2
         env:
@@ -36,4 +53,44 @@ jobs:
           # Upload Qodana results (SARIF, other artifacts, logs) as an artifact to the job
           upload-result: false
           # quick-fixes available in Ultimate and Ultimate Plus plans
+          push-fixes: 'none'
+
+  qodana-web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      # coverage/lcov.info é o caminho padrão que o Qodana for JS detecta sozinho —
+      # mesma lógica do jacoco.xml pros serviços Java, no job `qodana` acima.
+      - name: Gerar relatório de cobertura (lcov) para o Qodana detectar
+        working-directory: web
+        run: npm run test:coverage
+      # Linter diferente (qodana-js, não qodana-jvm) e sub-diretório próprio (web/qodana.yaml,
+      # não o da raiz) — projeto/token separado no Qodana Cloud (secret QODANA_TOKEN_WEB).
+      - name: 'Qodana Scan (web)'
+        uses: JetBrains/qodana-action@v2026.2
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_WEB }}
+        with:
+          # -i (não --project-dir, forma longa não reconhecida por "qodana scan")
+          args: '-i web'
+          pr-mode: false
+          use-caches: true
+          post-pr-comment: true
+          use-annotations: true
+          upload-result: false
           push-fixes: 'none'
