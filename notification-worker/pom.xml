@@ -68,6 +68,13 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
+    <!-- Primeira dependência de Resilience4j no projeto — CircuitBreaker + Bulkhead
+         isolados por canal de notificação (tarefa 3 da Sprint 6). -->
+    <dependency>
+      <groupId>io.github.resilience4j</groupId>
+      <artifactId>resilience4j-spring-boot3</artifactId>
+      <version>2.3.0</version>
+    </dependency>
 
     <dependency>
       <groupId>org.postgresql</groupId>

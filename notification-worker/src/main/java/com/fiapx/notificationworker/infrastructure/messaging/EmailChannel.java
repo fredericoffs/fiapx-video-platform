@@ -4,6 +4,8 @@ import com.fiapx.notificationworker.domain.exception.NotificationDeliveryExcepti
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
 import com.fiapx.notificationworker.domain.port.NotificationChannel;
 import com.fiapx.notificationworker.infrastructure.config.NotificationProperties;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.mail.MailException;
@@ -28,6 +30,8 @@ public class EmailChannel implements NotificationChannel {
   }
 
   @Override
+  @CircuitBreaker(name = "email-channel", fallbackMethod = "unavailable")
+  @Bulkhead(name = "email-channel", type = Bulkhead.Type.THREADPOOL)
   public CompletableFuture<Void> send(UUID videoId, String errorMessage, String recipientEmail) {
     if (recipientEmail == null || recipientEmail.isBlank()) {
       throw new NotificationDeliveryException(
@@ -47,5 +51,15 @@ public class EmailChannel implements NotificationChannel {
     }
 
     return CompletableFuture.completedFuture(null);
+  }
+
+  /**
+   * Traduz qualquer falha do canal (circuito aberto, bulkhead cheio, erro de SMTP)
+   * pra uma exceção de domínio única — o dispatcher não precisa conhecer tipos do
+   * Resilience4j, só {@link NotificationDeliveryException}.
+   */
+  private CompletableFuture<Void> unavailable(UUID videoId, String errorMessage, String recipientEmail, Throwable t) {
+    return CompletableFuture.failedFuture(
+        new NotificationDeliveryException("Canal de e-mail indisponível para o vídeo " + videoId, t));
   }
 }
