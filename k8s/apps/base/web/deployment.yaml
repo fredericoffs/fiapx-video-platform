@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app.kubernetes.io/name: web
+spec:
+  # 1 réplica de repouso, mesmo padrão dos outros serviços nesta topologia de 1 nó
+  # (ver k8s/kind/cluster-config.yaml). Sem HPA: é HTML/JS/CSS estático servido por
+  # nginx, não tem CPU de aplicação pra escalar sob carga real de requisição.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+    spec:
+      containers:
+        - name: web
+          image: fiapx/web:local
+          ports:
+            - name: http
+              containerPort: 8080
+          # nginx serve conteúdo estático — sem boot lento de JVM (ver startupProbe
+          # em video-api/video-gateway), então readiness/liveness bastam.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

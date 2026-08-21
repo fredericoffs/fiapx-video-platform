@@ -170,6 +170,21 @@ services:
         condition: service_started
     profiles: ["app"]
 
+  web:
+    build:
+      context: ./web
+      args:
+        # Falado pelo browser, não pelo container — o gateway é publicado na mesma
+        # porta 8080 do host em todos os contextos locais (compose/kind), então o
+        # default já serve sem override.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    ports:
+      - "5173:8080"
+    depends_on:
+      video-gateway:
+        condition: service_started
+    profiles: ["app"]
+
 volumes:
   postgres-data:
   minio-data:

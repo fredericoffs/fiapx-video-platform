@@ -4,10 +4,14 @@
 # pública como padrão de execução) — falta ingressClassName real (ex.: alb, se EKS+
 # AWS Load Balancer Controller), host/TLS e cert-manager, tudo fora de escopo enquanto
 # ADR-012 não for revisitado.
+#
+# /auth e /videos (rotas reais do video-gateway, ver RoutesConfig) vão pro gateway;
+# tudo o resto cai no web (SPA, Sprint 5) — mesma separação usada localmente (porta
+# 8080 = gateway, 5173 = web), só que atrás de um host/Ingress único aqui.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: video-gateway
+  name: fiapx
   annotations:
     kubernetes.io/ingress.class: "REPLACE_ME" # ex.: alb
 spec:
@@ -15,10 +19,24 @@ spec:
     - host: REPLACE_ME.example.com
       http:
         paths:
-          - path: /
+          - path: /auth
             pathType: Prefix
             backend:
               service:
                 name: video-gateway
+                port:
+                  number: 8080
+          - path: /videos
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
                 port:
                   number: 8080

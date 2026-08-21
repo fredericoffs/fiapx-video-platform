@@ -26,6 +26,17 @@ npm run dev
   O CI falha se o schema commitado divergir do gerado (`git diff --exit-code` depois de rodar
   o codegen contra o serviço real) — sempre rode `npm run codegen` e commite o resultado depois
   de qualquer mudança de contrato no `video-api`.
+- `npm test` / `test:watch` — Vitest + Testing Library (componentes/hooks).
+- `npm run test:e2e` — Playwright, 1 spec do fluxo feliz completo (registro→login→upload→
+  status→download). Sobe o próprio `npm run dev` como servidor; precisa da stack real de pé
+  (`docker compose --profile app up`) pra passar de verdade.
+
+## Deploy
+
+`Dockerfile` multi-stage (`node:22-alpine` build → `nginx:alpine` serve, não-root, escuta em
+`8080`). `VITE_API_BASE_URL` é _build-time_ (baked no bundle estático) — passe como build arg se
+o gateway não estiver em `http://localhost:8080`. Servido pelo serviço `web` no
+`docker-compose.yml` (porta `5173`) e pelos manifests em `k8s/apps/base/web/`.
 
 ## Estrutura
 

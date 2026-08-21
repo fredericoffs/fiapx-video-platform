@@ -6,3 +6,4 @@ resources:
   - video-api
   - video-worker
   - notification-worker
+  - web

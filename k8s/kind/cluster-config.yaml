@@ -11,9 +11,10 @@
 # separação física entre onde a réplica extra é agendada.
 #
 # extraPortMappings expõe o NodePort do video-gateway (30080, fixado no overlay
-# k8s/apps/overlays/local) na porta 8080 do host — único ponto de entrada externo,
-# igual ao docker-compose local. video-api/video-worker/notification-worker
-# permanecem ClusterIP-only (fecha a pendência da Sprint 2).
+# k8s/apps/overlays/local) na porta 8080 do host, e o do web (30081, Sprint 5) na
+# porta 5173 — mesma porta usada em npm run dev e no serviço web do docker-compose,
+# pontos de entrada externos, igual ao docker-compose local. video-api/video-worker/
+# notification-worker permanecem ClusterIP-only (fecha a pendência da Sprint 2).
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: fiapx
@@ -22,4 +23,7 @@ nodes:
     extraPortMappings:
       - containerPort: 30080
         hostPort: 8080
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 5173
         protocol: TCP
