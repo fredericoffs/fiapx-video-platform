@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { toast } from 'sonner'
 import { UploadCloud } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
@@ -6,11 +6,19 @@ import { Progress } from '@/shared/ui/progress'
 import { ALLOWED_VIDEO_EXTENSIONS, videoFileSchema } from '@/features/upload/lib/schemas'
 import { useUploadMutation } from '@/features/upload/hooks/use-upload-mutation'
 
-export function UploadDropzone() {
+export function UploadDropzone({
+  onUploadingChange,
+}: {
+  onUploadingChange?: (isUploading: boolean) => void
+}) {
   const [isDragging, setIsDragging] = useState(false)
   const [progress, setProgress] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadMutation = useUploadMutation()
+
+  useEffect(() => {
+    onUploadingChange?.(uploadMutation.isPending)
+  }, [uploadMutation.isPending, onUploadingChange])
 
   const handleFile = (file: File) => {
     const result = videoFileSchema.safeParse(file)

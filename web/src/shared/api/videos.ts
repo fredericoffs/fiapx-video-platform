@@ -34,6 +34,10 @@ export const videoKeys = {
 
 const NON_TERMINAL_STATUSES: VideoStatus[] = ['QUEUED', 'PROCESSING']
 
+export function hasNonTerminalVideo(videos: Video[] | undefined): boolean {
+  return (videos ?? []).some((video) => NON_TERMINAL_STATUSES.includes(video.status))
+}
+
 export function useVideosQuery() {
   return useQuery({
     queryKey: videoKeys.list(),
@@ -44,10 +48,6 @@ export function useVideosQuery() {
       }
       return (data.items ?? []).map(toVideo).filter((video): video is Video => video !== null)
     },
-    refetchInterval: (query) => {
-      const videos = query.state.data
-      const hasPending = videos?.some((video) => NON_TERMINAL_STATUSES.includes(video.status))
-      return hasPending ? 3000 : false
-    },
+    refetchInterval: (query) => (hasNonTerminalVideo(query.state.data) ? 3000 : false),
   })
 }
