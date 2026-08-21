@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ThemeToggle } from '@/app/theme-toggle'
+import { LogoutButton } from '@/app/logout-button'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -9,7 +10,10 @@ export function Layout({ children }: { children: ReactNode }) {
           <span className="size-2.5 bg-primary" aria-hidden />
           fiapx<span className="text-primary">.</span>video
         </span>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </header>
       <main className="flex-1 px-6 py-8">{children}</main>
     </div>
