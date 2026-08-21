@@ -4,6 +4,7 @@ import { Download, Loader2 } from 'lucide-react'
 import { useVideosQuery } from '@/shared/api/videos'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { VideoProcessingIllustration } from '@/shared/ui/illustrations/video-processing-illustration'
 import { VideoStatusBadge } from '@/features/videos/components/video-status-badge'
 import { downloadVideo } from '@/features/videos/api/download-video'
 
@@ -37,7 +38,12 @@ export function VideoList() {
   }
 
   if (videosQuery.data.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nenhum vídeo enviado ainda.</p>
+    return (
+      <div className="flex flex-col items-center gap-2 py-6 text-center">
+        <VideoProcessingIllustration className="w-48" />
+        <p className="text-sm text-muted-foreground">Nenhum vídeo enviado ainda.</p>
+      </div>
+    )
   }
 
   return (

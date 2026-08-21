@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { useSessionStore } from '@/shared/lib/session-store'
 import { useLoginMutation, useRegisterMutation } from '@/features/auth/api/mutations'
 import { registerSchema, type RegisterFormValues } from '@/features/auth/lib/schemas'
@@ -48,6 +48,9 @@ export function RegisterForm() {
     <Card className="mx-auto w-full max-w-sm">
       <CardHeader>
         <CardTitle>Criar conta</CardTitle>
+        <CardDescription>
+          Crie uma conta gratuita para começar a extrair frames dos seus vídeos.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form

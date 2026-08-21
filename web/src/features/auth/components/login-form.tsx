@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { useSessionStore } from '@/shared/lib/session-store'
 import { useLoginMutation } from '@/features/auth/api/mutations'
 import { loginSchema, type LoginFormValues } from '@/features/auth/lib/schemas'
@@ -37,6 +37,9 @@ export function LoginForm() {
     <Card className="mx-auto w-full max-w-sm">
       <CardHeader>
         <CardTitle>Entrar</CardTitle>
+        <CardDescription>
+          Acesse sua conta para enviar vídeos e acompanhar o processamento.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form
