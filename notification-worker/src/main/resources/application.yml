@@ -76,9 +76,19 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
+      webhook-channel:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
   thread-pool-bulkhead:
     instances:
       email-channel:
+        max-thread-pool-size: 4
+        core-thread-pool-size: 2
+        queue-capacity: 10
+      webhook-channel:
         max-thread-pool-size: 4
         core-thread-pool-size: 2
         queue-capacity: 10
