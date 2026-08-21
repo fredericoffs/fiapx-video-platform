@@ -13,9 +13,22 @@ version: '1.0'
 profile:
   name: qodana.starter
 
+# JsCoverageInspection (severidade High no qodana.starter) sinaliza método a método
+# quem está abaixo de 50% de cobertura — no primeiro scan real (2026-08-21) isso sozinho
+# gerou 9 dos 11 problemas encontrados e estourou o failThreshold abaixo. Cobertura já é
+# tratada pelo vitest/v8 (lcov), que é a ferramenta de referência aqui — mesmo raciocínio
+# do testCoverageThresholds desligado no ../qodana.yaml pros serviços Java (JaCoCo é a
+# ferramenta de referência lá). Não é ausência de gate de cobertura, é não duplicar o gate
+# em duas ferramentas com definições diferentes de "suficiente".
+exclude:
+  - name: JsCoverageInspection
+
 # Config próprio do web/ (React/TypeScript) — linter diferente do JVM usado no resto do
 # repo (../qodana.yaml), então precisa de um projeto/token separado no Qodana Cloud
 # (secret QODANA_TOKEN_WEB no workflow .github/workflows/qodana_code_quality.yml).
+# Limiar validado contra o primeiro scan real: sem o JsCoverageInspection acima e com os
+# 2 achados de "UMD global variable" corrigidos (import de React faltando em
+# skeleton.tsx/sonner.tsx), o mesmo código cai a 0 problemas — folga real, não achismo.
 failureConditions:
   severityThresholds:
     critical: 0

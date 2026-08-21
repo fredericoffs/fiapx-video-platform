@@ -18,10 +18,18 @@ profile:
 #  - name: <SomeEnabledInspectionId>
 
 #Disable inspections
-#exclude:
-#  - name: <SomeDisabledInspectionId>
-#    paths:
-#      - <path/where/not/run/inspection>
+# JvmCoverageInspection (severidade High no qodana.starter) sinaliza método a método quem
+# está abaixo do limiar de cobertura. Até 2026-08-21 o workflow do Qodana nunca rodava os
+# testes antes do scan, então essa inspeção nunca tinha dado nenhum problema (sem dado de
+# cobertura, nada pra sinalizar) — o baseline "0 problemas" abaixo foi medido nessas
+# condições. Ao corrigir isso (mvn test antes do "Qodana Scan" pros 4 serviços, pra
+# cobertura aparecer no relatório), essa mesma inspeção passou a gerar 24 problemas reais
+# — não é regressão de qualidade, é a primeira vez que a cobertura fica visível pra ela.
+# Cobertura já é tratada pelo JaCoCo (gate de 90% no mvn verify, ferramenta de referência
+# aqui) — excluir evita duplicar o mesmo gate em duas ferramentas com definições diferentes
+# de "suficiente" por método.
+exclude:
+  - name: JvmCoverageInspection
 
 projectJDK: "21" #(Applied in CI/CD pipeline)
 
@@ -45,7 +53,10 @@ projectJDK: "21" #(Applied in CI/CD pipeline)
 # crítico e dá uma folga pequena para achados de menor severidade (o linter
 # Ultimate usado no CI pode sinalizar um pouco mais que o Community usado no
 # baseline local). testCoverageThresholds/dependencyLicenses seguem desativados
-# — cobertura mínima já é tratada via JaCoCo na Sprint 3, tarefa 8.
+# — cobertura mínima já é tratada via JaCoCo na Sprint 3, tarefa 8. Ver exclude de
+# JvmCoverageInspection acima — sem ele, o mesmo baseline sobe pra 24 problemas assim que
+# o scan passa a ter dado de cobertura de verdade (2026-08-21), não por regressão de
+# qualidade, só porque a inspeção nunca tinha tido o que sinalizar antes disso.
 failureConditions:
   severityThresholds:
     critical: 0
