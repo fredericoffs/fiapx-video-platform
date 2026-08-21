@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml)
 [![Qodana](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana_code_quality.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana_code_quality.yml)
-![Cobertura](https://img.shields.io/badge/cobertura-90%25%2B-brightgreen)
+![Cobertura](https://img.shields.io/badge/cobertura%20Qodana-96%25-brightgreen)
 ![Arquitetura](https://img.shields.io/badge/arquitetura-hexagonal%20%2F%20ArchUnit-informational)
 
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white)
