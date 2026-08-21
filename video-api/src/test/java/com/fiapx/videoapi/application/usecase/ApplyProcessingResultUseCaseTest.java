@@ -2,13 +2,17 @@ package com.fiapx.videoapi.application.usecase;
 
 import com.fiapx.videoapi.application.event.ProcessingEventType;
 import com.fiapx.videoapi.application.event.ProcessingResultMessage;
+import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.model.VideoStatus;
+import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,7 +24,10 @@ import static org.mockito.Mockito.when;
 class ApplyProcessingResultUseCaseTest {
 
   private final VideoRepository videoRepository = mock(VideoRepository.class);
-  private final ApplyProcessingResultUseCase useCase = new ApplyProcessingResultUseCase(videoRepository);
+  private final OutboxEventRepository outboxEventRepository = mock(OutboxEventRepository.class);
+  private final ObjectMapper objectMapper = JsonMapper.builder().build();
+  private final ApplyProcessingResultUseCase useCase =
+      new ApplyProcessingResultUseCase(videoRepository, outboxEventRepository, objectMapper);
 
   @Test
   void ignoresEventForUnknownVideo() {
@@ -69,5 +76,33 @@ class ApplyProcessingResultUseCaseTest {
     verify(videoRepository).save(captor.capture());
     assertThat(captor.getValue().getStatus()).isEqualTo(VideoStatus.FAILED);
     assertThat(captor.getValue().getErrorMessage()).isEqualTo("ffmpeg falhou");
+  }
+
+  @Test
+  void createsNotificationOutboxEventOnFailure() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(
+        new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED, video.getId(), null, "ffmpeg falhou"));
+
+    ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
+    verify(outboxEventRepository).save(eventCaptor.capture());
+    OutboxEvent savedEvent = eventCaptor.getValue();
+    assertThat(savedEvent.getEventType()).isEqualTo("NotificationRequested");
+    assertThat(savedEvent.getAggregateId()).isEqualTo(video.getId());
+    assertThat(savedEvent.getPayload()).contains(video.getId().toString()).contains("ffmpeg falhou");
+    assertThat(savedEvent.isPublished()).isFalse();
+  }
+
+  @Test
+  void doesNotCreateNotificationOutboxEventOnCompleted() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(
+        new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED, video.getId(), "zip-key", null));
+
+    verify(outboxEventRepository, never()).save(any(OutboxEvent.class));
   }
 }

@@ -23,4 +23,14 @@ public class RabbitMqConfig {
   public Queue statusUpdatesQueue(QueueProperties queueProperties) {
     return QueueBuilder.durable(queueProperties.statusUpdates()).build();
   }
+
+  @Bean
+  public Queue notificationQueue(QueueProperties queueProperties) {
+    // Argumentos de dead-letter precisam ser idênticos aos declarados pelo notification-worker
+    // (dono da DLQ) — RabbitMQ rejeita redeclaração de fila com argumentos divergentes.
+    return QueueBuilder.durable(queueProperties.notification())
+        .withArgument("x-dead-letter-exchange", queueProperties.notificationDlx())
+        .withArgument("x-dead-letter-routing-key", queueProperties.notificationDlq())
+        .build();
+  }
 }

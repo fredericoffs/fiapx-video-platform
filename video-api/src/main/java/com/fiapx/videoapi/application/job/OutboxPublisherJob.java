@@ -1,5 +1,6 @@
 package com.fiapx.videoapi.application.job;
 
+import com.fiapx.videoapi.application.usecase.ApplyProcessingResultUseCase;
 import com.fiapx.videoapi.application.usecase.RequestVideoProcessingUseCase;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.port.MessagePublisher;
@@ -51,6 +52,9 @@ public class OutboxPublisherJob {
   private String resolveQueue(String eventType) {
     if (RequestVideoProcessingUseCase.EVENT_TYPE_VIDEO_UPLOAD_REQUESTED.equals(eventType)) {
       return queueProperties.processing();
+    }
+    if (ApplyProcessingResultUseCase.EVENT_TYPE_NOTIFICATION_REQUESTED.equals(eventType)) {
+      return queueProperties.notification();
     }
     throw new IllegalStateException("Nenhuma fila mapeada para o tipo de evento: " + eventType);
   }
