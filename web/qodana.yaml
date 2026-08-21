@@ -13,26 +13,23 @@ version: '1.0'
 profile:
   name: qodana.starter
 
-# JsCoverageInspection (severidade High no qodana.starter) sinaliza método a método
-# quem está abaixo de 50% de cobertura — no primeiro scan real (2026-08-21) isso sozinho
-# gerou 9 dos 11 problemas encontrados e estourou o failThreshold abaixo. Cobertura já é
-# tratada pelo vitest/v8 (lcov), que é a ferramenta de referência aqui — mesmo raciocínio
-# do testCoverageThresholds desligado no ../qodana.yaml pros serviços Java (JaCoCo é a
-# ferramenta de referência lá). Não é ausência de gate de cobertura, é não duplicar o gate
-# em duas ferramentas com definições diferentes de "suficiente".
-exclude:
-  - name: JsCoverageInspection
-
 # Config próprio do web/ (React/TypeScript) — linter diferente do JVM usado no resto do
 # repo (../qodana.yaml), então precisa de um projeto/token separado no Qodana Cloud
 # (secret QODANA_TOKEN_WEB no workflow .github/workflows/qodana_code_quality.yml).
-# Limiar validado contra o primeiro scan real: sem o JsCoverageInspection acima e com os
-# 2 achados de "UMD global variable" corrigidos (import de React faltando em
-# skeleton.tsx/sonner.tsx), o mesmo código cai a 0 problemas — folga real, não achismo.
+#
+# Limiares calibrados contra o primeiro scan real (2026-08-21), 11 problemas: 9 High do
+# JsCoverageInspection (sinaliza método a método quem está abaixo de 50% de cobertura —
+# não é bug, é o próprio sinal de cobertura funcionando; cobertura de verdade é tratada
+# pelo vitest/v8 em lcov, ferramenta de referência aqui) + 2 Moderate de "UMD global
+# variable" (import de React faltando em skeleton.tsx/sonner.tsx, corrigidos no código).
+# Chegou a existir um `exclude: JsCoverageInspection` aqui, mas isso também apagava o
+# resumo "Total coverage" do relatório — voltou a ser o problema original (Qodana sem
+# mostrar cobertura nenhuma). `high`/`any` abaixo têm folga sobre os 9 conhecidos.
 failureConditions:
   severityThresholds:
     critical: 0
-    any: 10
+    high: 15
+    any: 20
 #  testCoverageThresholds:
 #    fresh: 70
 #    total: 50
