@@ -35,6 +35,8 @@ data:
   GATEWAY_CORS_ALLOWED_ORIGINS: "http://localhost:5173"
   QUEUE_STATUS_UPDATES: "video.status-updates"
   QUEUE_NOTIFICATION: "video.notification"
+  QUEUE_NOTIFICATION_DLX: "video.notification.dlx"
+  QUEUE_NOTIFICATION_DLQ: "video.notification.dlq"
   QUEUE_PROCESSING: "video.processing"
   QUEUE_PROCESSING_DLX: "video.processing.dlx"
   QUEUE_PROCESSING_DLQ: "video.processing.dlq"

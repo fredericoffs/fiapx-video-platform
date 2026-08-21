@@ -24,6 +24,13 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 2000
+          multiplier: 2.0
+          max-retries: 3
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
@@ -55,6 +62,8 @@ fiapx:
     webhook-fallback-url: ${NOTIFICATION_WEBHOOK_URL:}
   queues:
     notification: ${QUEUE_NOTIFICATION:video.notification}
+    notification-dlx: ${QUEUE_NOTIFICATION_DLX:video.notification.dlx}
+    notification-dlq: ${QUEUE_NOTIFICATION_DLQ:video.notification.dlq}
 
 logging:
   pattern:
