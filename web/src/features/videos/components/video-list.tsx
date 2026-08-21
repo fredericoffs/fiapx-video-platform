@@ -6,7 +6,7 @@ import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { VideoProcessingIllustration } from '@/shared/ui/illustrations/video-processing-illustration'
-import { VideoStatusBadge } from '@/features/videos/components/video-status-badge'
+import { VideoStatusBadge } from '@/shared/ui/video-status-badge'
 import { downloadVideo } from '@/features/videos/api/download-video'
 
 type ViewMode = 'list' | 'cards'

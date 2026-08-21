@@ -19,6 +19,7 @@ export function useUploadMutation() {
 
       const optimisticVideo: Video = {
         id: `optimistic-${crypto.randomUUID()}`,
+        userId: '',
         originalFilename: file.name,
         status: 'QUEUED',
         errorMessage: null,

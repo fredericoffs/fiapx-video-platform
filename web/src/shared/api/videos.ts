@@ -6,6 +6,7 @@ export type VideoStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
 
 export interface Video {
   id: string
+  userId: string
   originalFilename: string
   status: VideoStatus
   errorMessage: string | null
@@ -13,12 +14,13 @@ export interface Video {
   updatedAt: string
 }
 
-function toVideo(dto: components['schemas']['VideoStatusResponse']): Video | null {
+export function toVideo(dto: components['schemas']['VideoStatusResponse']): Video | null {
   if (!dto.id) {
     return null
   }
   return {
     id: dto.id,
+    userId: dto.userId ?? '',
     originalFilename: dto.originalFilename ?? '',
     status: dto.status ?? 'QUEUED',
     errorMessage: dto.errorMessage ?? null,
