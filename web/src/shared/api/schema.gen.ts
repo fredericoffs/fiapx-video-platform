@@ -121,7 +121,7 @@ export interface paths {
     }
     /**
      * Lista todos os vídeos do sistema
-     * @description Paginado, de qualquer usuário.
+     * @description Paginado, de qualquer usuário, com o e-mail do dono de cada vídeo.
      */
     get: operations['listVideos']
     put?: never
@@ -289,6 +289,65 @@ export interface components {
        * @description ID do usuário dono do vídeo
        */
       userId?: string
+      /**
+       * @description Nome original do arquivo enviado
+       * @example ferias-praia.mp4
+       */
+      originalFilename?: string
+      /**
+       * @description QUEUED → PROCESSING → COMPLETED ou FAILED
+       * @enum {string}
+       */
+      status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+      /** @description Motivo da falha — presente só quando status=FAILED */
+      errorMessage?: string | null
+      /**
+       * Format: date-time
+       * @description Data/hora do upload
+       */
+      createdAt?: string
+      /**
+       * Format: date-time
+       * @description Data/hora da última mudança de status
+       */
+      updatedAt?: string
+    }
+    /** @description Página de resultados da listagem de vídeos (admin) */
+    AdminVideoListResponse: {
+      /** @description Vídeos da página atual */
+      items?: components['schemas']['AdminVideoResponse'][]
+      /**
+       * Format: int32
+       * @description Página atual (0-based)
+       * @example 0
+       */
+      page?: number
+      /**
+       * Format: int32
+       * @description Tamanho de página solicitado
+       * @example 20
+       */
+      size?: number
+      /**
+       * Format: int64
+       * @description Total de vídeos do sistema, somando todas as páginas
+       */
+      totalElements?: number
+    }
+    /** @description Vídeo com dados do dono — usado só na listagem admin, para não poluir o VideoStatusResponse do usuário comum com um campo que só faz sentido pra admin. */
+    AdminVideoResponse: {
+      /**
+       * Format: uuid
+       * @description ID do vídeo
+       */
+      id?: string
+      /**
+       * Format: uuid
+       * @description ID do usuário dono do vídeo
+       */
+      userId?: string
+      /** @description E-mail do usuário dono do vídeo */
+      ownerEmail?: string | null
       /**
        * @description Nome original do arquivo enviado
        * @example ferias-praia.mp4
@@ -655,7 +714,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['VideoListResponse']
+          'application/json': components['schemas']['AdminVideoListResponse']
         }
       }
       /** @description Usuário autenticado não é admin */
