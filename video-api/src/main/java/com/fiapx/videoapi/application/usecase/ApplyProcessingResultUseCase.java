@@ -4,8 +4,10 @@ import com.fiapx.videoapi.application.event.NotificationRequestedPayload;
 import com.fiapx.videoapi.application.event.ProcessingEventType;
 import com.fiapx.videoapi.application.event.ProcessingResultMessage;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
+import com.fiapx.videoapi.domain.model.User;
 import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
+import com.fiapx.videoapi.domain.port.UserRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -23,15 +25,18 @@ public class ApplyProcessingResultUseCase {
   private static final Logger log = LoggerFactory.getLogger(ApplyProcessingResultUseCase.class);
 
   private final VideoRepository videoRepository;
+  private final UserRepository userRepository;
   private final OutboxEventRepository outboxEventRepository;
   private final ObjectMapper objectMapper;
 
   public ApplyProcessingResultUseCase(
       VideoRepository videoRepository,
+      UserRepository userRepository,
       OutboxEventRepository outboxEventRepository,
       ObjectMapper objectMapper
   ) {
     this.videoRepository = videoRepository;
+    this.userRepository = userRepository;
     this.outboxEventRepository = outboxEventRepository;
     this.objectMapper = objectMapper;
   }
@@ -58,10 +63,19 @@ public class ApplyProcessingResultUseCase {
     videoRepository.save(video);
 
     if (message.eventType() == ProcessingEventType.PROCESSING_FAILED) {
-      NotificationRequestedPayload payload = new NotificationRequestedPayload(video.getId(), video.getErrorMessage());
+      String recipientEmail = resolveRecipientEmail(video);
+      NotificationRequestedPayload payload =
+          new NotificationRequestedPayload(video.getId(), video.getErrorMessage(), recipientEmail);
       OutboxEvent event = OutboxEvent.newEvent(video.getId(), EVENT_TYPE_NOTIFICATION_REQUESTED, writeJson(payload));
       outboxEventRepository.save(event);
     }
+  }
+
+  private String resolveRecipientEmail(Video video) {
+    if (video.getUserId() == null) {
+      return null;
+    }
+    return userRepository.findById(video.getUserId()).map(User::getEmail).orElse(null);
   }
 
   private String writeJson(Object payload) {

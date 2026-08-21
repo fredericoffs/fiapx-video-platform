@@ -4,7 +4,8 @@ import java.util.UUID;
 
 public record NotificationRequestedPayload(
     UUID videoId,
-    String errorMessage
+    String errorMessage,
+    String recipientEmail
 ) {
 
 }

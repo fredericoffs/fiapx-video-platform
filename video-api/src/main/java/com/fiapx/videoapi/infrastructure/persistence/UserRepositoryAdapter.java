@@ -6,6 +6,7 @@ import com.fiapx.videoapi.infrastructure.persistence.entity.UserEntity;
 import com.fiapx.videoapi.infrastructure.persistence.mapper.UserMapper;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataUserRepository;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -27,6 +28,11 @@ public class UserRepositoryAdapter implements UserRepository {
   @Override
   public Optional<User> findByEmail(String email) {
     return springDataUserRepository.findByEmail(email).map(UserMapper::toDomain);
+  }
+
+  @Override
+  public Optional<User> findById(UUID id) {
+    return springDataUserRepository.findById(id).map(UserMapper::toDomain);
   }
 
   @Override
