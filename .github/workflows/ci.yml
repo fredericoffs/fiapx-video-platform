@@ -34,6 +34,9 @@ jobs:
             notification-worker:
               - 'notification-worker/**'
               - '.github/workflows/ci.yml'
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
 
   build-test-video-gateway:
     needs: changes
@@ -158,6 +161,71 @@ jobs:
           name: notification-worker-coverage-report
           path: notification-worker/target/site/jacoco/
           retention-days: 7
+
+  build-test-web:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changes), 'web')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      # Codegen precisa do video-api real de pé (mesmo contrato descrito no
+      # web/README.md) — se o cliente commitado (schema.gen.ts) divergir do spec
+      # atual, o build quebra aqui, não em produção. `docker compose up video-api`
+      # já sobe postgres/rabbitmq/redis/minio como dependência (depends_on).
+      - name: Start video-api for codegen verification
+        run: docker compose --profile app up -d video-api
+
+      - name: Wait for video-api
+        run: |
+          for _attempt in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/actuator/health)"
+            if [ "$code" = "200" ]; then
+              echo "video-api healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "video-api não respondeu a tempo"
+          exit 1
+
+      - name: Verify OpenAPI codegen has no drift
+        working-directory: web
+        run: |
+          npm run codegen
+          git diff --exit-code -- src/shared/api/schema.gen.ts
+
+      - name: Stop infra
+        if: always()
+        run: docker compose --profile app down
+
+      - name: Typecheck
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: web
+        run: npm run lint
+
+      - name: Unit tests
+        working-directory: web
+        run: npm test
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - name: Build Docker image
+        working-directory: web
+        run: docker build -t web:ci .
 
   # Os 4 jobs de segurança abaixo formam uma corrente sequencial fixa
   # (gateway -> worker -> api -> notification-worker) via `needs`, para nunca ter mais de
@@ -462,6 +530,69 @@ jobs:
       - name: Tear down cluster
         if: always()
         run: ./scripts/k8s-down.sh
+
+  # E2E do fluxo feliz completo (Sprint 5) contra o docker-compose real — mesmo
+  # padrão do k8s-smoke-test acima: workflow_dispatch-only, não atrasa o CI normal
+  # de todo push/PR com uma stack inteira de pé. O playwright.config.ts já sobe seu
+  # próprio `npm run dev` como servidor (CI=true no runner desliga
+  # reuseExistingServer), então só a stack de backend precisa ser levantada aqui —
+  # não o serviço `web` do compose.
+  e2e-web:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Start backend stack
+        run: docker compose --profile app up -d video-api video-worker notification-worker video-gateway
+
+      - name: Wait for video-api
+        run: |
+          for _attempt in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/actuator/health)"
+            if [ "$code" = "200" ]; then
+              echo "video-api healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "video-api não respondeu a tempo"
+          exit 1
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: web
+        run: npm run test:e2e
+
+      - name: Upload Playwright traces
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-e2e-test-results
+          path: web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Dump backend logs on failure
+        if: failure()
+        run: docker compose --profile app logs
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose --profile app down
 
   security-notification-worker:
     needs: [ changes, build-test-notification-worker, security-video-api ]
