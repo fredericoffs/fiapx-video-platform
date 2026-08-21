@@ -13,4 +13,6 @@ public interface VideoRepository {
   Optional<Video> findById(UUID id);
 
   PageResult<Video> findByUserId(UUID userId, VideoStatus statusFilter, int page, int size);
+
+  void deleteById(UUID id);
 }

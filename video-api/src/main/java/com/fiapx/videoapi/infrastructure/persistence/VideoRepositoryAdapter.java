@@ -46,4 +46,9 @@ public class VideoRepositoryAdapter implements VideoRepository {
     List<Video> items = result.getContent().stream().map(VideoMapper::toDomain).toList();
     return new PageResult<>(items, page, size, result.getTotalElements());
   }
+
+  @Override
+  public void deleteById(UUID id) {
+    springDataVideoRepository.deleteById(id);
+  }
 }

@@ -3,6 +3,7 @@ package com.fiapx.videoapi.infrastructure.web;
 import com.fiapx.videoapi.application.dto.VideoDownload;
 import com.fiapx.videoapi.application.dto.VideoUploadCommand;
 import com.fiapx.videoapi.application.dto.VideoUploadResult;
+import com.fiapx.videoapi.application.usecase.DeleteVideoUseCase;
 import com.fiapx.videoapi.application.usecase.DownloadVideoUseCase;
 import com.fiapx.videoapi.application.usecase.GetVideoStatusUseCase;
 import com.fiapx.videoapi.application.usecase.ListVideosUseCase;
@@ -28,7 +29,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,17 +51,20 @@ public class VideoController {
   private final GetVideoStatusUseCase getVideoStatusUseCase;
   private final ListVideosUseCase listVideosUseCase;
   private final DownloadVideoUseCase downloadVideoUseCase;
+  private final DeleteVideoUseCase deleteVideoUseCase;
 
   public VideoController(
       RequestVideoProcessingUseCase requestVideoProcessingUseCase,
       GetVideoStatusUseCase getVideoStatusUseCase,
       ListVideosUseCase listVideosUseCase,
-      DownloadVideoUseCase downloadVideoUseCase
+      DownloadVideoUseCase downloadVideoUseCase,
+      DeleteVideoUseCase deleteVideoUseCase
   ) {
     this.requestVideoProcessingUseCase = requestVideoProcessingUseCase;
     this.getVideoStatusUseCase = getVideoStatusUseCase;
     this.listVideosUseCase = listVideosUseCase;
     this.downloadVideoUseCase = downloadVideoUseCase;
+    this.deleteVideoUseCase = deleteVideoUseCase;
   }
 
   @Operation(
@@ -152,5 +159,27 @@ public class VideoController {
         .contentType(MediaType.APPLICATION_OCTET_STREAM)
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.filename() + "\"")
         .body(new InputStreamResource(download.content()));
+  }
+
+  @Operation(
+      summary = "Exclui um vídeo",
+      description = "Remove o registro e os arquivos no storage (original e, se existir, o zip processado). "
+          + "Um administrador pode excluir vídeo de qualquer usuário; um usuário comum só o próprio."
+  )
+  @ApiResponses({
+      @ApiResponse(responseCode = "204", description = "Vídeo excluído"),
+      @ApiResponse(responseCode = "401", description = "Token ausente, inválido ou expirado", content = @Content),
+      @ApiResponse(responseCode = "404", description = "Vídeo não encontrado (ou pertence a outro usuário)",
+          content = @Content)
+  })
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> delete(
+      @Parameter(description = "ID do vídeo", in = ParameterIn.PATH) @PathVariable UUID id,
+      @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
+      Authentication authentication
+  ) {
+    boolean isAdmin = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    deleteVideoUseCase.handle(id, userId, isAdmin);
+    return ResponseEntity.noContent().build();
   }
 }

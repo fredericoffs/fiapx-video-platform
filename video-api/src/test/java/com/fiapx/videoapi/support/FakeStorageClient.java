@@ -35,4 +35,13 @@ public class FakeStorageClient implements StorageClient {
     }
     return new ByteArrayInputStream(bytes);
   }
+
+  @Override
+  public void delete(String bucket, String key) {
+    objects.remove(bucket + "/" + key);
+  }
+
+  public boolean exists(String bucket, String key) {
+    return objects.containsKey(bucket + "/" + key);
+  }
 }

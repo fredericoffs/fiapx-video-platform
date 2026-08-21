@@ -8,6 +8,7 @@ import com.fiapx.videoapi.domain.port.StorageClient;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -34,5 +35,11 @@ public class S3StorageClient implements StorageClient {
 	public InputStream download(String bucket, String key) {
 		GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
 		return s3Client.getObject(request);
+	}
+
+	@Override
+	public void delete(String bucket, String key) {
+		DeleteObjectRequest request = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
+		s3Client.deleteObject(request);
 	}
 }

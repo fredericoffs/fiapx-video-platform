@@ -16,6 +16,8 @@ import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
+import static com.fiapx.videoapi.domain.model.Role.*;
+import static java.time.Instant.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -88,7 +90,7 @@ class ApplyProcessingResultUseCaseTest {
     when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
     when(userRepository.findById(userId))
         .thenReturn(Optional.of(
-            new User(userId, "dono@example.com", "hash", com.fiapx.videoapi.domain.model.Role.USER, java.time.Instant.now())));
+            new User(userId, "dono@example.com", "hash", USER, now())));
 
     useCase.handle(
         new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED, video.getId(), null, "ffmpeg falhou"));
