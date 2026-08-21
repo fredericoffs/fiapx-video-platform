@@ -1,8 +1,11 @@
 import { create } from 'zustand'
 
+export type Role = 'USER' | 'ADMIN'
+
 export interface Session {
   token: string
   email: string
+  role: Role
 }
 
 interface SessionState {

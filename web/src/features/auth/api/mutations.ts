@@ -28,7 +28,7 @@ export function useLoginMutation() {
         }
         throw new AuthApiError('Não foi possível entrar. Tente novamente.', response.status)
       }
-      return { accessToken: data.accessToken }
+      return { accessToken: data.accessToken, role: data.role ?? 'USER' }
     },
   })
 }

@@ -22,7 +22,9 @@ describe('LogoutButton', () => {
   })
 
   it('limpa a sessão e navega para /login ao clicar', async () => {
-    useSessionStore.setState({ session: { token: 'fake-token', email: 'user@example.com' } })
+    useSessionStore.setState({
+      session: { token: 'fake-token', email: 'user@example.com', role: 'USER' },
+    })
     const user = userEvent.setup()
 
     render(<LogoutButton />)

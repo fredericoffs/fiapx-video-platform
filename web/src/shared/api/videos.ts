@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/shared/api/client'
 import type { components } from '@/shared/api/schema.gen'
 
@@ -49,5 +49,22 @@ export function useVideosQuery() {
       return (data.items ?? []).map(toVideo).filter((video): video is Video => video !== null)
     },
     refetchInterval: (query) => (hasNonTerminalVideo(query.state.data) ? 3000 : false),
+  })
+}
+
+export function useDeleteVideoMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (videoId: string) => {
+      const { response } = await apiClient.DELETE('/videos/{id}', {
+        params: { path: { id: videoId } },
+      })
+      if (!response.ok) {
+        throw new Error('Não foi possível excluir o vídeo')
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: videoKeys.list() })
+    },
   })
 }

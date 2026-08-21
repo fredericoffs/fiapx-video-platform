@@ -82,7 +82,11 @@ export interface paths {
     get: operations['getStatus']
     put?: never
     post?: never
-    delete?: never
+    /**
+     * Exclui um vídeo
+     * @description Remove o registro e os arquivos no storage (original e, se existir, o zip processado). Um administrador pode excluir vídeo de qualquer usuário; um usuário comum só o próprio.
+     */
+    delete: operations['delete']
     options?: never
     head?: never
     patch?: never
@@ -103,6 +107,66 @@ export interface paths {
     put?: never
     post?: never
     delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/admin/videos': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Lista todos os vídeos do sistema
+     * @description Paginado, de qualquer usuário.
+     */
+    get: operations['listVideos']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/admin/users': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Lista todos os usuários cadastrados
+     * @description Paginado, sem escopo por dono.
+     */
+    get: operations['listUsers']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/admin/users/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Exclui um usuário
+     * @description Exclusão em cascata: apaga todos os vídeos do usuário (registro + arquivos no storage) antes da própria conta.
+     */
+    delete: operations['deleteUser']
     options?: never
     head?: never
     patch?: never
@@ -184,6 +248,12 @@ export interface components {
        * @example 1800
        */
       expiresIn?: number
+      /**
+       * @description Papel do usuário autenticado
+       * @example USER
+       * @enum {string}
+       */
+      role?: 'USER' | 'ADMIN'
     }
     /** @description Página de resultados da listagem de vídeos do usuário autenticado */
     VideoListResponse: {
@@ -215,6 +285,11 @@ export interface components {
        */
       id?: string
       /**
+       * Format: uuid
+       * @description ID do usuário dono do vídeo
+       */
+      userId?: string
+      /**
        * @description Nome original do arquivo enviado
        * @example ferias-praia.mp4
        */
@@ -236,6 +311,48 @@ export interface components {
        * @description Data/hora da última mudança de status
        */
       updatedAt?: string
+    }
+    /** @description Página de resultados da listagem de usuários (admin) */
+    AdminUserListResponse: {
+      /** @description Usuários da página atual */
+      items?: components['schemas']['AdminUserResponse'][]
+      /**
+       * Format: int32
+       * @description Página atual (0-based)
+       * @example 0
+       */
+      page?: number
+      /**
+       * Format: int32
+       * @description Tamanho de página solicitado
+       * @example 20
+       */
+      size?: number
+      /**
+       * Format: int64
+       * @description Total de usuários cadastrados, somando todas as páginas
+       */
+      totalElements?: number
+    }
+    /** @description Usuário cadastrado — nunca inclui o hash da senha */
+    AdminUserResponse: {
+      /**
+       * Format: uuid
+       * @description ID do usuário
+       */
+      id?: string
+      /** @description E-mail de login */
+      email?: string
+      /**
+       * @description Papel do usuário
+       * @enum {string}
+       */
+      role?: 'USER' | 'ADMIN'
+      /**
+       * Format: date-time
+       * @description Data/hora do cadastro
+       */
+      createdAt?: string
     }
   }
   responses: never
@@ -437,6 +554,41 @@ export interface operations {
       }
     }
   }
+  delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description ID do vídeo */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Vídeo excluído */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Token ausente, inválido ou expirado */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Vídeo não encontrado (ou pertence a outro usuário) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   download: {
     parameters: {
       query?: never
@@ -474,6 +626,106 @@ export interface operations {
       }
       /** @description Vídeo ainda não está com status COMPLETED */
       409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  listVideos: {
+    parameters: {
+      query?: {
+        /** @description Filtro opcional por status */
+        status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+        /** @description Página, começando em 0 */
+        page?: number
+        /** @description Itens por página */
+        size?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoListResponse']
+        }
+      }
+      /** @description Usuário autenticado não é admin */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  listUsers: {
+    parameters: {
+      query?: {
+        /** @description Página, começando em 0 */
+        page?: number
+        /** @description Itens por página */
+        size?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AdminUserListResponse']
+        }
+      }
+      /** @description Usuário autenticado não é admin */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  deleteUser: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Usuário excluído */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Usuário autenticado não é admin */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Usuário não encontrado */
+      404: {
         headers: {
           [name: string]: unknown
         }
