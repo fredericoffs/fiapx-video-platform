@@ -21,7 +21,7 @@ public class RoutesConfig {
       RateLimitFilterFunction rateLimitFilterFunction
   ) {
     return route("video-api")
-        .route(path("/auth/**").or(path("/videos/**")), http())
+        .route(path("/auth/**").or(path("/videos/**")).or(path("/admin/**")), http())
         .before(uri(properties.videoApiUri()))
         .filter(rateLimitFilterFunction)
         .build();

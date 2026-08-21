@@ -47,6 +47,7 @@ class GatewayRoutingIntegrationTest {
     stubVideoApi = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
     stubVideoApi.createContext("/auth/login", exchange -> respond(exchange, "{\"stub\":\"auth\"}"));
     stubVideoApi.createContext("/videos", exchange -> respond(exchange, "{\"stub\":\"videos\"}"));
+    stubVideoApi.createContext("/admin/users", exchange -> respond(exchange, "{\"stub\":\"admin\"}"));
     stubVideoApi.setExecutor(null);
     stubVideoApi.start();
 
@@ -82,6 +83,13 @@ class GatewayRoutingIntegrationTest {
     mockMvc.perform(get("/videos"))
         .andExpect(status().isOk())
         .andExpect(content().json("{\"stub\":\"videos\"}"));
+  }
+
+  @Test
+  void routesAdminRequestsToVideoApi() throws Exception {
+    mockMvc.perform(get("/admin/users"))
+        .andExpect(status().isOk())
+        .andExpect(content().json("{\"stub\":\"admin\"}"));
   }
 
   @Test
