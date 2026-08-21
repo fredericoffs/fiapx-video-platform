@@ -48,6 +48,17 @@ public class VideoRepositoryAdapter implements VideoRepository {
   }
 
   @Override
+  public PageResult<Video> findAll(VideoStatus statusFilter, int page, int size) {
+    PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    Page<VideoEntity> result = statusFilter == null
+        ? springDataVideoRepository.findAll(pageRequest)
+        : springDataVideoRepository.findByStatus(statusFilter, pageRequest);
+
+    List<Video> items = result.getContent().stream().map(VideoMapper::toDomain).toList();
+    return new PageResult<>(items, page, size, result.getTotalElements());
+  }
+
+  @Override
   public void deleteById(UUID id) {
     springDataVideoRepository.deleteById(id);
   }

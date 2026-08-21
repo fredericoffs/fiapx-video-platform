@@ -4,6 +4,7 @@ import com.fiapx.videoapi.domain.exception.EmailAlreadyRegisteredException;
 import com.fiapx.videoapi.domain.exception.InvalidCredentialsException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
 import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
+import com.fiapx.videoapi.domain.exception.UserNotFoundException;
 import com.fiapx.videoapi.domain.exception.VideoNotCompletedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(VideoNotFoundException.class)
   public ProblemDetail handleVideoNotFound(VideoNotFoundException e) {
     return problem(HttpStatus.NOT_FOUND, "Vídeo não encontrado", e.getMessage());
+  }
+
+  @ExceptionHandler(UserNotFoundException.class)
+  public ProblemDetail handleUserNotFound(UserNotFoundException e) {
+    return problem(HttpStatus.NOT_FOUND, "Usuário não encontrado", e.getMessage());
   }
 
   @ExceptionHandler(VideoNotCompletedException.class)
