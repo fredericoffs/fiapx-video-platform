@@ -16,3 +16,5 @@ configMapGenerator:
     files:
       - ../../../../video-api/src/main/resources/db/migration/V1__init.sql
       - ../../../../video-api/src/main/resources/db/migration/V2__users.sql
+      - ../../../../video-api/src/main/resources/db/migration/V3__admin_role.sql
+      - ../../../../video-api/src/main/resources/db/migration/V4__outbox_correlation_id.sql
