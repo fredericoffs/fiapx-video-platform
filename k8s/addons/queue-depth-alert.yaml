@@ -1,0 +1,24 @@
+# Preciso do label "release: kube-prometheus-stack" pro operator descobrir esta regra —
+# mesmo motivo já documentado em k8s/infra/rabbitmq/servicemonitor.yaml
+# (ruleSelectorNilUsesHelmValues, default do chart).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fiapx-queue-depth
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: fiapx.queue-depth
+      rules:
+        - alert: FiapxQueueDepthHigh
+          # Limiar de 50 mensagens pendentes: acima disso, o video-worker não está
+          # dando conta do ritmo de upload — sinal de que precisa escalar (KEDA) ou
+          # investigar um consumidor travado.
+          expr: rabbitmq_queue_messages_ready{queue=~"video\\.(processing|notification|status-updates)"} > 50
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Fila {{ $labels.queue }} com profundidade alta"
+            description: "{{ $labels.queue }} está com {{ $value }} mensagens prontas para consumo há mais de 2 minutos — verificar se o consumidor correspondente está saudável."

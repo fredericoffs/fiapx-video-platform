@@ -1,0 +1,57 @@
+{
+  "title": "FIAP X — Tempo médio de execução por status",
+  "uid": "fiapx-duracao-processamento",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "tags": ["fiapx"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Duração média de processamento por status (janela de 5m)",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(fiapx_video_processing_duration_seconds_sum[5m])) / sum by (status) (rate(fiapx_video_processing_duration_seconds_count[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Duração média (COMPLETED, acumulado)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(fiapx_video_processing_duration_seconds_sum{status=\"COMPLETED\"}) / sum(fiapx_video_processing_duration_seconds_count{status=\"COMPLETED\"})",
+          "legendFormat": "COMPLETED",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Duração média (FAILED, acumulado)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(fiapx_video_processing_duration_seconds_sum{status=\"FAILED\"}) / sum(fiapx_video_processing_duration_seconds_count{status=\"FAILED\"})",
+          "legendFormat": "FAILED",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

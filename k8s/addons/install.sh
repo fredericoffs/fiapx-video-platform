@@ -35,6 +35,9 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
   --wait --timeout 5m
 
+echo "==> dashboards Grafana + alerta de profundidade de fila"
+kubectl apply -k "${ADDONS_DIR}"
+
 echo "==> Add-ons prontos:"
 kubectl get deployment -n kube-system metrics-server
 kubectl get deployment -n keda

@@ -1,0 +1,75 @@
+{
+  "title": "FIAP X — Erros de processamento e circuit breakers",
+  "uid": "fiapx-erros-circuit-breakers",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "tags": ["fiapx"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Taxa de falha de processamento (FAILED / total)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "max": 1, "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 15 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(fiapx_video_processed_total{status=\"FAILED\"}[5m])) / sum(rate(fiapx_video_processed_total[5m]))",
+          "legendFormat": "taxa de falha",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Estado dos circuit breakers (notification-worker)",
+      "description": "0 = fechado (saudável), 1 = aberto (canal indisponível, chamadas bloqueadas)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "stepMode": "before" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state{state=\"open\"}",
+          "legendFormat": "{{name}} (open)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Estado atual por canal",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "fechado", "color": "green" } } },
+            { "type": "value", "options": { "1": { "text": "aberto", "color": "red" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state{state=\"open\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
