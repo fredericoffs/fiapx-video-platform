@@ -1,0 +1,20 @@
+# Preciso do label "release: kube-prometheus-stack" pro operator descobrir este
+# ServiceMonitor — com serviceMonitorSelectorNilUsesHelmValues (default do chart), o
+# Prometheus só escuta ServiceMonitors com esse label (nome da release do Helm), não
+# qualquer um no namespace. Ver k8s/addons/values/kube-prometheus-stack.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rabbitmq
+  namespace: fiapx
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s

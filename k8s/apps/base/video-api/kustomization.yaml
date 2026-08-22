@@ -5,6 +5,7 @@ resources:
   - service.yaml
   - hpa.yaml
   - migration-job.yaml
+  - servicemonitor.yaml
 
 # Gero o ConfigMap montado pelo migration-job.yaml a partir das *.sql reais do
 # video-api — assim mantenho uma fonte única de verdade, nada duplicado à mão aqui.
