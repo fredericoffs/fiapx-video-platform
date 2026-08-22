@@ -1,0 +1,68 @@
+# Desligo os componentes de nó/control-plane que o chart tenta monitorar por padrão
+# (kubeControllerManager/kubeScheduler/kubeProxy/kubeEtcd) — não fazem sentido num nó
+# kind local (não são expostos como o kubeadm faria num cluster gerenciado de verdade)
+# e não alimentam nenhum dos 3 dashboards que preciso (volume de vídeos, duração por
+# status, erros/circuit breakers — tudo métrica de aplicação, não de control-plane).
+# Desligo nodeExporter e kubeStateMetrics também: nó único, sem valor real de nó/objeto
+# Kubernetes pros dashboards pedidos, e cada um a menos é memória que sobra pro que
+# importa (incidente real de memória em 2026-08-19 com 3 nós numa máquina de 8GB — ver
+# k8s/kind/cluster-config.yaml).
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+nodeExporter:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+
+# Mantenho o mesmo orçamento de requests/limits já usado no projeto pro resto da infra
+# (k8s/infra/values/postgres.yaml: 250m/256Mi requests, 500m/512Mi limits como
+# referência) — ajustado um pouco pra cima só no Prometheus, que é quem de fato
+# armazena as séries temporais.
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    walCompression: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 384Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+grafana:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  # O pod da Grafana também sobe 2 sidecars (watcher de dashboards + de datasources via
+  # ConfigMap) que, sem isso, sobem sem limite nenhum — descobri isso ao vivo, rodando
+  # `kubectl top pod` num cluster kind real: o total do pod tava bem acima do limite que
+  # eu tinha posto só no container principal, porque os sidecars não contavam.
+  sidecar:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
