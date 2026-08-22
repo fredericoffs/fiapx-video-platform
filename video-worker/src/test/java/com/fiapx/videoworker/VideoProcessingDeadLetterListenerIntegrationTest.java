@@ -36,7 +36,11 @@ class VideoProcessingDeadLetterListenerIntegrationTest {
 		UUID videoId = UUID.randomUUID();
 		VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId,
 				"raw/" + videoId + "/never-seeded.mp4", "never-seeded.mp4");
-		rabbitTemplate.convertAndSend(queueProperties.processing(), objectMapper.writeValueAsString(payload));
+		rabbitTemplate.convertAndSend(queueProperties.processing(), objectMapper.writeValueAsString(payload),
+				m -> {
+					m.getMessageProperties().setCorrelationId("dlq-test-correlation-id");
+					return m;
+				});
 
 		Message message = receiveContaining(queueProperties.statusUpdates(), videoId.toString());
 		assertThat(message).as("mensagem de resultado publicada em %s após DLQ", queueProperties.statusUpdates())
@@ -47,6 +51,10 @@ class VideoProcessingDeadLetterListenerIntegrationTest {
 		assertThat(result.eventType()).isEqualTo(ProcessingEventType.PROCESSING_FAILED);
 		assertThat(result.videoId()).isEqualTo(videoId);
 		assertThat(result.errorMessage()).isNotBlank();
+		// O RabbitMQ preserva as properties da mensagem original (incluindo correlation_id) ao
+		// mover pra DLQ — confirmo aqui que o mesmo id sobrevive até a mensagem final publicada
+		// pelo listener da DLQ em video.status-updates.
+		assertThat(message.getMessageProperties().getCorrelationId()).isEqualTo("dlq-test-correlation-id");
 	}
 
 	private Message receiveContaining(String queue, String needle) {

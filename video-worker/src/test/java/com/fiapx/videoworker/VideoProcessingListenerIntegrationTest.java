@@ -58,6 +58,24 @@ class VideoProcessingListenerIntegrationTest {
 		assertThat(result.zipStorageKey()).isEqualTo("processed/" + videoId + "/" + videoId + ".zip");
 	}
 
+	@Test
+	void propagatesTheCorrelationIdToTheStatusUpdateMessage() {
+		UUID videoId = UUID.randomUUID();
+		String storageKey = "raw/" + videoId + "/movie.mp4";
+		fakeStorageClient.seed(storageProperties.bucketRaw(), storageKey, "fake-video-bytes".getBytes());
+
+		VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, storageKey, "movie.mp4");
+		rabbitTemplate.convertAndSend(queueProperties.processing(), objectMapper.writeValueAsString(payload),
+				m -> {
+					m.getMessageProperties().setCorrelationId("worker-test-correlation-id");
+					return m;
+				});
+
+		Message message = receiveContaining(queueProperties.statusUpdates(), videoId.toString());
+		assertThat(message).as("mensagem de resultado publicada em %s", queueProperties.statusUpdates()).isNotNull();
+		assertThat(message.getMessageProperties().getCorrelationId()).isEqualTo("worker-test-correlation-id");
+	}
+
 	private Message receiveContaining(String queue, String needle) {
 		long deadline = System.currentTimeMillis() + 15_000;
 		while (System.currentTimeMillis() < deadline) {
