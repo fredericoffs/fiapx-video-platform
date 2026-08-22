@@ -9,6 +9,8 @@ import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.domain.port.UserRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -31,8 +33,9 @@ class ApplyProcessingResultUseCaseTest {
   private final UserRepository userRepository = mock(UserRepository.class);
   private final OutboxEventRepository outboxEventRepository = mock(OutboxEventRepository.class);
   private final ObjectMapper objectMapper = JsonMapper.builder().build();
-  private final ApplyProcessingResultUseCase useCase =
-      new ApplyProcessingResultUseCase(videoRepository, userRepository, outboxEventRepository, objectMapper);
+  private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
+  private final ApplyProcessingResultUseCase useCase = new ApplyProcessingResultUseCase(
+      videoRepository, userRepository, outboxEventRepository, objectMapper, meterRegistry);
 
   @Test
   void ignoresEventForUnknownVideo() {
@@ -120,6 +123,42 @@ class ApplyProcessingResultUseCaseTest {
     ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
     verify(outboxEventRepository).save(eventCaptor.capture());
     assertThat(eventCaptor.getValue().getPayload()).contains("\"recipientEmail\":null");
+  }
+
+  @Test
+  void recordsProcessedCounterAndDurationTimerOnCompleted() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(
+        new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED, video.getId(), "zip-key", null));
+
+    assertThat(meterRegistry.counter("fiapx.video.processed", "status", "COMPLETED").count()).isEqualTo(1.0);
+    assertThat(meterRegistry.timer("fiapx.video.processing.duration", "status", "COMPLETED").count()).isEqualTo(1L);
+  }
+
+  @Test
+  void recordsProcessedCounterAndDurationTimerOnFailed() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(
+        new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED, video.getId(), null, "ffmpeg falhou"));
+
+    assertThat(meterRegistry.counter("fiapx.video.processed", "status", "FAILED").count()).isEqualTo(1.0);
+    assertThat(meterRegistry.timer("fiapx.video.processing.duration", "status", "FAILED").count()).isEqualTo(1L);
+  }
+
+  @Test
+  void doesNotRecordMetricsForIgnoredEvents() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    video.complete("already-processed.zip");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED, video.getId(), null, "erro"));
+
+    assertThat(meterRegistry.find("fiapx.video.processed").counter()).isNull();
+    assertThat(meterRegistry.find("fiapx.video.processing.duration").timer()).isNull();
   }
 
   @Test

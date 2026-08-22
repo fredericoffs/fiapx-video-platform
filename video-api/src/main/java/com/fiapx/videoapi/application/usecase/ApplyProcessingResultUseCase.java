@@ -9,6 +9,9 @@ import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.domain.port.UserRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,17 +32,20 @@ public class ApplyProcessingResultUseCase {
   private final UserRepository userRepository;
   private final OutboxEventRepository outboxEventRepository;
   private final ObjectMapper objectMapper;
+  private final MeterRegistry meterRegistry;
 
   public ApplyProcessingResultUseCase(
       VideoRepository videoRepository,
       UserRepository userRepository,
       OutboxEventRepository outboxEventRepository,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      MeterRegistry meterRegistry
   ) {
     this.videoRepository = videoRepository;
     this.userRepository = userRepository;
     this.outboxEventRepository = outboxEventRepository;
     this.objectMapper = objectMapper;
+    this.meterRegistry = meterRegistry;
   }
 
   @Transactional
@@ -62,6 +68,7 @@ public class ApplyProcessingResultUseCase {
     }
 
     videoRepository.save(video);
+    recordProcessingMetrics(video);
 
     if (message.eventType() == ProcessingEventType.PROCESSING_FAILED) {
       String recipientEmail = resolveRecipientEmail(video);
@@ -72,6 +79,16 @@ public class ApplyProcessingResultUseCase {
       );
       outboxEventRepository.save(event);
     }
+  }
+
+  // Não uso um Timer.Sample vivo aqui: ele não sobreviveria o vídeo atravessar processos (video-api
+  // -> fila -> video-worker -> fila -> video-api) via JVMs diferentes. Calculo a duração direto a
+  // partir do createdAt já persistido, que é a mesma informação, sem depender de estado em memória.
+  private void recordProcessingMetrics(Video video) {
+    String status = video.getStatus().name();
+    meterRegistry.counter("fiapx.video.processed", "status", status).increment();
+    meterRegistry.timer("fiapx.video.processing.duration", "status", status)
+        .record(Duration.between(video.getCreatedAt(), Instant.now()));
   }
 
   private String resolveRecipientEmail(Video video) {
