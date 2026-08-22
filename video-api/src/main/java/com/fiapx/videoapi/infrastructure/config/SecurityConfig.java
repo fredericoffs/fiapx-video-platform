@@ -1,5 +1,6 @@
 package com.fiapx.videoapi.infrastructure.config;
 
+import com.fiapx.videoapi.infrastructure.security.CorrelationIdFilter;
 import com.fiapx.videoapi.infrastructure.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,9 +15,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
 
+  private final CorrelationIdFilter correlationIdFilter;
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-  public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+  public SecurityConfig(CorrelationIdFilter correlationIdFilter, JwtAuthenticationFilter jwtAuthenticationFilter) {
+    this.correlationIdFilter = correlationIdFilter;
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
   }
 
@@ -41,7 +44,12 @@ public class SecurityConfig {
         .exceptionHandling(handling -> handling
             .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
         )
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        // JwtAuthenticationFilter precisa ser registrado primeiro — o comparador de
+        // ordem do Spring Security só aceita uma classe de filtro como âncora
+        // (JwtAuthenticationFilter.class abaixo) depois que ela própria já foi
+        // registrada com uma ordem, o que só acontece neste addFilterBefore.
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(correlationIdFilter, JwtAuthenticationFilter.class);
     return http.build();
   }
 }

@@ -14,7 +14,12 @@ public class RabbitMessagePublisher implements MessagePublisher {
   }
 
   @Override
-  public void publish(String queueName, String payloadJson) {
-    rabbitTemplate.convertAndSend(queueName, payloadJson);
+  public void publish(String queueName, String payloadJson, String correlationId) {
+    rabbitTemplate.convertAndSend(queueName, payloadJson, message -> {
+      if (correlationId != null) {
+        message.getMessageProperties().setCorrelationId(correlationId);
+      }
+      return message;
+    });
   }
 }
