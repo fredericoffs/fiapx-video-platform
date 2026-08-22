@@ -24,12 +24,16 @@ spec:
     spec:
       containers:
         - name: rabbitmq
+          # rabbitmq_prometheus já vem no enabled_plugins default desta imagem
+          # (confirmado rodando a imagem localmente) — só falta expor a porta.
           image: rabbitmq:3.13-management-alpine
           ports:
             - name: amqp
               containerPort: 5672
             - name: management
               containerPort: 15672
+            - name: prometheus
+              containerPort: 15692
           envFrom:
             - secretRef:
                 name: rabbitmq
