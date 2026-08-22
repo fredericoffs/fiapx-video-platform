@@ -35,6 +35,27 @@
       "key": "videoId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@fiapx.local",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "Admin@123",
+      "type": "string"
+    },
+    {
+      "key": "adminAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetUserId",
+      "value": "",
+      "type": "string",
+      "description": "Preencha manualmente com o id de um usuário retornado por Admin > List users, antes de rodar Admin > Delete user."
     }
   ],
   "item": [
@@ -264,6 +285,177 @@
               ]
             },
             "description": "application/octet-stream com o zip de frames. 409 se o vídeo ainda não estiver COMPLETED, 404 se não for do usuário autenticado.\n\nO botão \"Send\" normal do Postman sempre renderiza a resposta inline no body (por isso aparecem bytes binários como texto). Para salvar o arquivo em disco, use a seta ao lado do botão Send e escolha \"Send and Download\" — aí o Postman abre o diálogo nativo de salvar arquivo, respeitando o filename do header Content-Disposition."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete video",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/videos/{{videoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "videos",
+                "{{videoId}}"
+              ]
+            },
+            "description": "Exclusão real — apaga o registro no banco e os arquivos no MinIO (original e, se existir, o .zip processado). 204 se o dono for o autenticado (ou se for admin); 404 pra vídeo de outro usuário (mesma convenção de não vazar existência de recurso alheio)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Endpoints restritos a quem tem papel ADMIN (interlúdio da Sprint 7). Só existe um jeito de virar admin: o usuário seed criado pela migration V3__admin_role.sql — não há endpoint de promoção.",
+      "item": [
+        {
+          "name": "Admin login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('adminAccessToken', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login com o usuário admin seed (criado via migration V3__admin_role.sql, não existe endpoint de promoção). Guarda o token em {{adminAccessToken}}, separado do {{accessToken}} do usuário comum — assim dá pra alternar entre os dois sem relogar."
+          },
+          "response": []
+        },
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Lista paginada de todos os usuários do sistema (não escopado por dono). Exige papel ADMIN — 403 se o token for de um usuário comum."
+          },
+          "response": []
+        },
+        {
+          "name": "List all videos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/videos?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "videos"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "QUEUED | PROCESSING | COMPLETED | FAILED"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Lista paginada de todos os vídeos do sistema, de qualquer dono, com o e-mail do dono em cada item. Exige papel ADMIN — 403 se o token for de um usuário comum."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete user",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{targetUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{targetUserId}}"
+              ]
+            },
+            "description": "Exclusão em cascata de verdade: apaga todos os vídeos do usuário (registro + arquivos no storage) antes da própria conta. Preencha {{targetUserId}} manualmente com o id de um usuário retornado por 'List users' — nunca aponte pro próprio usuário admin. 204 no sucesso, 404 se o id não existir."
           },
           "response": []
         }
