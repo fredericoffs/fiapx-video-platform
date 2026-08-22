@@ -2,7 +2,10 @@ package com.fiapx.videoapi.infrastructure.messaging;
 
 import com.fiapx.videoapi.application.event.ProcessingResultMessage;
 import com.fiapx.videoapi.application.usecase.ApplyProcessingResultUseCase;
+import org.slf4j.MDC;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -21,8 +24,13 @@ public class VideoStatusUpdateListener {
   }
 
   @RabbitListener(queues = "${fiapx.queues.status-updates}")
-  public void onMessage(String rawJson) {
-    ProcessingResultMessage message = objectMapper.readValue(rawJson, ProcessingResultMessage.class);
-    applyProcessingResultUseCase.handle(message);
+  public void onMessage(String rawJson, @Header(value = AmqpHeaders.CORRELATION_ID, required = false) String correlationId) {
+    MDC.put("correlationId", correlationId);
+    try {
+      ProcessingResultMessage message = objectMapper.readValue(rawJson, ProcessingResultMessage.class);
+      applyProcessingResultUseCase.handle(message);
+    } finally {
+      MDC.remove("correlationId");
+    }
   }
 }

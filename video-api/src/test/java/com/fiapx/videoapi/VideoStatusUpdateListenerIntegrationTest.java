@@ -4,7 +4,9 @@ import com.fiapx.videoapi.application.event.ProcessingEventType;
 import com.fiapx.videoapi.application.event.ProcessingResultMessage;
 import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
+import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
 import com.fiapx.videoapi.infrastructure.persistence.entity.VideoEntity;
+import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutboxEventRepository;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataVideoRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,6 +36,9 @@ class VideoStatusUpdateListenerIntegrationTest {
 
   @Autowired
   private QueueProperties queueProperties;
+
+  @Autowired
+  private SpringDataOutboxEventRepository outboxEventRepository;
 
   @Test
   void appliesCompletedStatusWhenProcessingCompletedEventArrives() {
@@ -95,5 +100,38 @@ class VideoStatusUpdateListenerIntegrationTest {
     assertThat(afterRedelivery.getStatus()).isEqualTo(VideoStatus.COMPLETED);
     assertThat(afterRedelivery.getZipStorageKey()).isEqualTo(firstZipKey);
     assertThat(afterRedelivery.getErrorMessage()).isNull();
+  }
+
+  @Test
+  void propagatesTheCorrelationIdToTheNotificationRequestedOutboxEvent() {
+    VideoEntity entity = new VideoEntity();
+    entity.setId(UUID.randomUUID());
+    entity.setOriginalFilename("movie.mp4");
+    entity.setStorageKey("raw/movie.mp4");
+    entity.setStatus(VideoStatus.QUEUED);
+    entity.setCreatedAt(Instant.now());
+    entity.setUpdatedAt(Instant.now());
+    videoRepository.save(entity);
+
+    ProcessingResultMessage failedMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED,
+        entity.getId(), null, "ffmpeg falhou");
+    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(), objectMapper.writeValueAsString(failedMessage),
+        m -> {
+          m.getMessageProperties().setCorrelationId("status-listener-test-correlation-id");
+          return m;
+        });
+
+    await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+      VideoEntity updated = videoRepository.findById(entity.getId()).orElseThrow();
+      assertThat(updated.getStatus()).isEqualTo(VideoStatus.FAILED);
+    });
+
+    await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+      OutboxEventEntity event = outboxEventRepository.findAll().stream()
+          .filter(e -> e.getAggregateId().equals(entity.getId()))
+          .findFirst()
+          .orElseThrow();
+      assertThat(event.getCorrelationId()).isEqualTo("status-listener-test-correlation-id");
+    });
   }
 }
