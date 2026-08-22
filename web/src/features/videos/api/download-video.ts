@@ -7,8 +7,8 @@ function filenameFromDisposition(header: string | null, fallback: string): strin
 }
 
 /**
- * Download autenticado: o endpoint exige Authorization: Bearer, então não
- * dá pra usar um <a href> puro — precisa buscar como blob e disparar o
+ * Faço um download autenticado: o endpoint exige Authorization: Bearer, então não
+ * dá pra usar um <a href> puro — preciso buscar como blob e disparar o
  * download via link temporário.
  */
 export async function downloadVideo(videoId: string, originalFilename: string): Promise<void> {

@@ -1,4 +1,4 @@
-# ClusterIP no base — o overlay decide como expor externamente (NodePort em
+# Deixo ClusterIP no base — cada overlay decide como expor externamente (NodePort em
 # k8s/apps/overlays/local via kind extraPortMappings, Ingress em overlays/aws).
 apiVersion: v1
 kind: Service

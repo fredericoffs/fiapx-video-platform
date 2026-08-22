@@ -1,4 +1,4 @@
-# Nome "minio" — bate com STORAGE_ENDPOINT (http://minio:9000) no ConfigMap
+# Uso o nome "minio" — bate com STORAGE_ENDPOINT (http://minio:9000) no ConfigMap
 # (k8s/apps/base/configmap.yaml) e com o hostname já usado no docker-compose.yml.
 apiVersion: v1
 kind: Service

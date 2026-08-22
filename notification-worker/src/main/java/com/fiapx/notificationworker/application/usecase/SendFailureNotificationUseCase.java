@@ -15,8 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Dispatcher: tenta o canal primário (e-mail); se falhar (circuito aberto, bulkhead
- * cheio ou erro real de envio), cai pro canal secundário (webhook). Só relança — pro
+ * Meu dispatcher: tento o canal primário (e-mail); se falhar (circuito aberto, bulkhead
+ * cheio ou erro real de envio), caio pro canal secundário (webhook). Só relanço — pro
  * retry/DLQ do AMQP agir — se os dois canais falharem.
  */
 @Service

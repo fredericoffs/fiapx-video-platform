@@ -1,5 +1,5 @@
-# Stub — ver comentário em ingress.yaml. Existe para provar o padrão "mesmos
-# manifests via overlay Kustomize" do ADR-010; não é build/deploy alvo desta sprint.
+# Deixei isto como stub — ver comentário em ingress.yaml. Criei pra provar o padrão
+# "mesmos manifests via overlay Kustomize" do ADR-010; não é build/deploy alvo desta sprint.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: fiapx

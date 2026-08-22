@@ -1,7 +1,7 @@
-# Manifest próprio em vez de Helm/Bitnami: docker.io/bitnami/rabbitmq não tem mais
-# nenhuma tag pública (Broadcom moveu para o catálogo pago "Bitnami Secure Images"),
-# confirmado consultando a API do Docker Hub durante a Sprint 4 (count: 0 tags).
-# Usa a MESMA imagem oficial já validada no docker-compose.yml — sem imagem nova para
+# Escrevi um manifest próprio em vez de usar Helm/Bitnami: docker.io/bitnami/rabbitmq não
+# tem mais nenhuma tag pública (a Broadcom moveu para o catálogo pago "Bitnami Secure
+# Images"), confirmei consultando a API do Docker Hub durante a Sprint 4 (count: 0 tags).
+# Uso a MESMA imagem oficial já validada no docker-compose.yml — sem imagem nova para
 # confiar, só uma forma diferente de rodá-la.
 apiVersion: apps/v1
 kind: Deployment
@@ -25,7 +25,7 @@ spec:
       containers:
         - name: rabbitmq
           # rabbitmq_prometheus já vem no enabled_plugins default desta imagem
-          # (confirmado rodando a imagem localmente) — só falta expor a porta.
+          # (confirmei rodando a imagem localmente) — só falta expor a porta.
           image: rabbitmq:3.13-management-alpine
           ports:
             - name: amqp
@@ -37,9 +37,9 @@ spec:
           envFrom:
             - secretRef:
                 name: rabbitmq
-          # timeoutSeconds explícito: rabbitmq-diagnostics sobe seu próprio nó Erlang
+          # Uso timeoutSeconds explícito: rabbitmq-diagnostics sobe seu próprio nó Erlang
           # para conectar por Erlang distribuído — o default de 1s do probe não é
-          # suficiente mesmo com o RabbitMQ já saudável (visto na prática: probe
+          # suficiente mesmo com o RabbitMQ já saudável (vi na prática: probe
           # "timed out after 1s" derrubando o pod em loop mesmo com o server já com
           # "Server startup complete" no log).
           readinessProbe:

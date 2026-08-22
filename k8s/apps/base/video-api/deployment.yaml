@@ -1,7 +1,7 @@
-# SPRING_FLYWAY_ENABLED não é setado aqui de propósito: no Compose (dev local) o
+# Deixo SPRING_FLYWAY_ENABLED sem setar aqui de propósito: no Compose (dev local) o
 # video-api segue se automigrando ao subir (comportamento inalterado). No overlay
-# local/aws ele é sobrescrito para "false" via patch — quem migra o schema em
-# Kubernetes é o Job dedicado (migration-job.yaml), rodado antes do rollout deste
+# local/aws eu sobrescrevo para "false" via patch — quem migra o schema em
+# Kubernetes é o Job dedicado (migration-job.yaml), que rodo antes do rollout deste
 # Deployment pelos scripts em scripts/k8s-up.sh.
 apiVersion: apps/v1
 kind: Deployment
@@ -10,9 +10,9 @@ metadata:
   labels:
     app.kubernetes.io/name: video-api
 spec:
-  # 1 réplica de repouso — o HPA (hpa.yaml, minReplicas também reduzido para 1) é quem
-  # prova a escala real sob carga; ver comentário equivalente em
-  # k8s/apps/base/video-gateway/deployment.yaml sobre o motivo (teste ao vivo em
+  # Deixo 1 réplica de repouso — é o HPA (hpa.yaml, minReplicas também reduzido para 1)
+  # quem prova a escala real sob carga; ver comentário equivalente em
+  # k8s/apps/base/video-gateway/deployment.yaml sobre o motivo (testei ao vivo em
   # 2026-08-19 numa máquina de 8GB).
   replicas: 1
   selector:
@@ -34,12 +34,12 @@ spec:
                 name: fiapx-config
             - secretRef:
                 name: fiapx-secrets
-          # startupProbe: sob a CPU limitada do kind (250m request), o boot completo do
-          # Spring (JPA+Hibernate+RabbitMQ+Security) mede ~70-80s na prática — bem acima
+          # startupProbe: sob a CPU limitada do kind (250m request), medi o boot completo do
+          # Spring (JPA+Hibernate+RabbitMQ+Security) em ~70-80s na prática — bem acima
           # do que initialDelaySeconds costuma assumir. Sem isso, a liveness probe mata o
-          # container antes dele terminar de subir (visto ao vivo: exitCode 143 em loop,
-          # sempre perto do fim do boot). Enquanto o startupProbe não passar, readiness e
-          # liveness ficam desativadas — não precisam do próprio initialDelaySeconds.
+          # container antes dele terminar de subir (vi isso ao vivo: exitCode 143 em loop,
+          # sempre perto do fim do boot). Enquanto o startupProbe não passar, deixo readiness
+          # e liveness desativadas — não precisam do próprio initialDelaySeconds.
           startupProbe:
             httpGet:
               path: /actuator/health

@@ -15,9 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * SMTP apontado para uma porta local sem nenhum servidor escutando — toda tentativa
+ * Aponto o SMTP para uma porta local sem nenhum servidor escutando — toda tentativa
  * de envio falha rápido (conexão recusada), sem precisar de um GreenMail derrubado
- * de propósito. Limiares do circuito rebaixados só para este teste, via
+ * de propósito. Rebaixo os limiares do circuito só para este teste, via
  * {@link TestPropertySource}, para abrir o circuito com poucas chamadas.
  */
 @SpringBootTest
@@ -55,7 +55,7 @@ class EmailChannelCircuitBreakerIntegrationTest {
 
     // Com o circuito aberto, a próxima chamada é rejeitada na hora, sem tentar
     // conectar de novo no SMTP — mesmo comportamento observável de fora (via o
-    // fallback), então não distinguimos os dois casos no teste, só confirmamos que
+    // fallback), então não distingo os dois casos no teste, só confirmo que
     // o circuito realmente abriu.
     assertThatThrownBy(() -> emailChannel.send(videoId, "erro", "user@example.com").join())
         .isInstanceOf(CompletionException.class);

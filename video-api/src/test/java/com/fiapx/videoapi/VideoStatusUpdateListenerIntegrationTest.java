@@ -79,7 +79,7 @@ class VideoStatusUpdateListenerIntegrationTest {
       assertThat(updated.getZipStorageKey()).isEqualTo(firstZipKey);
     });
 
-    // Redelivery simulado com payload divergente (não apenas duplicado) para provar que o
+    // Simulo um redelivery com payload divergente (não apenas duplicado) pra provar que o
     // guard de estado terminal em ApplyProcessingResultUseCase realmente ignora o evento,
     // e não apenas coincide por os dois payloads serem idênticos.
     ProcessingResultMessage duplicateMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED,
@@ -87,7 +87,7 @@ class VideoStatusUpdateListenerIntegrationTest {
     rabbitTemplate.convertAndSend(queueProperties.statusUpdates(),
         objectMapper.writeValueAsString(duplicateMessage));
 
-    // Espera fixa: aqui provamos ausência de mudança, não presença — não há uma condição
+    // Uso uma espera fixa aqui: provo ausência de mudança, não presença — não há uma condição
     // positiva para o Awaitility aguardar.
     Thread.sleep(2_000);
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-/** Espelha VideoFormatValidator.ALLOWED_EXTENSIONS (video-api). */
+/** Espelho aqui VideoFormatValidator.ALLOWED_EXTENSIONS (video-api). */
 export const ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] as const
 
 function extractExtension(filename: string): string {

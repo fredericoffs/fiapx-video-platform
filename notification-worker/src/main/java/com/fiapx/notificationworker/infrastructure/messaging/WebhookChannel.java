@@ -53,7 +53,7 @@ public class WebhookChannel implements NotificationChannel {
     return CompletableFuture.completedFuture(null);
   }
 
-  // Traduz qualquer falha do canal (circuito aberto, bulkhead cheio, erro HTTP) pra
+  // Traduzo qualquer falha do canal (circuito aberto, bulkhead cheio, erro HTTP) pra
   // uma única exceção de domínio — mesmo papel do fallback equivalente no EmailChannel.
   private CompletableFuture<Void> unavailable(UUID videoId, String errorMessage, String recipientEmail, Throwable t) {
     return CompletableFuture.failedFuture(

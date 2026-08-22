@@ -4,9 +4,9 @@ on:
   push:
     branches: [ main, develop ]
   pull_request:
-  # k8s-smoke-test (Sprint 4) só roda sob demanda: `main` ainda não existe no remoto,
-  # então o deploy automático em push/merge é escopo da Sprint 7 (que também cria a
-  # main de verdade) — aqui só validamos manualmente que os manifests/scripts
+  # Deixo o k8s-smoke-test (Sprint 4) rodando só sob demanda: `main` ainda não existe
+  # no remoto, então o deploy automático em push/merge é escopo da Sprint 7 (que também
+  # cria a main de verdade) — aqui só valido manualmente que os manifests/scripts
   # funcionam de ponta a ponta, sem atrasar o CI normal de todo push/PR com um
   # cluster kind inteiro.
   workflow_dispatch:
@@ -177,10 +177,10 @@ jobs:
         working-directory: web
         run: npm ci
 
-      # Codegen precisa do video-api real de pé (mesmo contrato descrito no
+      # O codegen precisa do video-api real de pé (mesmo contrato descrito no
       # web/README.md) — se o cliente commitado (schema.gen.ts) divergir do spec
-      # atual, o build quebra aqui, não em produção. `docker compose up video-api`
-      # já sobe postgres/rabbitmq/redis/minio como dependência (depends_on).
+      # atual, quero que o build quebre aqui, não em produção. `docker compose up
+      # video-api` já sobe postgres/rabbitmq/redis/minio como dependência (depends_on).
       - name: Start video-api for codegen verification
         run: docker compose --profile app up -d video-api
 
@@ -235,18 +235,20 @@ jobs:
         working-directory: web
         run: docker build -t web:ci .
 
-  # Os 4 jobs de segurança abaixo formam uma corrente sequencial fixa
-  # (gateway -> worker -> api -> notification-worker) via `needs`, para nunca ter mais de
-  # um job batendo na NVD API ao mesmo tempo: rodando em paralelo, os 4 tentavam baixar a
-  # base inteira simultaneamente e a NVD começava a devolver 503 (rate limit) para quem não
-  # terminava a tempo. Só o primeiro da fila paga o download completo a frio; os seguintes
-  # encontram a base já quente (mesma key do dia) e fazem sync incremental em ~1-2min.
-  # `always() + needs.<build-test>.result == 'success'` em vez do `if` implícito: sem isso,
-  # se o elo anterior da corrente for pulado (serviço sem mudança) ou falhar, o job seguinte
-  # seria pulado em cascata mesmo quando o SEU próprio serviço mudou e precisa ser escaneado.
-  # Não depende do target/ do job de build-test: o Dockerfile roda `mvn package` sozinho
-  # dentro do multi-stage build, e o dependency-check só precisa resolver as dependências,
-  # não dos .class já compilados.
+  # Fiz os 4 jobs de segurança abaixo formarem uma corrente sequencial fixa
+  # (gateway -> worker -> api -> notification-worker) via `needs`, pra nunca ter mais de
+  # um job batendo na NVD API ao mesmo tempo: quando rodava em paralelo, os 4 tentavam
+  # baixar a base inteira simultaneamente e a NVD começava a devolver 503 (rate limit)
+  # para quem não terminava a tempo. Só o primeiro da fila paga o download completo a
+  # frio; os seguintes encontram a base já quente (mesma key do dia) e fazem sync
+  # incremental em ~1-2min.
+  # Uso `always() + needs.<build-test>.result == 'success'` em vez do `if` implícito:
+  # sem isso, se o elo anterior da corrente fosse pulado (serviço sem mudança) ou
+  # falhasse, o job seguinte seria pulado em cascata mesmo quando o SEU próprio serviço
+  # mudou e precisa ser escaneado.
+  # Não faço isso depender do target/ do job de build-test: o Dockerfile roda `mvn
+  # package` sozinho dentro do multi-stage build, e o dependency-check só precisa
+  # resolver as dependências, não dos .class já compilados.
   security-video-gateway:
     needs: [ changes, build-test-video-gateway ]
     if: contains(fromJSON(needs.changes.outputs.changes), 'video-gateway')
@@ -262,12 +264,13 @@ jobs:
           distribution: "temurin"
           cache: "maven"
 
-      # Cache da base NVD compartilhado pelos 4 serviços (mesma key em todos os jobs de
-      # segurança, path definido via dataDirectory no pom.xml). Key por dia: a base do NVD
-      # não precisa de frescor de hora em hora para fins de scan, e uma key por hora gerava
-      # uma entrada de cache nova a cada execução, pressionando o limite de 10GB do
-      # repositório e arriscando despejar outros caches (ex.: o do Maven). restore-keys
-      # busca a cópia mais recente disponível para sync incremental em vez de do zero.
+      # Compartilho o cache da base NVD entre os 4 serviços (mesma key em todos os jobs
+      # de segurança, path definido via dataDirectory no pom.xml). Uso key por dia: a
+      # base do NVD não precisa de frescor de hora em hora para fins de scan, e uma key
+      # por hora gerava uma entrada de cache nova a cada execução, pressionando o limite
+      # de 10GB do repositório e arriscando despejar outros caches (ex.: o do Maven).
+      # restore-keys busca a cópia mais recente disponível para sync incremental em vez
+      # de do zero.
       - name: Get date for Dependency-Check cache key
         id: get-date
         run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
@@ -297,9 +300,9 @@ jobs:
       - name: Build Docker image
         run: docker build -t video-gateway:ci .
 
-      # trivy-action pinned by commit SHA (not a tag): tags 0.0.1-0.34.2 were compromised in a
-      # 2026-03 supply-chain attack (GHSA-69fq-xp46-6x23). SHA below is the v0.36.0 tag, released
-      # after the fix. `version` is pinned explicitly for the same reason (avoid the
+      # I pin trivy-action by commit SHA (not a tag): tags 0.0.1-0.34.2 were compromised in a
+      # 2026-03 supply-chain attack (GHSA-69fq-xp46-6x23). The SHA below is the v0.36.0 tag,
+      # released after the fix. I pin `version` explicitly for the same reason (avoiding the
       # compromised trivy CLI v0.69.4 / DockerHub v0.69.5-v0.69.6 window from the same incident).
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -318,11 +321,12 @@ jobs:
           path: video-gateway/trivy-results.sarif
           retention-days: 7
 
-      # always() garante que a base fica salva mesmo se um passo depois do Dependency-Check
-      # (build/scan da imagem, Trivy) falhar. cache-hit != 'true' evita tentar salvar de novo
-      # sob a mesma key exata do dia (job seguinte da corrente restaura o que o anterior já
-      # salvou) — isso sempre falharia (`actions/cache` não sobrescreve key existente) e só
-      # gerava o warning "Cache save failed" à toa nos jobs depois do primeiro da fila.
+      # Uso always() pra garantir que a base fica salva mesmo se um passo depois do
+      # Dependency-Check (build/scan da imagem, Trivy) falhar. cache-hit != 'true' evita
+      # tentar salvar de novo sob a mesma key exata do dia (job seguinte da corrente
+      # restaura o que o anterior já salvou) — isso sempre falharia (`actions/cache` não
+      # sobrescreve key existente) e só gerava o warning "Cache save failed" à toa nos
+      # jobs depois do primeiro da fila.
       - name: Save Dependency-Check NVD cache
         if: always() && steps.restore-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
@@ -472,12 +476,12 @@ jobs:
           path: .dependency-check-data
           key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
 
-  # Validação de ponta a ponta dos manifests da Sprint 4 (k8s/) — sobe um cluster kind
-  # de verdade no runner, aplica os mesmos manifests/scripts usados localmente
-  # (scripts/k8s-up.sh, não uma cópia divergente) e prova que o KEDA escala o
-  # video-worker sob carga. workflow_dispatch-only, ver comentário no gatilho `on:`.
-  # kubectl/kind/helm instalados via download oficial (não Actions de terceiros) —
-  # mesma cautela de cadeia de suprimentos do Trivy (ver security-video-gateway).
+  # Faço aqui a validação de ponta a ponta dos manifests da Sprint 4 (k8s/) — subo um
+  # cluster kind de verdade no runner, aplico os mesmos manifests/scripts que uso
+  # localmente (scripts/k8s-up.sh, não uma cópia divergente) e provo que o KEDA escala
+  # o video-worker sob carga. workflow_dispatch-only, ver comentário no gatilho `on:`.
+  # Instalo kubectl/kind/helm via download oficial (não Actions de terceiros) — mesma
+  # cautela de cadeia de suprimentos que uso no Trivy (ver security-video-gateway).
   k8s-smoke-test:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -511,9 +515,9 @@ jobs:
       - name: Run load test
         run: ./scripts/k8s-loadtest.sh 20
 
-      # video-worker começa com 1 réplica (minReplicaCount do ScaledObject) — sob os 20
-      # uploads do load test, a fila video.processing deve passar do threshold
-      # (queueLength=5) e o KEDA escalar antes do timeout de 5min abaixo.
+      # video-worker começa com 1 réplica (minReplicaCount do ScaledObject) — espero que,
+      # sob os 20 uploads do load test, a fila video.processing passe do threshold
+      # (queueLength=5) e o KEDA escale antes do timeout de 5min abaixo.
       - name: Assert video-worker scaled beyond minimum
         run: |
           for _attempt in $(seq 1 30); do
@@ -539,12 +543,12 @@ jobs:
         if: always()
         run: ./scripts/k8s-down.sh
 
-  # E2E do fluxo feliz completo (Sprint 5) contra o docker-compose real — mesmo
-  # padrão do k8s-smoke-test acima: workflow_dispatch-only, não atrasa o CI normal
-  # de todo push/PR com uma stack inteira de pé. O playwright.config.ts já sobe seu
-  # próprio `npm run dev` como servidor (CI=true no runner desliga
-  # reuseExistingServer), então só a stack de backend precisa ser levantada aqui —
-  # não o serviço `web` do compose.
+  # Rodo aqui o E2E do fluxo feliz completo (Sprint 5) contra o docker-compose real —
+  # mesmo padrão que uso no k8s-smoke-test acima: workflow_dispatch-only, pra não
+  # atrasar o CI normal de todo push/PR com uma stack inteira de pé. O
+  # playwright.config.ts já sobe seu próprio `npm run dev` como servidor (CI=true no
+  # runner desliga reuseExistingServer), então só preciso levantar a stack de backend
+  # aqui — não o serviço `web` do compose.
   e2e-web:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

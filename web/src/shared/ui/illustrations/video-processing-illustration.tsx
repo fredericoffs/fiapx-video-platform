@@ -1,5 +1,5 @@
 /**
- * Cena 3D/glossy (estilo Pixar/Dreamworks) com grade de perspectiva e brilho
+ * Fiz uma cena 3D/glossy (estilo Pixar/Dreamworks) com grade de perspectiva e brilho
  * neon (cyberpunk), na paleta da marca (rosa `--primary` + preto/branco do
  * tema) em vez das cores neon tradicionais — só linhas/preenchimentos
  * temáticos, sem depender de nenhuma imagem externa.

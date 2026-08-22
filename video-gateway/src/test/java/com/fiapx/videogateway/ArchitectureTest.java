@@ -12,9 +12,10 @@ import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_USE_JAVA_UTIL_LOGGING;
 
 /**
- * video-gateway é uma camada de borda (Spring Cloud Gateway: roteamento, CORS, rate limit) sem
- * regra de negócio própria, por isso não há domain/application a isolar e as regras de camada
- * hexagonal (ver video-api/video-worker) não se aplicam aqui — só os princípios gerais abaixo.
+ * Tratei video-gateway como uma camada de borda (Spring Cloud Gateway: roteamento, CORS, rate
+ * limit) sem regra de negócio própria, por isso não há domain/application a isolar e não aplico
+ * aqui as regras de camada hexagonal (ver video-api/video-worker) — só os princípios gerais
+ * abaixo.
  */
 @AnalyzeClasses(packages = "com.fiapx.videogateway", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {

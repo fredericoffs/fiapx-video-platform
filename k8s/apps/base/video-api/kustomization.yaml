@@ -6,9 +6,10 @@ resources:
   - hpa.yaml
   - migration-job.yaml
 
-# Gera o ConfigMap montado pelo migration-job.yaml a partir das *.sql reais do
-# video-api — fonte única de verdade, nada duplicado à mão aqui. Kustomize sufixa o
-# nome com um hash do conteúdo e reescreve a referência no Job automaticamente.
+# Gero o ConfigMap montado pelo migration-job.yaml a partir das *.sql reais do
+# video-api — assim mantenho uma fonte única de verdade, nada duplicado à mão aqui.
+# Kustomize sufixa o nome com um hash do conteúdo e reescreve a referência no Job
+# automaticamente.
 configMapGenerator:
   - name: video-api-migrations-sql
     files:

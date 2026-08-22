@@ -29,11 +29,11 @@ jobs:
           distribution: "temurin"
           cache: "maven"
       # Sem isso, nenhum target/site/jacoco/jacoco.xml existe no checkout no momento do
-      # scan e o Qodana não mostra cobertura pra nenhum serviço (detecção automática dele
-      # só encontra relatórios já gerados, não roda os testes sozinho). `test` (não
-      # `verify`) porque o goal `report` do JaCoCo já está no phase `test` em todos os 4
-      # poms — o gate de 90% (`check`, no phase `verify`) já é aplicado pelo ci.yml, não
-      # precisa rodar de novo aqui só pra gerar o XML.
+      # scan e o Qodana não mostra cobertura pra nenhum serviço (a detecção automática
+      # dele só encontra relatórios já gerados, não roda os testes sozinho). Uso `test`
+      # (não `verify`) porque o goal `report` do JaCoCo já está no phase `test` em todos
+      # os 4 poms — o gate de 90% (`check`, no phase `verify`) já é aplicado pelo ci.yml,
+      # não preciso rodar de novo aqui só pra gerar o XML.
       - name: Gerar relatórios de cobertura (JaCoCo) para o Qodana detectar
         run: |
           set -e
@@ -74,19 +74,20 @@ jobs:
       - name: Install dependencies
         working-directory: web
         run: npm ci
-      # coverage/lcov.info é o caminho padrão que o Qodana for JS detecta sozinho —
+      # coverage/lcov.info é o caminho padrão que o Qodana for JS detecta sozinho — uso a
       # mesma lógica do jacoco.xml pros serviços Java, no job `qodana` acima.
       - name: Gerar relatório de cobertura (lcov) para o Qodana detectar
         working-directory: web
         run: npm run test:coverage
-      # Linter diferente (qodana-js, não qodana-jvm) e sub-diretório próprio (web/qodana.yaml,
-      # não o da raiz) — projeto/token separado no Qodana Cloud (secret QODANA_TOKEN_WEB).
+      # Uso um linter diferente aqui (qodana-js, não qodana-jvm) e um sub-diretório próprio
+      # (web/qodana.yaml, não o da raiz) — projeto/token separado no Qodana Cloud (secret
+      # QODANA_TOKEN_WEB).
       - name: 'Qodana Scan (web)'
         uses: JetBrains/qodana-action@v2026.2
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_WEB }}
         with:
-          # -i (não --project-dir, forma longa não reconhecida por "qodana scan")
+          # Uso -i (não --project-dir, forma longa não reconhecida por "qodana scan")
           args: '-i web'
           pr-mode: false
           use-caches: true

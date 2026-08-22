@@ -18,10 +18,11 @@ import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 /**
- * notification-worker ainda é um esqueleto (só a classe de bootstrap Spring Boot). As regras
- * abaixo espelham a convenção hexagonal já adotada em video-api/video-worker e usam
- * allowEmptyShould(true) para não falhar enquanto os pacotes domain/application/infrastructure
- * não existem — passam a valer automaticamente assim que o serviço for implementado.
+ * notification-worker ainda era um esqueleto (só a classe de bootstrap Spring Boot) quando
+ * escrevi isto. Espelhei as regras abaixo na convenção hexagonal já adotada em
+ * video-api/video-worker e uso allowEmptyShould(true) pra não falhar enquanto os pacotes
+ * domain/application/infrastructure não existem — passam a valer automaticamente assim que o
+ * serviço for implementado.
  */
 @AnalyzeClasses(packages = "com.fiapx.notificationworker", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {

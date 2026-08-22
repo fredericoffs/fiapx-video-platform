@@ -38,12 +38,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Percorre a cadeia completa descrita na Sprint 3 (item 3) em um único cenário:
+ * Percorro aqui a cadeia completa descrita na Sprint 3 (item 3) em um único cenário:
  * upload HTTP → linha na outbox → OutboxPublisherJob publica em video.processing →
  * consumo simulado de video.status-updates (papel do video-worker) → status aplicado.
  * Os testes existentes (VideoUploadIntegrationTest, OutboxPublisherJobIntegrationTest,
  * VideoStatusUpdateListenerIntegrationTest) cobrem cada etapa isoladamente, mas nenhum
- * encadeava as quatro em um só fluxo.
+ * encadeava as quatro em um só fluxo — por isso escrevi este.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc

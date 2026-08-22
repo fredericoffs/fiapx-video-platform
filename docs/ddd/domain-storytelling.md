@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > **Formato**
-> Domain Storytelling narra a jornada em linguagem de negócio, na ordem em que acontece, usando os substantivos/verbos da [Linguagem Ubíqua](./linguagem-ubiqua.md) — complementa o [Event Storming](./event-storming.md) (que é organizado por evento/agregado, não por narrativa cronológica única).
+> Narro aqui a jornada em linguagem de negócio, na ordem em que acontece, usando os substantivos/verbos da [Linguagem Ubíqua](./linguagem-ubiqua.md) — este documento complementa o [Event Storming](./event-storming.md) (que organizei por evento/agregado, não por narrativa cronológica única).
 
 ## História 1 — Caminho feliz
 

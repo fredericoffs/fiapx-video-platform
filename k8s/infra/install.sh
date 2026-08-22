@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Instala as 4 dependências de infra no namespace "fiapx".
+# Instalo aqui as 4 dependências de infra no namespace "fiapx".
 #
-# Postgres e Redis: Helm/Bitnami (image.tag ainda disponível gratuitamente no Docker
-# Hub, verificado via API em 2026-08-19). RabbitMQ e MinIO: manifests próprios em
-# k8s/infra/{rabbitmq,minio}/ — descoberto durante a Sprint 4 que docker.io/bitnami/
-# rabbitmq e docker.io/bitnami/minio não têm mais NENHUMA tag pública (Broadcom moveu
+# Postgres e Redis: uso Helm/Bitnami (image.tag ainda disponível gratuitamente no Docker
+# Hub, verifiquei via API em 2026-08-19). RabbitMQ e MinIO: escrevi manifests próprios em
+# k8s/infra/{rabbitmq,minio}/ — descobri durante a Sprint 4 que docker.io/bitnami/
+# rabbitmq e docker.io/bitnami/minio não têm mais NENHUMA tag pública (a Broadcom moveu
 # para o catálogo pago "Bitnami Secure Images"; count:0 na API do Docker Hub para os
-# dois). Usam as MESMAS imagens oficiais já validadas no docker-compose.yml.
+# dois). Uso as MESMAS imagens oficiais já validadas no docker-compose.yml.
 #
-# Hostnames reais dos Services (confirmados via `kubectl get svc`, não assumidos):
-# chart postgresql -> Service "postgres-postgresql"; chart redis -> Service
+# Confirmei os hostnames reais dos Services via `kubectl get svc`, não assumi de
+# antemão: chart postgresql -> Service "postgres-postgresql"; chart redis -> Service
 # "redis-master" (o helper `common.names.fullname` do Bitnami só colapsa Release+Chart
 # num nome só em alguns charts, não em todos — não dá pra assumir). rabbitmq/minio são
 # manifests próprios, Service literalmente "rabbitmq"/"minio". Todos batem com

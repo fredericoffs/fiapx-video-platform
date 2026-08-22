@@ -18,11 +18,11 @@ public class NotificationDeadLetterListener {
     this.objectMapper = objectMapper;
   }
 
-  // Sem convertAndSend: ao contrário da DLQ do video-worker (que republica pro
+  // Não uso convertAndSend aqui: ao contrário da DLQ do video-worker (que republica pro
   // video-api agir), aqui não há próximo consumidor — os dois canais já esgotaram as
   // tentativas, e cada uma delas já deixou seu próprio registro em
   // notification_attempts (EMAIL/WEBHOOK, FAILED) dentro de SendFailureNotificationUseCase.
-  // Este listener só é o sinal terminal, alto o bastante pra alertar/observabilidade.
+  // Deixei este listener só como o sinal terminal, alto o bastante pra alertar/observabilidade.
   @RabbitListener(queues = "${fiapx.queues.notification-dlq}")
   public void onMessage(String rawJson) {
     NotificationRequestedMessage message = objectMapper.readValue(rawJson, NotificationRequestedMessage.class);

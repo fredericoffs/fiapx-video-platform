@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > **Por que este documento existe**
-> A [documentação de arquitetura](../architecture/hld-lld-adr-rfc.md) já aplica os *conceitos* de DDD (bounded contexts, arquitetura hexagonal), mas nunca fixou os termos do domínio como artefato — exatamente o que a Fase 1 exige (linguagem ubíqua aplicada, entregável formal). Este glossário é a fonte única de nomenclatura para código, testes, eventos e documentação — se um termo não está aqui, não deveria aparecer em `camelCase` no código sem antes ser adicionado aqui.
+> A [documentação de arquitetura](../architecture/hld-lld-adr-rfc.md) já aplica os *conceitos* de DDD (bounded contexts, arquitetura hexagonal), mas eu nunca tinha fixado os termos do domínio como artefato — exatamente o que a Fase 1 exige (linguagem ubíqua aplicada, entregável formal). Trato este glossário como a fonte única de nomenclatura para código, testes, eventos e documentação — se um termo não está aqui, não deveria aparecer em `camelCase` no código sem antes ser adicionado aqui.
 
 ## Termos do domínio
 
@@ -29,9 +29,9 @@ Nomeados no passado, como fatos já ocorridos — ver [Event Storming](./event-s
 
 ## Regra de nomenclatura
 
-- Português nos documentos/UI, inglês no código (entidades, eventos, nomes de fila) — mesmo padrão já usado nos ADRs existentes (`Video`, `VideoUploadRequested`, fila `video.processing`).
-- Um termo da tabela acima = um nome de classe/tabela/evento no código. Se o código introduzir um sinônimo (ex.: chamar `Job` de `Task` em algum lugar), corrigir o código, não a tabela.
+- Uso português nos documentos/UI, inglês no código (entidades, eventos, nomes de fila) — mesmo padrão que já uso nos ADRs existentes (`Video`, `VideoUploadRequested`, fila `video.processing`).
+- Um termo da tabela acima = um nome de classe/tabela/evento no código. Se o código introduzir um sinônimo (ex.: chamar `Job` de `Task` em algum lugar), corrijo o código, não a tabela.
 
 ## Nota aberta
 
-O termo "Job de Processamento" ainda não tem uma classe própria no LLD — hoje é só o campo `status` do agregado `Video`. Isso é uma simplificação aceitável para o escopo do hackathon (ver [Event Storming](./event-storming.md), seção Agregados), mas fica registrado aqui para não gerar confusão de nomenclatura entre este glossário e o código.
+O termo "Job de Processamento" ainda não tem uma classe própria no LLD — hoje é só o campo `status` do agregado `Video`. Considero isso uma simplificação aceitável para o escopo do hackathon (ver [Event Storming](./event-storming.md), seção Agregados), mas registro isso aqui para não gerar confusão de nomenclatura entre este glossário e o código.

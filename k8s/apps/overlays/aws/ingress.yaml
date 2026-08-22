@@ -1,12 +1,12 @@
-# Placeholder — prova que o padrão de overlay do ADR-010 (emenda "caminho explícito
-# para AWS", docs/architecture/hld-lld-adr-rfc.md linha ~520) existe e é usável, não um
-# alvo real hoje. Nada neste overlay é aplicado em nenhum cluster (ADR-012: sem nuvem
-# pública como padrão de execução) — falta ingressClassName real (ex.: alb, se EKS+
+# Deixei isto como placeholder — provo que o padrão de overlay do ADR-010 (emenda "caminho
+# explícito para AWS", docs/architecture/hld-lld-adr-rfc.md linha ~520) existe e é usável,
+# não um alvo real hoje. Não aplico nada deste overlay em nenhum cluster (ADR-012: sem
+# nuvem pública como padrão de execução) — falta ingressClassName real (ex.: alb, se EKS+
 # AWS Load Balancer Controller), host/TLS e cert-manager, tudo fora de escopo enquanto
 # ADR-012 não for revisitado.
 #
 # /auth e /videos (rotas reais do video-gateway, ver RoutesConfig) vão pro gateway;
-# tudo o resto cai no web (SPA, Sprint 5) — mesma separação usada localmente (porta
+# tudo o resto cai no web (SPA, Sprint 5) — mesma separação que uso localmente (porta
 # 8080 = gateway, 5173 = web), só que atrás de um host/Ingress único aqui.
 apiVersion: networking.k8s.io/v1
 kind: Ingress

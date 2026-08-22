@@ -10,7 +10,7 @@ const CARD_POSITIONS = [
 const CARD_DELAYS = ['0s', '0.75s', '1.5s', '2.25s']
 
 /**
- * Banner da tela de upload: filmstrip (entrada) → console de processamento
+ * Fiz o banner da tela de upload: filmstrip (entrada) → console de processamento
  * (engrenagens + leituras "holográficas") → esteira de frames extraídos →
  * caixa de saída, com um drone flutuando e um horizonte de skyline ao fundo
  * — estilo 3D glossy/cyberpunk da marca (rosa/preto/branco), animado

@@ -1,4 +1,4 @@
-# Nome "rabbitmq" — bate com RABBITMQ_HOST no ConfigMap (k8s/apps/base/configmap.yaml)
+# Uso o nome "rabbitmq" — bate com RABBITMQ_HOST no ConfigMap (k8s/apps/base/configmap.yaml)
 # e com o hostname já usado no docker-compose.yml.
 apiVersion: v1
 kind: Service

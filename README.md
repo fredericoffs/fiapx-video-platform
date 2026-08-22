@@ -15,7 +15,7 @@
 ![Redis](https://img.shields.io/badge/Redis-rate%20limiting-DC382D?logo=redis&logoColor=white)
 ![Resilience4j](https://img.shields.io/badge/Resilience4j-Circuit%20Breaker%20%2B%20Bulkhead-blueviolet)
 
-Reescrita arquitetural do protótipo original (`projeto-fiapx`), feita para o Hackathon da Fase 5. Documentação de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD) vive em [`docs/`](./docs) — este README cobre só o "como rodar".
+Reescrevi a arquitetura do protótipo original (`projeto-fiapx`) para o Hackathon da Fase 5. Guardo a documentação de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD) em [`docs/`](./docs) — este README cobre só o "como rodar".
 
 ## Requisitos do desafio
 
@@ -94,7 +94,7 @@ Cada um deve responder `{"status":"UP"}`. A partir da Sprint 2, o fluxo de auten
 
 ## Build e testes
 
-Cada serviço é um projeto Maven independente (não é um multi-módulo reactor) — propositalmente, para que qualquer um possa ser extraído para um repositório próprio no futuro sem alterar código.
+Fiz cada serviço como um projeto Maven independente (não um multi-módulo reactor) de propósito, para que qualquer um possa ser extraído para um repositório próprio no futuro sem alterar código.
 
 ```bash
 cd video-api && ./mvnw -B verify
@@ -103,7 +103,7 @@ cd notification-worker && ./mvnw -B verify
 cd video-gateway && ./mvnw -B verify
 ```
 
-CI: cada serviço tem seu próprio workflow em `.github/workflows/`, disparado só quando arquivos daquele serviço mudam (`paths:` filter) — simula pipeline independente por microsserviço mesmo dentro do monorepo.
+CI: dei a cada serviço seu próprio workflow em `.github/workflows/`, disparado só quando arquivos daquele serviço mudam (`paths:` filter) — simulo assim um pipeline independente por microsserviço mesmo dentro do monorepo.
 
 **Qualidade e segurança**: análise estática de qualidade de código via [Qodana](https://www.jetbrains.com/qodana/) (`qodana.yaml` + `.github/workflows/qodana_code_quality.yml`, roda sobre o repositório inteiro a cada PR/push em `develop`); cobertura de teste com piso de 90% (linha, JaCoCo) nos 4 serviços — gate no `mvn verify` (`jacoco:check`), relatório publicado como artefato do CI; e análise de vulnerabilidades (OWASP Dependency-Check nas dependências Maven + Trivy nas imagens Docker, ambos disparados no CI e publicados como artefato) fazem parte formal da entrega, não só do processo interno de desenvolvimento.
 
@@ -111,11 +111,11 @@ CI: cada serviço tem seu próprio workflow em `.github/workflows/`, disparado s
 
 ## Concorrência: virtual threads
 
-Os 4 serviços rodam com `spring.threads.virtual.enabled=true` (Java 21, JEP 444) — relevante principalmente no `video-api`, que precisa aceitar muitos uploads concorrentes sem esgotar um pool fixo de threads (RF1/RF2 do enunciado).
+Habilito `spring.threads.virtual.enabled=true` nos 4 serviços (Java 21, JEP 444) — relevante principalmente no `video-api`, que precisa aceitar muitos uploads concorrentes sem esgotar um pool fixo de threads (RF1/RF2 do enunciado).
 
 ## Fluxo de branches
 
-Todo trabalho acontece em `develop`. A `main` fica protegida e só recebe código via Pull Request — nunca commit direto (inclusive de quem administra o repositório).
+Faço todo trabalho em `develop`. Mantenho a `main` protegida e ela só recebe código via Pull Request — nunca commit direto (inclusive de quem administra o repositório).
 
 ## Estado atual
 

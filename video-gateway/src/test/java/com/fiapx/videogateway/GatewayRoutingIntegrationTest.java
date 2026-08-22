@@ -25,9 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Fecha a pendência registrada na Sprint 2: video-gateway só tinha teste de contexto,
- * sem cobertura automatizada de roteamento/rate-limit. O backend real (video-api) é
- * substituído por um HttpServer JDK apontado via fiapx.gateway.video-api-uri.
+ * Fecho aqui a pendência registrada na Sprint 2: video-gateway só tinha teste de contexto,
+ * sem cobertura automatizada de roteamento/rate-limit. Substituo o backend real (video-api)
+ * por um HttpServer JDK apontado via fiapx.gateway.video-api-uri.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc

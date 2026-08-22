@@ -1,8 +1,8 @@
 ALTER TABLE video_api.users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'USER';
 
--- Usuário admin seed — único jeito de virar admin neste projeto (sem endpoint de
--- promoção). Credenciais fixas pra ambiente local/demo, documentadas no Roteiro de
--- Verificação Manual. Hash gerado com o mesmo BCryptPasswordEncoder do projeto
+-- Crio aqui o usuário admin seed — é o único jeito de virar admin neste projeto (não fiz
+-- endpoint de promoção). Uso credenciais fixas pra ambiente local/demo, documentadas no Roteiro
+-- de Verificação Manual. Gerei o hash com o mesmo BCryptPasswordEncoder do projeto
 -- (senha: Admin@123).
 INSERT INTO video_api.users (id, email, password_hash, role, created_at)
 VALUES (

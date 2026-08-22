@@ -44,7 +44,7 @@ public class SecurityConfig {
         .exceptionHandling(handling -> handling
             .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
         )
-        // JwtAuthenticationFilter precisa ser registrado primeiro — o comparador de
+        // Preciso registrar o JwtAuthenticationFilter primeiro — o comparador de
         // ordem do Spring Security só aceita uma classe de filtro como âncora
         // (JwtAuthenticationFilter.class abaixo) depois que ela própria já foi
         // registrada com uma ordem, o que só acontece neste addFilterBefore.

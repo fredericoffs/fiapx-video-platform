@@ -125,8 +125,8 @@ class ArchitectureTest {
   @ArchTest
   static final ArchRule sem_ciclos_dentro_da_infrastructure =
       slices().matching("..videoapi.infrastructure.(*)..").should().beFreeOfCycles()
-          // classes @Configuration são a composition root: é esperado que amarrem beans de
-          // vários pacotes de adapter, então não contam como ciclo arquitetural
+          // classes @Configuration são a composition root: espero que amarrem beans de
+          // vários pacotes de adapter, então não conto isso como ciclo arquitetural
           .ignoreDependency(annotatedWith(Configuration.class), alwaysTrue());
 
   @ArchTest

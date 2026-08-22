@@ -2,8 +2,8 @@
 
 > [!NOTE]
 > **Sobre este documento**
-> Análise de arquitetura para o desafio da **Fase 5** ([enunciado original](../enunciado.md)), escrita para ser **implementável**, não apenas teórica: cada decisão relevante é registrada como
-> RFC (motivação e proposta), detalhada em HLD/LLD (visão de containers e de componentes) e justificada em ADRs individuais. O fio condutor é aplicar deliberadamente os padrões e boas práticas já consolidados nas Fases 1–4 do curso, adaptando — não copiando cegamente — para as restrições reais deste desafio.
+> Escrevi esta análise de arquitetura para o desafio da **Fase 5** ([enunciado original](../enunciado.md)) para ser **implementável**, não apenas teórica: registro cada decisão relevante como
+> RFC (motivação e proposta), detalho em HLD/LLD (visão de containers e de componentes) e justifico em ADRs individuais. Meu fio condutor é aplicar deliberadamente os padrões e boas práticas que já consolidei nas Fases 1–4 do curso, adaptando — não copiando cegamente — para as restrições reais deste desafio.
 
 ---
 
@@ -41,7 +41,7 @@
 
 ## 2. Padrões e decisões técnicas aplicadas
 
-Esta seção documenta os padrões técnicos aplicados nesta arquitetura, consolidados a partir do que foi estudado nas Fases 1–4 do curso — e o que foi **deliberadamente descartado**.
+Nesta seção documento os padrões técnicos que apliquei nesta arquitetura, consolidados a partir do que estudei nas Fases 1–4 do curso — e o que **descartei deliberadamente**.
 
 | Padrão/decisão                                                                              | Aplicação neste Hackathon                                                                                                                                                                               |
 |---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -62,7 +62,7 @@ Esta seção documenta os padrões técnicos aplicados nesta arquitetura, consol
 
 > [!TIP]
 > **Por que só 3 serviços, sem SAGA**
-> Um domínio com bounded contexts genuinamente distintos e um fluxo transacional longo que precisa de compensação (ex.: cadastro, orçamento, execução, pagamento) justificaria mais serviços e um padrão SAGA. O domínio deste hackathon é mais simples — upload, processar, notificar — e replicar uma decomposição mais granular seria **over-engineering fora do prazo de um hackathon**. Isso é discutido formalmente no ADR-001.
+> Um domínio com bounded contexts genuinamente distintos e um fluxo transacional longo que precisa de compensação (ex.: cadastro, orçamento, execução, pagamento) justificaria mais serviços e um padrão SAGA. Considero o domínio deste hackathon mais simples — upload, processar, notificar — e acho que replicar uma decomposição mais granular seria **over-engineering fora do prazo de um hackathon**. Discuto isso formalmente no ADR-001.
 
 > [!NOTE]
 > **Artefatos de DDD deste hackathon**
@@ -81,24 +81,24 @@ Esta seção documenta os padrões técnicos aplicados nesta arquitetura, consol
 
 ### Motivação
 
-O protótipo apresentado no desafio processa um vídeo por execução, sem persistência, sem usuários e sem tolerância a falha. Precisa virar um serviço multiusuário que garanta throughput sob concorrência (RF1), resiliência a picos (RF2) e visibilidade de status/erro (RF4, RF5).
+O protótipo apresentado no desafio processa um vídeo por execução, sem persistência, sem usuários e sem tolerância a falha. Preciso transformá-lo num serviço multiusuário que garanta throughput sob concorrência (RF1), resiliência a picos (RF2) e visibilidade de status/erro (RF4, RF5).
 
 ### Objetivos
 
-- Nenhuma requisição de upload é perdida, mesmo sob pico (RF2) — resolvido por fila, não por escalar o processamento síncrono.
-- Processamento paralelo real de múltiplos vídeos (RF1) — resolvido por múltiplas réplicas do worker consumindo a mesma fila.
+- Nenhuma requisição de upload é perdida, mesmo sob pico (RF2) — resolvo isso com fila, não escalando o processamento síncrono.
+- Processamento paralelo real de múltiplos vídeos (RF1) — resolvo isso com múltiplas réplicas do worker consumindo a mesma fila.
 - Persistência e consulta de status por usuário (RF3, RF4, RT1).
 - Notificação assíncrona e desacoplada do pipeline principal em caso de erro (RF5).
 
 ### Não objetivos
 
 - Processamento em tempo real/streaming de vídeo (o enunciado pede extração de frames em lote, não um pipeline de baixa latência).
-- Multi-região ou alta disponibilidade geográfica — fora do escopo de um hackathon.
+- Multi-região ou alta disponibilidade geográfica — deixo fora do escopo de um hackathon.
 - Depender de uma infraestrutura de nuvem específica de fases anteriores do curso (AWS Learner Lab) — ver ADR-001.
 
 ### Proposta resumida
 
-Três serviços deployáveis independentemente:
+Proponho três serviços deployáveis independentemente:
 - **video-api** (upload, autenticação, consulta de status)
 - **video-worker** (consome fila, extrai frames via `ffmpeg`, gera `.zip`)- **notification-worker** (consome eventos de erro/conclusão, envia e-mail)
 
@@ -106,10 +106,10 @@ Comunicando-se de forma síncrona (REST, cliente ↔ video-api) e assíncrona (R
 
 ### Alternativas consideradas e rejeitadas
 
-| Alternativa                                                                   | Por que foi rejeitada                                                                                                                                                                             |
+| Alternativa                                                                   | Por que rejeitei                                                                                                                                                                                  |
 |-------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Monólito único sem separação de processos                                     | Não atende RF1/RF2: processamento de vídeo é CPU-bound e de duração variável; rodar no mesmo processo/pod da API arrisca degradar o tempo de resposta do upload e da consulta de status sob carga |
-| Decomposição mais granular (5+ serviços + Lambda + Step Functions/SQS na AWS) | Overhead de setup (múltiplos repositórios, pipelines, IAM, Terraform) desproporcional e ao domínio, que não tem fluxo transacional multi-etapa com compensação de negócio                         |
+| Decomposição mais granular (5+ serviços + Lambda + Step Functions/SQS na AWS) | Overhead de setup (múltiplos repositórios, pipelines, IAM, Terraform) desproporcional ao domínio, que não tem fluxo transacional multi-etapa com compensação de negócio                           |
 | Kafka como broker                                                             | Ver [ADR-002](#adr-002--broker-de-mensageria)                                                                                                                                                     |
 | Processar o vídeo de forma síncrona na própria requisição de upload           | Bloqueia a thread/conexão HTTP pelo tempo do processamento (segundos a minutos), inviabilizando RF1 (múltiplos vídeos simultâneos sem degradar a API)                                             |
 
@@ -176,7 +176,7 @@ flowchart TB
     NOT -.-> OBS
 ```
 
-**Como ler o diagrama:** setas contínuas são chamadas síncronas (REST, leitura/escrita direta em banco/storage); setas tracejadas são assíncronas (mensageria, e-mail, telemetria). Cada serviço tem seu próprio ciclo de deploy e pode escalar independentemente — em particular o `video-worker`, que é o único ponto genuinamente CPU-bound do sistema.
+**Como leio o diagrama:** setas contínuas são chamadas síncronas (REST, leitura/escrita direta em banco/storage); setas tracejadas são assíncronas (mensageria, e-mail, telemetria). Dou a cada serviço seu próprio ciclo de deploy, e cada um pode escalar independentemente — em particular o `video-worker`, que é o único ponto genuinamente CPU-bound do sistema.
 
 ### Fluxo ponta a ponta
 
@@ -190,9 +190,9 @@ flowchart TB
 
 ### Não perder requisição em pico (RF2)
 
-- O `POST /videos` só depende de PostgreSQL + MinIO (ambos rápidos para gravar metadado/binário) — **nunca** espera o processamento. A fila absorve o pico; o worker processa na velocidade que conseguir, sem derrubar a taxa de aceitação de novos uploads.
-- Backpressure explícito: se a profundidade da fila ultrapassar um limiar configurável, `video-api` pode responder `429 Too Many Requests` com `Retry-After` em vez de aceitar uploads que ficariam na fila por tempo excessivo, não implementado por padrão no MVP.
-- Escalabilidade horizontal do `video-worker` via HPA. Uma extensão natural é escalar por profundidade de fila via KEDA em vez de (ou além de) CPU, já que um worker CPU-bound processando um vídeo grande pode ter CPU alta com fila ainda maior esperando.
+- Fiz o `POST /videos` depender só de PostgreSQL + MinIO (ambos rápidos para gravar metadado/binário) — **nunca** espera o processamento. A fila absorve o pico; o worker processa na velocidade que conseguir, sem derrubar a taxa de aceitação de novos uploads.
+- Backpressure explícito: se a profundidade da fila ultrapassar um limiar configurável, `video-api` pode responder `429 Too Many Requests` com `Retry-After` em vez de aceitar uploads que ficariam na fila por tempo excessivo — não implementei isso por padrão no MVP.
+- Escalo o `video-worker` horizontalmente via HPA. Uma extensão natural é escalar por profundidade de fila via KEDA em vez de (ou além de) CPU, já que um worker CPU-bound processando um vídeo grande pode ter CPU alta com fila ainda maior esperando.
 
 ### Topologia de implantação (Kubernetes local)
 
@@ -236,7 +236,7 @@ flowchart TB
     N -.-> OBS
 ```
 
-`notification-worker` tem persistência própria (`PGN` no diagrama, ver [5.5](#55-notification-worker--persistência-própria)), fechando a regra "cada microsserviço com banco próprio" para os 3 serviços. Autoscaling: HPA (`video-api`, por CPU/RPS) + KEDA (`video-worker`, por profundidade de fila RabbitMQ).
+Dou ao `notification-worker` persistência própria (`PGN` no diagrama, ver [5.5](#55-notification-worker--persistência-própria)), fechando a regra "cada microsserviço com banco próprio" para os 3 serviços. Autoscaling: HPA (`video-api`, por CPU/RPS) + KEDA (`video-worker`, por profundidade de fila RabbitMQ).
 
 ---
 
@@ -284,7 +284,7 @@ erDiagram
     }
 ```
 
-Os `status` são `{QUEUED, PROCESSING, COMPLETED, FAILED}`. `version` é a coluna de optimistic locking (`@Version`) — protege contra updates concorrentes de status vindos de retries do worker.
+Os `status` são `{QUEUED, PROCESSING, COMPLETED, FAILED}`. `version` é a coluna de optimistic locking (`@Version`) — uso ela para proteger contra updates concorrentes de status vindos de retries do worker.
 
 **Contratos de API essenciais:**
 
@@ -337,23 +337,23 @@ sequenceDiagram
 
 ### 5.2 `video-worker`
 
-- Fila `video.processing`, `prefetch_count` dimensionado ao paralelismo de CPU disponível por pod (processamento de vídeo é CPU-bound — prefetch alto degradaria o throughput real).
-- **Sem acesso a banco:** desde o [ADR-008](#adr-008--comunicação-de-status-entre-video-worker-e-video-api-evento-não-escrita-direta), o `video-worker` não tem credenciais nem conhecimento de schema do PostgreSQL do `video-api` — é stateless. Ao concluir (sucesso ou falha), publica um evento `ProcessingCompleted`/`ProcessingFailed` na fila `video.status-updates`; quem aplica a mudança de status é o `video-api`, dono do dado.
-- **Idempotência:** a responsabilidade de deduplicar passa a ser do consumidor no `video-api` (verifica se o `video_id` do evento já está em `COMPLETED`/`FAILED` antes de aplicar — reaplicar o mesmo evento é inofensivo). O `video-worker` só *acka* a mensagem original de `video.processing` **depois** de confirmar a publicação do evento de resultado — se o worker cair no meio do processamento, a mensagem não foi *acked* e será reentregue, reprocessando do zero com segurança (o zip antigo, se existir, é sobrescrito).
+- Uso a fila `video.processing`, com `prefetch_count` dimensionado ao paralelismo de CPU disponível por pod (processamento de vídeo é CPU-bound — prefetch alto degradaria o throughput real).
+- **Sem acesso a banco:** desde o [ADR-008](#adr-008--comunicação-de-status-entre-video-worker-e-video-api-evento-não-escrita-direta), o `video-worker` não tem credenciais nem conhecimento de schema do PostgreSQL do `video-api` — deixei ele stateless. Ao concluir (sucesso ou falha), publica um evento `ProcessingCompleted`/`ProcessingFailed` na fila `video.status-updates`; quem aplica a mudança de status é o `video-api`, dono do dado.
+- **Idempotência:** deixei a responsabilidade de deduplicar com o consumidor no `video-api` (verifica se o `video_id` do evento já está em `COMPLETED`/`FAILED` antes de aplicar — reaplicar o mesmo evento é inofensivo). Faço o `video-worker` só *ackar* a mensagem original de `video.processing` **depois** de confirmar a publicação do evento de resultado — se o worker cair no meio do processamento, a mensagem não foi *acked* e será reentregue, reprocessando do zero com segurança (o zip antigo, se existir, é sobrescrito).
 - **Erro/retry/DLQ:** falhas transitórias (ex.: MinIO momentaneamente indisponível) usam retry com backoff exponencial (Resilience4j); após esgotar tentativas, a mensagem vai para `video.processing.dlq` (padrão `maxReceiveCount` de dead-lettering), e o worker publica `ProcessingFailed` para que o `video-api` aplique `FAILED` e dispare a notificação.
-- **Timeout:** o *consumer ack timeout* do RabbitMQ precisa ser dimensionado ao tempo máximo esperado de processamento de um vídeo — um vídeo muito maior que o esperado é justamente o risco registrado na seção 7.
+- **Timeout:** preciso dimensionar o *consumer ack timeout* do RabbitMQ ao tempo máximo esperado de processamento de um vídeo — um vídeo muito maior que o esperado é justamente o risco registrado na seção 7.
 
 ### 5.3 Autenticação (`video-api`)
 
-JWT HS256, `sub` = `user_id`, expiração curta (ex.: 15 min), secret lido de uma única fonte (variável de ambiente/Secret do Kubernetes) e **nunca** gerado de forma independente por réplica — fonte única de secret evita divergência de `JWT_SECRET` entre réplicas, um problema conhecido em deploys com múltiplas instâncias (causa falha de login intermitente, difícil de diagnosticar). Rate limiting de tentativas de login via Redis (`INCR` + `TTL`, padrão do Guia Database Engineering).
+Uso JWT HS256, `sub` = `user_id`, expiração curta (ex.: 15 min), secret lido de uma única fonte (variável de ambiente/Secret do Kubernetes) e **nunca** gerado de forma independente por réplica — assim evito divergência de `JWT_SECRET` entre réplicas, um problema conhecido em deploys com múltiplas instâncias (causa falha de login intermitente, difícil de diagnosticar). Faço rate limiting de tentativas de login via Redis (`INCR` + `TTL`, padrão do Guia Database Engineering).
 
 ### 5.4 API Gateway (`video-gateway`)
 
-Spring Cloud Gateway na frente dos 3 serviços — ver [ADR-009](#adr-009--api-gateway-spring-cloud-gateway-em-vez-de-kong). Responsabilidades: roteamento (`/auth/**` → `video-api`, `/videos/**` → `video-api`), CORS, rate limiting de borda (complementar ao rate limiting de login já feito via Redis no `video-api`). **Não** valida JWT — cada serviço valida seu próprio token via filtro Spring Security compartilhado, mantendo os serviços testáveis isoladamente sem precisar subir o gateway.
+Coloco o Spring Cloud Gateway na frente dos 3 serviços — ver [ADR-009](#adr-009--api-gateway-spring-cloud-gateway-em-vez-de-kong). Responsabilidades: roteamento (`/auth/**` → `video-api`, `/videos/**` → `video-api`), CORS, rate limiting de borda (complementar ao rate limiting de login já feito via Redis no `video-api`). **Não** valido JWT nele — cada serviço valida seu próprio token via filtro Spring Security compartilhado, o que mantém os serviços testáveis isoladamente sem precisar subir o gateway.
 
 ### 5.5 `notification-worker` — persistência própria
 
-O `notification-worker` tem estado próprio, banco (ou schema) próprio, mínimo:
+Dou ao `notification-worker` estado próprio, num banco (ou schema) próprio, mínimo:
 
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
@@ -368,7 +368,7 @@ erDiagram
     }
 ```
 
-O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação multicanal — ver [ADR-011](#adr-011--notificação-multicanal-como-incremento-não-como-núcleo)). `video_id` é só uma referência de correlação (não há FK real — `notification-worker` não acessa o banco do `video-api`, coerente com o ADR-008). A tabela serve tanto de log quanto de chave de idempotência: antes de reenviar, verifica se já existe um registro `SENT` para o mesmo `video_id` + `channel`.
+O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação multicanal — ver [ADR-011](#adr-011--notificação-multicanal-como-incremento-não-como-núcleo)). `video_id` é só uma referência de correlação (não há FK real — o `notification-worker` não acessa o banco do `video-api`, coerente com o ADR-008). Uso essa tabela tanto como log quanto como chave de idempotência: antes de reenviar, verifico se já existe um registro `SENT` para o mesmo `video_id` + `channel`.
 
 ---
 
@@ -380,8 +380,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                                                           |
 | Contexto                  | O enunciado pede explicitamente "desenvolvimento de microsserviços" como conceito a demonstrar, mas o domínio (upload → processar → notificar) é simples. Um domínio com bounded contexts distintos e fluxo transacional com compensação (SAGA) justificaria mais serviços — não é o caso aqui                                                   |
-| Decisão                   | 3 serviços deployáveis independentemente — `video-api`, `video-worker`, `notification-worker` — cada um com responsabilidade única e escalabilidade própria, sem SAGA (não há compensação de negócio: o pipeline é linear, e uma falha de processamento simplesmente marca o vídeo como `FAILED`, sem necessidade de desfazer passos anteriores) |
-| Alternativas consideradas | (a) **Monólito único** — rejeitado, não isola o processamento CPU-bound da API;<br/>(b) **Decomposição mais granular** (5+ serviços + Lambda + orquestração explícita) — rejeitado, overhead de setup desproporcional ao domínio                                                                                                                 |
+| Decisão                   | Escolhi 3 serviços deployáveis independentemente — `video-api`, `video-worker`, `notification-worker` — cada um com responsabilidade única e escalabilidade própria, sem SAGA (não há compensação de negócio: o pipeline é linear, e uma falha de processamento simplesmente marca o vídeo como `FAILED`, sem necessidade de desfazer passos anteriores) |
+| Alternativas consideradas | (a) **Monólito único** — rejeitei, não isola o processamento CPU-bound da API;<br/>(b) **Decomposição mais granular** (5+ serviços + Lambda + orquestração explícita) — rejeitei, overhead de setup desproporcional ao domínio                                                                                                                 |
 | Consequências             | **Positivo**: setup mais rápido, ainda demonstra decomposição em microsserviços de forma justificada. <br/>**Negativo**: menos "impressionante" por tudo que estudamos no curso porém no curso de arquitetura devemos observar esses trade-offs assim como profissionalmente                                                                     |
 
 ### ADR-002 — Broker de mensageria
@@ -389,9 +389,9 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 | Campo                     | Valor                                                                                                                                                                                                                                                                                                                                |
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                                               |
-| Contexto                  | O enunciado sugere RabbitMQ ou Kafka; optou-se por não depender de um serviço de mensageria gerenciado específico de nuvem (ver ADR-001/riscos sobre plataforma de deploy)                                                                                                                                                           |
+| Contexto                  | O enunciado sugere RabbitMQ ou Kafka; optei por não depender de um serviço de mensageria gerenciado específico de nuvem (ver ADR-001/riscos sobre plataforma de deploy)                                                                                                                                                           |
 | Decisão                   | RabbitMQ — modelo de fila de trabalho com ack/nack, DLQ nativa (dead-letter-exchange), prefetch count para controlar concorrência de um worker CPU-bound                                                                                                                                                                             |
-| Alternativas consideradas | Kafka — rejeitado: seu ganho central é replay de log/particionamento para múltiplos consumidores independentes do mesmo stream, o que não é o requisito aqui (é uma fila de trabalho de processamento único por vídeo, não um log de eventos replayable); overhead operacional (partições, consumer groups) desproporcional ao prazo |
+| Alternativas consideradas | Kafka — rejeitei: seu ganho central é replay de log/particionamento para múltiplos consumidores independentes do mesmo stream, o que não é o requisito aqui (é uma fila de trabalho de processamento único por vídeo, não um log de eventos replayable); overhead operacional (partições, consumer groups) desproporcional ao prazo |
 | Consequências             | **Positivo**: setup simples via Docker Compose, semântica de fila mais direta para o caso de uso.<br/>**Negativo**: se o hackathon evoluir para exigir replay de eventos ou múltiplos consumidores independentes do mesmo evento, Kafka passaria a ser mais adequado                                                                 |
 
 ### ADR-003 — Garantia de entrega e idempotência
@@ -400,8 +400,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                               |
 | Contexto                  | Um evento de upload não pode se perder entre o commit da entidade e a publicação na fila (dual-write); o RabbitMQ entrega at-least-once, então consumidores podem receber a mesma mensagem mais de uma vez                           |
-| Decisão                   | Outbox Pattern (evento gravado na mesma transação da entidade, publisher agendado reprocessa não publicados) + verificação de status antes de reprocessar no worker — padrão consolidado para esse problema em sistemas distribuídos |
-| Alternativas consideradas | Publicar direto na fila dentro da transação (rejeitado — mesmo problema de dual-write descrito no contexto acima); exactly-once via transações Kafka (rejeitado junto com Kafka no ADR-002)                                          |
+| Decisão                   | Escolhi o Outbox Pattern (evento gravado na mesma transação da entidade, publisher agendado reprocessa não publicados) + verificação de status antes de reprocessar no worker — padrão consolidado para esse problema em sistemas distribuídos |
+| Alternativas consideradas | Publicar direto na fila dentro da transação (rejeitei — mesmo problema de dual-write descrito no contexto acima); exactly-once via transações Kafka (rejeitei junto com Kafka no ADR-002)                                          |
 | Consequências             | **Positivo**: nenhuma perda de evento, reprocessamento seguro.<br/>**Negativo**: latência adicional do polling do publisher (aceitável — não é um requisito de tempo real)                                                           |
 
 ### ADR-004 — Armazenamento de vídeo e zip processado
@@ -410,8 +410,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                     |
 | Contexto                  | Vídeos e zips são arquivos binários potencialmente grandes; a recomendação é object storage para esse perfil de dado, mantendo o banco relacional para metadados                                                           |
-| Decisão                   | MinIO (S3-compatible, self-hosted) para os binários; PostgreSQL apenas para metadados e referência (`storage_key`)                                                                                                         |
-| Alternativas consideradas | `bytea`/blob no PostgreSQL — rejeitado: degrada backup, replicação e tamanho do WAL; sistema de arquivos local no pod do worker — rejeitado: não sobrevive a múltiplas réplicas nem a rescheduling de pods no Kubernetes   |
+| Decisão                   | Escolhi MinIO (S3-compatible, self-hosted) para os binários; PostgreSQL apenas para metadados e referência (`storage_key`)                                                                                                         |
+| Alternativas consideradas | `bytea`/blob no PostgreSQL — rejeitei: degrada backup, replicação e tamanho do WAL; sistema de arquivos local no pod do worker — rejeitei: não sobrevive a múltiplas réplicas nem a rescheduling de pods no Kubernetes   |
 | Consequências             | **Positivo**: permite URLs pré-assinadas para download direto, sem tráfego pelo backend; portável para S3 real se o projeto for para AWS.<br/>**Negativo**: mais um componente de infraestrutura para provisionar e operar |
 
 ### ADR-005 — Autenticação
@@ -420,8 +420,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                 |
 | Contexto                  | Serverless (Lambda) só faz sentido quando um requisito explícito pede — este hackathon pede apenas "protegido por usuário e senha", não exige serverless                                                                                                                                               |
-| Decisão                   | Autenticação como endpoint/módulo do próprio `video-api` (ou um serviço dedicado simples, se a equipe preferir isolar), emitindo JWT HS256 com secret único e compartilhado, com fonte única de secret para evitar divergência entre réplicas — problema conhecido em deploys com múltiplas instâncias |
-| Alternativas consideradas | Lambda de autenticação na AWS — considerada, mas só faz sentido se a equipe optar por hospedar todo o hackathon na nuvem (ver riscos); Cognito/OAuth2 — rejeitado por overhead desproporcional ao escopo                                                                                               |
+| Decisão                   | Implementei autenticação como endpoint/módulo do próprio `video-api` (ou um serviço dedicado simples, se a equipe preferir isolar), emitindo JWT HS256 com secret único e compartilhado, com fonte única de secret para evitar divergência entre réplicas — problema conhecido em deploys com múltiplas instâncias |
+| Alternativas consideradas | Lambda de autenticação na AWS — considerei, mas só faz sentido se a equipe optar por hospedar todo o hackathon na nuvem (ver riscos); Cognito/OAuth2 — rejeitei por overhead desproporcional ao escopo                                                                                               |
 | Consequências             | **Positivo**: sem dependência de nuvem para rodar localmente/em CI.<br/>**Negativo**: se quiser demonstrar "uso de serverless" como diferencial na apresentação, precisaria reverter esta decisão conscientemente                                                                                      |
 
 ### ADR-006 — Observabilidade
@@ -429,10 +429,10 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 | Campo                     | Valor                                                                                                                                                                                                                                                                                                   |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                  |
-| Contexto                  | O enunciado sugere Prometheus+Grafana ou ELK; optou-se por uma stack self-hosted, sem depender de uma plataforma de observabilidade SaaS paga                                                                                                                                                           |
-| Decisão                   | Prometheus + Grafana como via primária (métricas: profundidade de fila, taxa de erro de processamento, latência por vídeo, decisões de scaling), com logs estruturados em JSON como complemento                                                                                                         |
-| Alternativas consideradas | ELK — mais forte em correlação/busca textual de logs entre serviços, mas o sinal mais crítico aqui (RF2 — não perder requisição em pico) é melhor observado por métricas de fila e scaling do que por busca em log                                                                                      |
-| Consequências             | **Positivo**: alinhado ao que já foi estudado no módulo de OpenTelemetry/Monitoramento (Fases 2–3), open source, sem custo.<br/>**Negativo**: correlação de log entre os 3 serviços exige disciplina de `correlation_id` manual, sem a conveniência de uma plataforma de observabilidade unificada paga |
+| Contexto                  | O enunciado sugere Prometheus+Grafana ou ELK; optei por uma stack self-hosted, sem depender de uma plataforma de observabilidade SaaS paga                                                                                                                                                           |
+| Decisão                   | Escolhi Prometheus + Grafana como via primária (métricas: profundidade de fila, taxa de erro de processamento, latência por vídeo, decisões de scaling), com logs estruturados em JSON como complemento                                                                                                         |
+| Alternativas consideradas | ELK — mais forte em correlação/busca textual de logs entre serviços, mas acho que o sinal mais crítico aqui (RF2 — não perder requisição em pico) é melhor observado por métricas de fila e scaling do que por busca em log                                                                                      |
+| Consequências             | **Positivo**: alinhado ao que já estudei no módulo de OpenTelemetry/Monitoramento (Fases 2–3), open source, sem custo.<br/>**Negativo**: correlação de log entre os 3 serviços exige disciplina de `correlation_id` manual, sem a conveniência de uma plataforma de observabilidade unificada paga |
 
 ### ADR-007 — Linguagem(ns) e versão de runtime dos serviços
 
@@ -441,8 +441,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Contexto                  | O ADR-001 definiu 3 serviços **deployáveis independentemente**, o que tecnicamente permite poliglotismo (cada um numa linguagem diferente). Como o `ffmpeg` é sempre invocado como **binário externo via subprocesso** — nenhum serviço decodifica vídeo em processo — a linguagem escolhida não afeta a performance da extração de frames em si; o que ela afeta é: velocidade de desenvolvimento sob prazo curto, maturidade do cliente RabbitMQ/JWT/driver Postgres, facilidade de orquestrar subprocessos concorrentes, tamanho/startup de container e, principalmente, **risco de execução** — o enunciado não exige nenhuma linguagem específica.                                                                |
 | Opções avaliadas          | Linguagem: ver tabela comparativa abaixo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Decisão                   | **Java 21 + Spring Boot 4.1.0** para os três serviços, mantendo uma única stack, com **virtual threads habilitadas** (`spring.threads.virtual.enabled=true`, JEP 444 — GA desde o Java 21) para lidar com upload concorrente sem esgotar um pool fixo de threads no `video-api` (RF1/RF2). Reaproveita integralmente o ferramental já validado em fases anteriores do curso (Spring Data JPA, Spring AMQP, Spring Security/JWT, Testcontainers, GitHub Actions com Maven/Gradle) e elimina o custo de setup duplicado (CI, Dockerfile, observabilidade, testes) que um segundo runtime exigiria                                                                                                                        |
-| Alternativas consideradas | Outras linguagens — ver tabela; nenhuma foi rejeitada por incapacidade técnica, foram descartadas como **padrão** por aumentarem risco de execução sem resolver nenhum requisito que o Java+Spring já não resolva.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Decisão                   | Escolhi **Java 21 + Spring Boot 4.1.0** para os três serviços, mantendo uma única stack, com **virtual threads habilitadas** (`spring.threads.virtual.enabled=true`, JEP 444 — GA desde o Java 21) para lidar com upload concorrente sem esgotar um pool fixo de threads no `video-api` (RF1/RF2). Assim reaproveito integralmente o ferramental que já validei em fases anteriores do curso (Spring Data JPA, Spring AMQP, Spring Security/JWT, Testcontainers, GitHub Actions com Maven/Gradle) e elimino o custo de setup duplicado (CI, Dockerfile, observabilidade, testes) que um segundo runtime exigiria                                                                                                                        |
+| Alternativas consideradas | Outras linguagens — ver tabela; não rejeitei nenhuma por incapacidade técnica, descartei-as como **padrão** por aumentarem risco de execução sem resolver nenhum requisito que o Java+Spring já não resolva.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Consequências             | **Positivo**: máximo reaproveitamento de padrões e ferramental já validados em fases anteriores (outbox, idempotência, JWT, Resilience4j), menor risco de algo quebrar na demo de 10 min por ineditismo de stack, throughput de upload melhor sob concorrência via virtual threads sem custo de complexidade adicional.<br/>**Negativo**: não demonstra poliglotismo; o `video-worker` paga o custo de start-up/memória da JVM por pod, relevante apenas se o HPA precisar escalar muito rápido sob pico; se algum dia surgir necessidade real do JEP 491 (bibliotecas legadas com `synchronized` pesado sob virtual threads), a migração para Java 25 fica como trabalho futuro, não bloqueado por nada desta decisão |
 
 **Comparativo de opções para este desafio específico:**
@@ -458,16 +458,16 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 
 > [!TIP]
 > **Nota crítica**
-> A escolha de linguagem tem **menos impacto neste desafio do que parece à primeira vista**, porque a parte computacionalmente pesada (`ffmpeg`) roda fora do runtime escolhido — a decisão real é sobre ecossistema de mensageria/persistência/testes e sobre risco de prazo, não sobre performance de linguagem. É por isso que a recomendação prioriza reaproveitamento validado (Java+Spring) em vez da opção "tecnicamente mais elegante" para um worker CPU-bound (Go) — que aqui é elegância sem payoff real, dado que o CPU-bound roda no `ffmpeg`, não no runtime da aplicação.
+> Acho que a escolha de linguagem tem **menos impacto neste desafio do que parece à primeira vista**, porque a parte computacionalmente pesada (`ffmpeg`) roda fora do runtime escolhido — pra mim a decisão real é sobre ecossistema de mensageria/persistência/testes e sobre risco de prazo, não sobre performance de linguagem. É por isso que priorizo reaproveitamento validado (Java+Spring) em vez da opção "tecnicamente mais elegante" para um worker CPU-bound (Go) — que aqui é elegância sem payoff real, dado que o CPU-bound roda no `ffmpeg`, não no runtime da aplicação.
 
 ### ADR-008 — Comunicação de status entre `video-worker` e `video-api` (evento, não escrita direta)
 
 | Campo                     | Valor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Contexto                  | O desenho original (LLD seção 5.2) tinha o `video-worker` executando `UPDATE videos SET status=...` diretamente no PostgreSQL do `video-api` após concluir o processamento. Isso contraria a própria regra citada na seção 2 deste documento como reaproveitada da Fase 4 ("nenhum serviço pode acessar diretamente o banco de outro serviço") — o `video-worker` não deveria ter credenciais nem conhecimento de schema do banco que pertence ao `video-api`                                                                                                                                                                                    |
-| Decisão                   | `video-worker` deixa de ter qualquer acesso ao PostgreSQL do `video-api`. Ao concluir (sucesso ou falha), publica um evento `ProcessingCompleted` ou `ProcessingFailed` na fila `video.status-updates`. O `video-api` consome esse evento e aplica a mudança de status ao seu próprio banco, com o mesmo optimistic locking (`@Version`) já previsto. Se o resultado for `FAILED`, é o próprio `video-api` — não mais o worker — quem publica o evento de falha para a fila `video.notification` (mesmo padrão outbox já usado no upload), já que é o `video-api` quem decide e confirma a transição de estado que dispara esse efeito colateral |
-| Alternativas consideradas | Manter a escrita direta (rejeitado — viola a regra citada acima, criada exatamente para evitar acoplamento de schema entre serviços); dar ao `video-worker` uma cópia somente-leitura do schema via replicação (rejeitado — complexidade desproporcional para o ganho, quando um evento resolve o mesmo problema com o padrão já usado no Outbox)                                                                                                                                                                                                                                                                                                |
+| Contexto                  | No meu desenho original (LLD seção 5.2) eu tinha o `video-worker` executando `UPDATE videos SET status=...` diretamente no PostgreSQL do `video-api` após concluir o processamento. Percebi que isso contraria a própria regra citada na seção 2 deste documento como reaproveitada da Fase 4 ("nenhum serviço pode acessar diretamente o banco de outro serviço") — o `video-worker` não deveria ter credenciais nem conhecimento de schema do banco que pertence ao `video-api`                                                                                                                                                                                    |
+| Decisão                   | Tirei do `video-worker` qualquer acesso ao PostgreSQL do `video-api`. Ao concluir (sucesso ou falha), ele publica um evento `ProcessingCompleted` ou `ProcessingFailed` na fila `video.status-updates`. O `video-api` consome esse evento e aplica a mudança de status ao seu próprio banco, com o mesmo optimistic locking (`@Version`) já previsto. Se o resultado for `FAILED`, é o próprio `video-api` — não mais o worker — quem publica o evento de falha para a fila `video.notification` (mesmo padrão outbox já usado no upload), já que é o `video-api` quem decide e confirma a transição de estado que dispara esse efeito colateral |
+| Alternativas consideradas | Manter a escrita direta (rejeitei — viola a regra citada acima, criada exatamente para evitar acoplamento de schema entre serviços); dar ao `video-worker` uma cópia somente-leitura do schema via replicação (rejeitei — complexidade desproporcional para o ganho, quando um evento resolve o mesmo problema com o padrão já usado no Outbox)                                                                                                                                                                                                                                                                                                |
 | Consequências             | **Positivo**: `video-worker` fica genuinamente sem estado e sem acoplamento a infraestrutura de outro serviço — mais fácil de escalar e de extrair para repositório próprio no futuro; `video-api` centraliza toda decisão sobre o ciclo de vida do `Video`, inclusive quando notificar. Consistente com o mecanismo já validado do Outbox Pattern (ADR-003), só que na direção inversa (worker→api).<br/>**Negativo**: mais uma fila para operar (`video.status-updates`); latência adicional entre "ffmpeg terminou" e "status realmente `COMPLETED` no banco" (aceitável — não é requisito de tempo real)                                     |
 
 ### ADR-009 — API Gateway: Spring Cloud Gateway em vez de Kong
@@ -475,9 +475,9 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 | Campo                     | Valor                                                                                                                                                                                                                                                                                                                                                                  |
 |---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                                                                                 |
-| Contexto                  | O HLD (seção 4) deixou em aberto "Kong ou Spring Cloud Gateway" como opções equivalentes. O plugin JWT do Kong é modelado em torno de *Consumers* cadastrados individualmente (pensado para parceiros/API consumers geridos), um encaixe ruim para usuários finais que se auto-registram dinamicamente — cada novo usuário exigiria empurrar configuração nova ao Kong |
-| Decisão                   | **Spring Cloud Gateway** na frente dos 3 serviços, cuidando de roteamento, CORS e rate limiting de borda. A validação do JWT **não** acontece no gateway — continua em cada serviço, via filtro Spring Security compartilhado (módulo comum), a mesma abordagem já prevista no ADR-005                                                                                 |
-| Alternativas consideradas | Kong DB-less — rejeitado pelo problema de Consumers dinâmicos descrito acima, além de introduzir uma peça de infraestrutura fora do stack Java já adotado (ADR-007); Traefik — viável como proxy puro, mas sem ganho sobre Spring Cloud Gateway já que a validação de JWT não acontece na borda de qualquer forma                                                      |
+| Contexto                  | No HLD (seção 4) deixei em aberto "Kong ou Spring Cloud Gateway" como opções equivalentes. O plugin JWT do Kong é modelado em torno de *Consumers* cadastrados individualmente (pensado para parceiros/API consumers geridos), um encaixe ruim para usuários finais que se auto-registram dinamicamente — cada novo usuário exigiria empurrar configuração nova ao Kong |
+| Decisão                   | Escolhi **Spring Cloud Gateway** na frente dos 3 serviços, cuidando de roteamento, CORS e rate limiting de borda. A validação do JWT **não** acontece no gateway — continua em cada serviço, via filtro Spring Security compartilhado (módulo comum), a mesma abordagem já prevista no ADR-005                                                                                 |
+| Alternativas consideradas | Kong DB-less — rejeitei pelo problema de Consumers dinâmicos descrito acima, além de introduzir uma peça de infraestrutura fora do stack Java já adotado (ADR-007); Traefik — viável como proxy puro, mas sem ganho sobre Spring Cloud Gateway já que a validação de JWT não acontece na borda de qualquer forma                                                      |
 | Consequências             | **Positivo**: mantém a stack 100% Java/Spring (reforça ADR-007), roteamento declarativo via `application.yml`, testável com o mesmo ferramental (Spring Boot Test) dos demais serviços.<br/>**Negativo**: menos "genérico" que uma solução de gateway dedicada (Kong/Traefik) para quem avalia especificamente conhecimento de ferramentas de gateway de mercado       |
 
 ### ADR-010 — Deploy em Kubernetes local, sem service mesh
@@ -486,8 +486,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                           |
 | Contexto                  | RT2 pede arquitetura escalável; o enunciado aceita Docker Compose **ou** Kubernetes, sem exigir nuvem                                                                                                                                                            |
-| Decisão                   | Kubernetes local (kind/k3d) com HPA + KEDA, sem Istio/Linkerd                                                                                                                                                                                                    |
-| Alternativas consideradas | Service mesh (Istio/Linkerd) — rejeitado: resiliência (retry/circuit breaker) já é resolvida em código com Resilience4j; mesh adiciona mTLS/sidecar/certificados sem resolver nenhum RF/RT novo, complexidade operacional desproporcional ao ganho num hackathon |
+| Decisão                   | Escolhi Kubernetes local (kind/k3d) com HPA + KEDA, sem Istio/Linkerd                                                                                                                                                                                                    |
+| Alternativas consideradas | Service mesh (Istio/Linkerd) — rejeitei: resiliência (retry/circuit breaker) já é resolvida em código com Resilience4j; mesh adiciona mTLS/sidecar/certificados sem resolver nenhum RF/RT novo, complexidade operacional desproporcional ao ganho num hackathon |
 | Consequências             | **Positivo**: demonstra escalabilidade real (não só teórica) sem custo de nuvem nem complexidade de mesh.<br/>**Negativo**: sem mTLS automático entre serviços — se isso for exigido depois, precisa ser adicionado explicitamente (ex.: NetworkPolicy)          |
 
 ### ADR-011 — Notificação multicanal como incremento, não como núcleo
@@ -496,8 +496,8 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                      |
 | Contexto                  | RF5 pede apenas "notificação por e-mail ou outro meio"                                                                                                                                                      |
-| Decisão                   | Implementar primeiro o MVP com notificação simples de e-mail; só adicionar um segundo canal (webhook) e isolamento por Circuit Breaker/Bulkhead depois, com o núcleo já estável                             |
-| Alternativas consideradas | Multicanal com resiliência por canal desde o início — rejeitado como ponto de partida: investir tempo em resiliência de notificação antes de o pipeline principal funcionar é risco de prazo desnecessário  |
+| Decisão                   | Decidi implementar primeiro o MVP com notificação simples de e-mail; só adicionar um segundo canal (webhook) e isolamento por Circuit Breaker/Bulkhead depois, com o núcleo já estável                             |
+| Alternativas consideradas | Multicanal com resiliência por canal desde o início — rejeitei como ponto de partida: investir tempo em resiliência de notificação antes de o pipeline principal funcionar é risco de prazo desnecessário  |
 | Consequências             | **Positivo**: reduz risco de a equipe investir tempo em resiliência de notificação antes de o pipeline principal funcionar.<br/>**Negativo**: nenhum — é estritamente aditivo sobre o `notification-worker` |
 
 ### ADR-012 — Sem nuvem pública como padrão de execução
@@ -506,11 +506,11 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 |---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                   |
 | Contexto                  | Nenhum RF/RT do enunciado menciona nuvem                                                                                                                                                                                                                                                 |
-| Decisão                   | Toda a stack roda local por padrão (Docker Compose para desenvolvimento, Kubernetes local para demonstração de escalabilidade)                                                                                                                                                           |
-| Alternativas consideradas | AWS/Serverless como padrão (Lambda, Step Functions, DynamoDB) — rejeitado: enunciado não exige nuvem, manter tudo local simplifica a demo em vídeo (≤10 min) e remove dependência de conta/custo                                                                                         |
+| Decisão                   | Fiz toda a stack rodar local por padrão (Docker Compose para desenvolvimento, Kubernetes local para demonstração de escalabilidade)                                                                                                                                                           |
+| Alternativas consideradas | AWS/Serverless como padrão (Lambda, Step Functions, DynamoDB) — rejeitei: enunciado não exige nuvem, manter tudo local simplifica a demo em vídeo (≤10 min) e remove dependência de conta/custo                                                                                         |
 | Consequências             | **Positivo**: sem custo, sem dependência de conta, vídeo de demonstração pode ser gravado a qualquer momento sem depender de infraestrutura remota.<br/>**Negativo**: se a banca exigir prova de deploy em nuvem, essa decisão precisaria ser revisitada — nada no enunciado sugere isso |
 
-**Emenda — caminho explícito para AWS.** A decisão padrão (local) não muda; isto documenta a extensão, caso seja preciso mais capacidade de processamento, sem duplicar lógica de negócio entre os dois modos:
+**Emenda — caminho explícito para AWS.** Mantenho a decisão padrão (local); aqui documento a extensão, caso seja preciso mais capacidade de processamento, sem duplicar lógica de negócio entre os dois modos:
 
 | Componente       | Local (padrão)        | AWS (se necessário)    | Por que não duplica lógica                                                                                                                           |
 |------------------|-----------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -520,7 +520,7 @@ O `channel` são `{EMAIL, WEBHOOK}` (o segundo só entra com a notificação mul
 | Kubernetes       | kind/k3d              | EKS                    | Mesmos manifests via overlay Kustomize (`k8s/overlays/local` vs `k8s/overlays/aws`) — varia só réplicas/Ingress/ConfigMap                            |
 | Banco relacional | Postgres em container | RDS Postgres           | Mesmo driver JDBC, só muda a connection string (Secret/ConfigMap)                                                                                    |
 
-Estratégia de custo: Terraform para os recursos AWS acima fica **pronto e documentado**, mas o `apply` só acontece numa janela curta (se realmente necessário, ou para gravar evidência no vídeo de demonstração), seguido de `destroy` imediato — evita custo parado sem abrir mão de ter a infraestrutura como código pronta. Função serverless (Lambda) para autenticação continua fora de escopo mesmo com esta emenda — ver [ADR-005](#adr-005--autenticação), decisão mantida.
+Estratégia de custo: deixo o Terraform para os recursos AWS acima **pronto e documentado**, mas só rodo o `apply` numa janela curta (se realmente necessário, ou para gravar evidência no vídeo de demonstração), seguido de `destroy` imediato — assim evito custo parado sem abrir mão de ter a infraestrutura como código pronta. Mantenho a função serverless (Lambda) para autenticação fora de escopo mesmo com esta emenda — ver [ADR-005](#adr-005--autenticação), decisão mantida.
 
 ### ADR-013 — Sem CQRS/Event Sourcing para consulta de status
 
@@ -528,8 +528,8 @@ Estratégia de custo: Terraform para os recursos AWS acima fica **pronto e docum
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Status                    | Aceito                                                                                                                                                                                                                                                                                                              |
 | Contexto                  | RF4 (listagem de status por usuário) é uma consulta simples sobre um agregado com poucos campos e baixo volume de escrita relativo                                                                                                                                                                                  |
-| Decisão                   | `GET /videos` consulta direto o PostgreSQL do `video-api`, com cache-aside via Redis — sem separar modelo de leitura e escrita                                                                                                                                                                                      |
-| Alternativas consideradas | CQRS + Event Sourcing para reconstruir o status a partir do histórico de eventos — rejeitado: volume e complexidade de consulta não justificam separar leitura e escrita; o cache-aside já resolve o único problema real (releitura repetida via polling do front)                                                  |
+| Decisão                   | Fiz `GET /videos` consultar direto o PostgreSQL do `video-api`, com cache-aside via Redis — sem separar modelo de leitura e escrita                                                                                                                                                                                      |
+| Alternativas consideradas | CQRS + Event Sourcing para reconstruir o status a partir do histórico de eventos — rejeitei: volume e complexidade de consulta não justificam separar leitura e escrita; o cache-aside já resolve o único problema real (releitura repetida via polling do front)                                                  |
 | Consequências             | **Positivo**: menos um componente de infraestrutura (sem event store separado), consulta simples de raciocinar e depurar.<br/>**Negativo**: se o histórico completo de transições de status virar um requisito futuro (auditoria detalhada), precisaria ser desenhado à parte — hoje só o estado atual é persistido |
 
 ---
@@ -571,11 +571,11 @@ Estratégia de custo: Terraform para os recursos AWS acima fica **pronto e docum
 
 > [!NOTE]
 > **O que fica na memória**
-> - A decisão mais importante deste documento não é tecnológica, é de **escopo**: 3 serviços focados, não uma decomposição mais granular — over-engineering aqui custaria o prazo do hackathon sem ganho real, já que o domínio não tem fluxo transacional com compensação.
+> - A decisão mais importante deste documento não é tecnológica, é de **escopo**: escolhi 3 serviços focados, não uma decomposição mais granular — acho que over-engineering aqui custaria o prazo do hackathon sem ganho real, já que o domínio não tem fluxo transacional com compensação.
 > - Fila (RabbitMQ) + workers escaláveis horizontalmente resolvem RF1 e RF2 juntos: throughput paralelo e resiliência a pico são o **mesmo mecanismo**, não dois problemas separados.
-> - Outbox Pattern, idempotência, optimistic locking e DLQ são aplicados aqui porque resolvem problemas genéricos de sistemas distribuídos, independentes do domínio.
-> - Serverless e SAGA foram conscientemente **descartados** aqui — não porque sejam ruins, mas porque nenhum requisito deste hackathon os justifica.
-> - Dois pontos seguem genuinamente em aberto e não deveriam ser fechados sem mais contexto: política de backpressure sob pico sustentado, e a plataforma de deploy (AWS vs. self-hosted).
+> - Aplico aqui Outbox Pattern, idempotência, optimistic locking e DLQ porque resolvem problemas genéricos de sistemas distribuídos, independentes do domínio.
+> - Descartei conscientemente Serverless e SAGA aqui — não porque sejam ruins, mas porque nenhum requisito deste hackathon os justifica.
+> - Dois pontos seguem genuinamente em aberto pra mim e não deveriam ser fechados sem mais contexto: política de backpressure sob pico sustentado, e a plataforma de deploy (AWS vs. self-hosted).
 
 ## Referências
 

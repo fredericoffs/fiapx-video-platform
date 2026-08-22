@@ -15,8 +15,8 @@ interface SessionState {
 }
 
 /**
- * Estado de sessão (JWT + usuário autenticado) — deliberadamente fora do cache de
- * dados de API (TanStack Query). Nunca persistido em localStorage/sessionStorage:
+ * Estado de sessão (JWT + usuário autenticado) — deixei deliberadamente fora do cache de
+ * dados de API (TanStack Query). Nunca persisto em localStorage/sessionStorage:
  * o JWT só vive em memória, decisão de segurança da Sprint 5 (mitiga roubo de
  * token via XSS). O interceptor do cliente de API (shared/api/client.ts) lê o
  * token direto daqui via getState(), fora da árvore React.

@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > **Formato**
-> Equivalente textual/mermaid a um board de Event Storming (Miro), conforme aceito pela Fase 1 ("Miro ou equivalente").
+> Fiz este documento como equivalente textual/mermaid a um board de Event Storming (Miro), conforme aceito pela Fase 1 ("Miro ou equivalente").
 >
 > **Convenção de cores do método**: 
 > - 🟧 Evento de Domínio
@@ -66,7 +66,7 @@ flowchart LR
 
 > [!WARNING]
 > **Decisão registrada**
-> Não existe um agregado `Job` separado de `Video` — ver nota aberta em [Linguagem Ubíqua](./linguagem-ubiqua.md). O "job" é modelado como o próprio ciclo de vida do `Video`. Isso é suficiente para o domínio atual (não há reprocessamento paralelo do mesmo vídeo, não há histórico de múltiplas tentativas de job por vídeo além do que a DLQ já resolve).
+> Não criei um agregado `Job` separado de `Video` — ver nota aberta em [Linguagem Ubíqua](./linguagem-ubiqua.md). Modelei o "job" como o próprio ciclo de vida do `Video`. Considero isso suficiente para o domínio atual (não há reprocessamento paralelo do mesmo vídeo, não há histórico de múltiplas tentativas de job por vídeo além do que a DLQ já resolve).
 
 ## 6. Políticas (regras reativas — "quando X, então Y")
 

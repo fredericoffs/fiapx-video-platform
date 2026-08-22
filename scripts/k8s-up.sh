@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Sobe o ambiente completo em Kubernetes local (kind), Sprint 4 do Plano de
-# Implementação. Idempotente: pode ser rodado de novo sobre um cluster já existente
+# Subo aqui o ambiente completo em Kubernetes local (kind), Sprint 4 do Plano de
+# Implementação. É idempotente: pode ser rodado de novo sobre um cluster já existente
 # para reaplicar manifests/reconstruir imagens.
 #
-# Ordem importa: migration-job ANTES do Deployment do video-api. video-api roda com
-# SPRING_FLYWAY_ENABLED=false no overlay local (ver k8s/apps/overlays/local/
-# kustomization.yaml) — se o Job não tiver terminado antes dos pods do Deployment
-# subirem, o Hibernate (ddl-auto: validate) derruba o container logo no startup por
-# schema ausente. Por isso o manifest do Job é aplicado e esperado (`kubectl wait`)
-# separado do resto, não junto num `kubectl apply -k` só.
+# A ordem importa: preciso rodar o migration-job ANTES do Deployment do video-api.
+# video-api roda com SPRING_FLYWAY_ENABLED=false no overlay local (ver
+# k8s/apps/overlays/local/kustomization.yaml) — se o Job não tiver terminado antes dos
+# pods do Deployment subirem, o Hibernate (ddl-auto: validate) derruba o container logo
+# no startup por schema ausente. Por isso aplico e espero (`kubectl wait`) o manifest
+# do Job separado do resto, não junto num `kubectl apply -k` só.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -57,8 +57,8 @@ if [ -z "$JOB_FILE" ]; then
 fi
 # O Job depende do ConfigMap gerado (SQL) e do Secret fiapx-secrets (credenciais do
 # banco) — sem aplicar os dois primeiro, o pod do Job fica preso em ContainerCreating/
-# CreateContainerConfigError esperando por eles (já visto ao vivo duas vezes). Em vez
-# de listar as dependências uma a uma, aplica TUDO exceto o Deployment do video-api —
+# CreateContainerConfigError esperando por eles (já vi isso ao vivo duas vezes). Em vez
+# de listar as dependências uma a uma, aplico TUDO exceto o Deployment do video-api —
 # é o único recurso que realmente precisa esperar a migração terminar.
 VIDEO_API_DEPLOY_FILE=""
 for f in "${RENDER_DIR}"/doc-*.yaml; do

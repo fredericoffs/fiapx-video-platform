@@ -15,8 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Simula duas atualizações concorrentes na mesma linha (dois `findById` independentes,
- * cada `save` em sua própria transação de repositório) para provar que o `@Version` de
+ * Simulo duas atualizações concorrentes na mesma linha (dois `findById` independentes,
+ * cada `save` em sua própria transação de repositório) pra provar que o `@Version` de
  * VideoEntity realmente rejeita a segunda escrita baseada em estado obsoleto.
  */
 @SpringBootTest

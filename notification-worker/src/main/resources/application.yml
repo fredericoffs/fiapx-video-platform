@@ -65,7 +65,7 @@ fiapx:
     notification-dlx: ${QUEUE_NOTIFICATION_DLX:video.notification.dlx}
     notification-dlq: ${QUEUE_NOTIFICATION_DLQ:video.notification.dlq}
 
-# Circuit Breaker + Bulkhead isolados por canal (tarefa 3 da Sprint 6) — thread-pool-bulkhead
+# Uso Circuit Breaker + Bulkhead isolados por canal (tarefa 3 da Sprint 6) — thread-pool-bulkhead
 # (não bulkhead simples) porque cada canal precisa de um pool de threads próprio de verdade.
 resilience4j:
   circuitbreaker:

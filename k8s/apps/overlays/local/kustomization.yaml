@@ -6,12 +6,12 @@ resources:
   - ../../base
   - secret.yaml
 
-# NodePort fixo (30080), casando com o extraPortMappings do kind
-# (k8s/kind/cluster-config.yaml): host 8080 -> nó 30080 -> video-gateway. Mesma coisa
-# pro web (30081 -> host 5173, Sprint 5) — mesma porta usada em npm run dev e no
+# Uso NodePort fixo (30080), casando com o extraPortMappings do kind
+# (k8s/kind/cluster-config.yaml): host 8080 -> nó 30080 -> video-gateway. Faço o mesmo
+# pro web (30081 -> host 5173, Sprint 5) — mesma porta que uso em npm run dev e no
 # serviço web do docker-compose, então o GATEWAY_CORS_ALLOWED_ORIGINS do configmap
 # (http://localhost:5173) cobre os 3 contextos sem precisar de lista de origens.
-# SPRING_FLYWAY_ENABLED=false no video-api: em Kubernetes quem migra é o
+# Ponho SPRING_FLYWAY_ENABLED=false no video-api: em Kubernetes quem migra é o
 # migration-job.yaml (base), não o app subindo sozinho — ver comentário no
 # deployment.yaml do video-api.
 patches:

@@ -13,12 +13,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * Todas as respostas aqui são {@code application/problem+json} (RFC 7807, via
+ * Decidi que todas as respostas aqui sejam {@code application/problem+json} (RFC 7807, via
  * {@link ProblemDetail}) — nunca HTML. Erros não tratados aqui (ex.: falha de validação em
- * {@code @Valid}) seguem o mesmo formato porque {@code spring.mvc.problemdetails.enabled=true}
- * está ligado em application.yml. O navegador não interpreta JSON como script; combinado ao
- * header {@code X-Content-Type-Options: nosniff} (padrão do Spring Security, não desativado em
- * SecurityConfig), fecha a classe de XSS refletido que scanners de SAST costumam apontar de
+ * {@code @Valid}) seguem o mesmo formato porque liguei {@code spring.mvc.problemdetails.enabled=true}
+ * em application.yml. O navegador não interpreta JSON como script; combino isso ao
+ * header {@code X-Content-Type-Options: nosniff} (padrão do Spring Security, que não desativei em
+ * SecurityConfig) pra fechar a classe de XSS refletido que scanners de SAST costumam apontar de
  * forma genérica em qualquer sink de resposta HTTP que embuta input do usuário (e-mail, nome
  * de arquivo), independentemente do Content-Type real.
  */

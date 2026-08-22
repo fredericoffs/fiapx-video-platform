@@ -32,8 +32,8 @@ public class DeleteUserUseCase {
       throw new UserNotFoundException(userId);
     }
 
-    // Sempre pega a página 0 — cada vídeo excluído libera espaço pro próximo lote,
-    // exclusão real e em cascata (decisão do usuário), não soft-delete.
+    // Sempre pego a página 0 — cada vídeo excluído libera espaço pro próximo lote.
+    // Faço exclusão real e em cascata (decisão do usuário), não soft-delete.
     PageResult<Video> videos = videoRepository.findByUserId(userId, null, 0, BATCH_SIZE);
     while (!videos.items().isEmpty()) {
       for (Video video : videos.items()) {

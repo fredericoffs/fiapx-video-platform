@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala os add-ons de cluster necessários para autoscaling real (RT2):
+# Instalo aqui os add-ons de cluster necessários para autoscaling real (RT2):
 #   - metrics-server: pré-requisito do HPA (video-api). Em kind, o kubelet usa
 #     certificado self-signed -> precisa de --kubelet-insecure-tls (gotcha conhecido,
 #     não é algo que aconteça num cluster gerenciado real).

@@ -26,7 +26,7 @@ function messageForStatus(status: number): string {
 }
 
 /**
- * Upload via XMLHttpRequest bruto (não openapi-fetch/fetch): é o único jeito
+ * Uso XMLHttpRequest bruto pro upload (não openapi-fetch/fetch): é o único jeito
  * de observar `upload.onprogress` para uma barra de progresso real.
  */
 export function uploadVideo(

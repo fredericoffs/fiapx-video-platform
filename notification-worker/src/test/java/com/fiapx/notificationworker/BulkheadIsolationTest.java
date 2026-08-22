@@ -15,12 +15,12 @@ import org.springframework.test.context.TestPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Prova isolamento REAL de thread pool entre os dois canais (DoD: "falha isolada de
+ * Provo isolamento REAL de thread pool entre os dois canais (DoD: "falha isolada de
  * um canal não afeta o outro") — não uma asserção de que a configuração existe.
- * Satura a única thread do pool do email-channel (rebaixado pra 1 thread/fila zero
+ * Saturo a única thread do pool do email-channel (rebaixado pra 1 thread/fila zero
  * só neste teste) com uma tarefa bloqueada por {@link CountDownLatch}; enquanto ela
  * está presa, uma tarefa no webhook-channel precisa continuar respondendo
- * normalmente, porque tem pool próprio. Sincronização só por latch — nenhum
+ * normalmente, porque tem pool próprio. Uso sincronização só por latch — nenhum
  * {@code Thread.sleep}/timing de wall-clock.
  */
 @SpringBootTest
@@ -51,7 +51,7 @@ class BulkheadIsolationTest {
 
     assertThat(emailTaskStarted.await(5, TimeUnit.SECONDS)).as("tarefa do e-mail começou a rodar").isTrue();
 
-    // A única thread do pool do e-mail está ocupada — o webhook usa outro pool, então
+    // Deixei a única thread do pool do e-mail ocupada — o webhook usa outro pool, então
     // isso precisa completar normalmente em vez de ficar preso atrás do e-mail.
     CompletionStage<String> webhookTask = webhookBulkhead.submit(() -> "webhook-done");
     assertThat(toFuture(webhookTask).get(5, TimeUnit.SECONDS)).isEqualTo("webhook-done");

@@ -1,6 +1,6 @@
-# Equivalente Kubernetes do serviço "minio-init" do docker-compose.yml — mesma
+# Criei o equivalente Kubernetes do serviço "minio-init" do docker-compose.yml — mesma
 # imagem (minio/mc), mesmos 2 buckets. Mesmo motivo de nome fixo + delete-antes-de-
-# aplicar do migration-job.yaml do video-api (Job é imutável).
+# aplicar que já expliquei no migration-job.yaml do video-api (Job é imutável).
 apiVersion: batch/v1
 kind: Job
 metadata:
