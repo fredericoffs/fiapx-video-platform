@@ -30,7 +30,7 @@ fi
 kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
 
 echo "==> [2/6] build + load das imagens locais"
-for svc in video-gateway video-api video-worker notification-worker; do
+for svc in video-gateway video-api video-worker notification-worker web; do
   docker build -t "fiapx/${svc}:local" "${ROOT_DIR}/${svc}"
   kind load docker-image "fiapx/${svc}:local" --name "$CLUSTER_NAME"
 done
