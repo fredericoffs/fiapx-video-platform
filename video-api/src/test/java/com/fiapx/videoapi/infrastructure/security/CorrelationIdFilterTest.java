@@ -1,13 +1,16 @@
 package com.fiapx.videoapi.infrastructure.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import java.util.UUID;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class CorrelationIdFilterTest {
 
@@ -21,7 +24,7 @@ class CorrelationIdFilterTest {
     String[] seenDuringChain = new String[1];
     MockFilterChain chain = new MockFilterChain() {
       @Override
-      public void doFilter(jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+      public void doFilter(@NonNull ServletRequest req, @NonNull ServletResponse res) {
         seenDuringChain[0] = MDC.get(CorrelationIdFilter.MDC_KEY);
       }
     };
@@ -39,7 +42,7 @@ class CorrelationIdFilterTest {
     String[] seenDuringChain = new String[1];
     MockFilterChain chain = new MockFilterChain() {
       @Override
-      public void doFilter(jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+      public void doFilter(@NonNull ServletRequest req, @NonNull ServletResponse res) {
         seenDuringChain[0] = MDC.get(CorrelationIdFilter.MDC_KEY);
       }
     };
