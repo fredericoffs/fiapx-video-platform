@@ -48,10 +48,16 @@ spec:
               path: /actuator/health
               port: http
             periodSeconds: 10
+          # Achei ao vivo rodando o cluster de verdade: 256Mi de limite derrubava o pod
+          # com OOMKilled (exit 137) sempre no meio do boot do Spring — JPA + Resilience4j
+          # (circuit breaker + bulkhead com thread pool próprio por canal, desde a
+          # Sprint 6) + cliente de e-mail/webhook juntos pesam mais que o orçamento
+          # original previa. Realinhei com o mesmo padrão do video-api (256Mi/512Mi),
+          # que tem uma pilha de dependências parecida e nunca deu esse problema.
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 512Mi
