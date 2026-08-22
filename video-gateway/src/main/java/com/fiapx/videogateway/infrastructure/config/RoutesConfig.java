@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.RouterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
+import com.fiapx.videogateway.infrastructure.correlation.CorrelationIdFilterFunction;
 import com.fiapx.videogateway.infrastructure.ratelimit.RateLimitFilterFunction;
 
 @Configuration
@@ -18,11 +19,16 @@ public class RoutesConfig {
   @Bean
   public RouterFunction<ServerResponse> videoApiRoutes(
       GatewayRouteProperties properties,
-      RateLimitFilterFunction rateLimitFilterFunction
+      RateLimitFilterFunction rateLimitFilterFunction,
+      CorrelationIdFilterFunction correlationIdFilterFunction
   ) {
     return route("video-api")
         .route(path("/auth/**").or(path("/videos/**")).or(path("/admin/**")), http())
         .before(uri(properties.videoApiUri()))
+        // Ordem importa: o Spring executa os filtros na ordem em que chamo .filter() aqui —
+        // gero o correlation-id primeiro, antes até do rate limiting, porque é o ponto de
+        // origem real da requisição na borda.
+        .filter(correlationIdFilterFunction)
         .filter(rateLimitFilterFunction)
         .build();
   }
