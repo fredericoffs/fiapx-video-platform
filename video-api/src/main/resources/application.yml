@@ -82,5 +82,9 @@ fiapx:
     batch-size: ${OUTBOX_BATCH_SIZE:50}
 
 logging:
-  pattern:
-    level: "%5p [correlationId=%X{correlationId}]"
+  # Uso o formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder)
+  # — confirmei rodando localmente que ele já inclui o MDC inteiro (incluindo correlationId)
+  # como campos JSON de nível superior, sem configuração extra.
+  structured:
+    format:
+      console: logstash
