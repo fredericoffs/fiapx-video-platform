@@ -69,6 +69,15 @@ fiapx:
 # (não bulkhead simples) porque cada canal precisa de um pool de threads próprio de verdade.
 resilience4j:
   circuitbreaker:
+    # Achei ao vivo (Sprint 7, increment 6.3): sem isso, o publisher de métricas do
+    # resilience4j-spring-boot3 nunca aparece — o @ConditionalOnBean(MeterRegistry) dele
+    # roda antes da auto-configuração do Prometheus (Micrometer) criar o bean, então a
+    # condição falha e nenhuma métrica resilience4j_* é exportada. O caminho "legacy"
+    # não depende dessa ordem e resolve. Confirmado via
+    # --debug (relatório de avaliação de condições) + curl real no /actuator/prometheus.
+    metrics:
+      legacy:
+        enabled: true
     instances:
       email-channel:
         sliding-window-size: 10
@@ -83,6 +92,9 @@ resilience4j:
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
   thread-pool-bulkhead:
+    metrics:
+      legacy:
+        enabled: true
     instances:
       email-channel:
         max-thread-pool-size: 4
