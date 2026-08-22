@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install kubectl
+        run: |
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+      - name: Install kind
+        run: |
+          KIND_VERSION="$(curl -Ls https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
+          curl -Lo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+
+      - name: Install helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Ensure ffmpeg is present
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Deploy to ephemeral kind cluster
+        run: ./scripts/k8s-up.sh
+
+      - name: Confirm rollout succeeded for every application deployment
+        run: |
+          for deploy in video-gateway video-api video-worker notification-worker web; do
+            kubectl -n fiapx rollout status "deployment/${deploy}" --timeout=180s
+          done
+
+      - name: Health-check the externally reachable entry points
+        run: |
+          for url in http://localhost:8080/actuator/health http://localhost:5173/; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)"
+            if [ "$code" != "200" ]; then
+              echo "esperava 200 de ${url}, recebi ${code}"
+              exit 1
+            fi
+          done
+
+      - name: Dump pod status on failure
+        if: failure()
+        run: |
+          kubectl -n fiapx get pods
+          kubectl -n fiapx describe pods
+
+      - name: Tear down cluster
+        if: always()
+        run: ./scripts/k8s-down.sh
