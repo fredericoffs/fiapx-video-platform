@@ -47,22 +47,29 @@ alertmanager:
         memory: 128Mi
 
 grafana:
+  # limits.cpu baixo (250m) travava o boot da Grafana em CrashLoopBackOff, mesmo com o
+  # nó tendo CPU de sobra — vi isso ao vivo (17% de uso no nó, mas o container sendo
+  # limitado mesmo assim). O Grafana 13.x registra uma pilha grande de apiservers
+  # internos no startup, e isso é bem mais pesado que versões antigas.
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 200m
+      memory: 192Mi
     limits:
-      cpu: 250m
-      memory: 256Mi
+      cpu: 750m
+      memory: 384Mi
   # O pod da Grafana também sobe 2 sidecars (watcher de dashboards + de datasources via
   # ConfigMap) que, sem isso, sobem sem limite nenhum — descobri isso ao vivo, rodando
   # `kubectl top pod` num cluster kind real: o total do pod tava bem acima do limite que
   # eu tinha posto só no container principal, porque os sidecars não contavam.
+  # Primeira tentativa (64Mi de limite) ainda era pouco — os dois sidecars caíram em
+  # OOMKilled (exit 137) rodando de verdade, mesmo num cluster limpo e com CPU/memória
+  # de sobra. Dobrei o limite.
   sidecar:
     resources:
       requests:
         cpu: 25m
-        memory: 32Mi
+        memory: 48Mi
       limits:
         cpu: 50m
-        memory: 64Mi
+        memory: 128Mi
