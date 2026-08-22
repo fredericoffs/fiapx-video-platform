@@ -9,6 +9,7 @@ public class OutboxEvent {
   private final UUID aggregateId;
   private final String eventType;
   private final String payload;
+  private final String correlationId;
   private boolean published;
   private final Instant createdAt;
 
@@ -17,6 +18,7 @@ public class OutboxEvent {
       UUID aggregateId,
       String eventType,
       String payload,
+      String correlationId,
       boolean published,
       Instant createdAt
   ) {
@@ -24,6 +26,7 @@ public class OutboxEvent {
     this.aggregateId = aggregateId;
     this.eventType = eventType;
     this.payload = payload;
+    this.correlationId = correlationId;
     this.published = published;
     this.createdAt = createdAt;
   }
@@ -31,9 +34,10 @@ public class OutboxEvent {
   public static OutboxEvent newEvent(
       UUID aggregateId,
       String eventType,
-      String payload
+      String payload,
+      String correlationId
   ) {
-    return new OutboxEvent(UUID.randomUUID(), aggregateId, eventType, payload, false, Instant.now());
+    return new OutboxEvent(UUID.randomUUID(), aggregateId, eventType, payload, correlationId, false, Instant.now());
   }
 
   public void markPublished() {
@@ -54,6 +58,10 @@ public class OutboxEvent {
 
   public String getPayload() {
     return payload;
+  }
+
+  public String getCorrelationId() {
+    return correlationId;
   }
 
   public boolean isPublished() {

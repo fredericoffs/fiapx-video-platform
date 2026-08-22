@@ -14,6 +14,7 @@ public final class OutboxEventMapper {
     entity.setAggregateId(event.getAggregateId());
     entity.setEventType(event.getEventType());
     entity.setPayload(event.getPayload());
+    entity.setCorrelationId(event.getCorrelationId());
     entity.setPublished(event.isPublished());
     entity.setCreatedAt(event.getCreatedAt());
     return entity;
@@ -25,6 +26,7 @@ public final class OutboxEventMapper {
         entity.getAggregateId(),
         entity.getEventType(),
         entity.getPayload(),
+        entity.getCorrelationId(),
         entity.isPublished(),
         entity.getCreatedAt()
     );

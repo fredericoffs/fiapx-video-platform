@@ -11,16 +11,24 @@ class OutboxEventTest {
   void newEventStartsUnpublished() {
     UUID aggregateId = UUID.randomUUID();
 
-    OutboxEvent event = OutboxEvent.newEvent(aggregateId, "VideoUploadRequested", "{}");
+    OutboxEvent event = OutboxEvent.newEvent(aggregateId, "VideoUploadRequested", "{}", "corr-id");
 
     assertThat(event.getAggregateId()).isEqualTo(aggregateId);
     assertThat(event.getEventType()).isEqualTo("VideoUploadRequested");
+    assertThat(event.getCorrelationId()).isEqualTo("corr-id");
     assertThat(event.isPublished()).isFalse();
   }
 
   @Test
+  void newEventAcceptsANullCorrelationId() {
+    OutboxEvent event = OutboxEvent.newEvent(UUID.randomUUID(), "VideoUploadRequested", "{}", null);
+
+    assertThat(event.getCorrelationId()).isNull();
+  }
+
+  @Test
   void markPublishedFlipsFlag() {
-    OutboxEvent event = OutboxEvent.newEvent(UUID.randomUUID(), "VideoUploadRequested", "{}");
+    OutboxEvent event = OutboxEvent.newEvent(UUID.randomUUID(), "VideoUploadRequested", "{}", "corr-id");
 
     event.markPublished();
 

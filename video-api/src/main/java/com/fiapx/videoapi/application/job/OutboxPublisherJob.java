@@ -41,8 +41,7 @@ public class OutboxPublisherJob {
     for (OutboxEvent event : pending) {
       try {
         String targetQueue = resolveQueue(event.getEventType());
-        // TODO(Sprint 7, increment 3.2): passar o correlation_id real da coluna do outbox.
-        messagePublisher.publish(targetQueue, event.getPayload(), null);
+        messagePublisher.publish(targetQueue, event.getPayload(), event.getCorrelationId());
         outboxEventRepository.markPublished(event.getId());
       } catch (Exception e) {
         log.error("Falha ao publicar outbox event {} ({})", event.getId(), event.getEventType(), e);

@@ -12,6 +12,7 @@ import com.fiapx.videoapi.domain.port.VideoRepository;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -66,7 +67,9 @@ public class ApplyProcessingResultUseCase {
       String recipientEmail = resolveRecipientEmail(video);
       NotificationRequestedPayload payload =
           new NotificationRequestedPayload(video.getId(), video.getErrorMessage(), recipientEmail);
-      OutboxEvent event = OutboxEvent.newEvent(video.getId(), EVENT_TYPE_NOTIFICATION_REQUESTED, writeJson(payload));
+      OutboxEvent event = OutboxEvent.newEvent(
+          video.getId(), EVENT_TYPE_NOTIFICATION_REQUESTED, writeJson(payload), MDC.get("correlationId")
+      );
       outboxEventRepository.save(event);
     }
   }

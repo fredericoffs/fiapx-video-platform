@@ -34,6 +34,9 @@ public class OutboxEventEntity {
 	@Column(nullable = false)
 	private String payload;
 
+	@Column(name = "correlation_id")
+	private String correlationId;
+
 	@Column(nullable = false)
 	private boolean published;
 

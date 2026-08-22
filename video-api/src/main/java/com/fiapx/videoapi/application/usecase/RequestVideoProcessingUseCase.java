@@ -11,6 +11,7 @@ import com.fiapx.videoapi.domain.port.VideoRepository;
 import com.fiapx.videoapi.domain.service.VideoFormatValidator;
 import com.fiapx.videoapi.infrastructure.config.StorageProperties;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -64,7 +65,9 @@ public class RequestVideoProcessingUseCase {
         storageKey,
         command.originalFilename()
     );
-    OutboxEvent event = OutboxEvent.newEvent(videoId, EVENT_TYPE_VIDEO_UPLOAD_REQUESTED, writeJson(payload));
+    OutboxEvent event = OutboxEvent.newEvent(
+        videoId, EVENT_TYPE_VIDEO_UPLOAD_REQUESTED, writeJson(payload), MDC.get("correlationId")
+    );
     outboxEventRepository.save(event);
 
     return new VideoUploadResult(video.getId(), video.getStatus());
