@@ -1,8 +1,5 @@
-# Não criei migration-job dedicado (ao contrário do video-api): ainda não existiam *.sql
-# em notification-worker/src/main/resources/db/migration quando escrevi isto (chegam na
-# Sprint 6, LLD 5.5). Até lá, deixo o Flyway do próprio app criar só o schema vazio
-# "notification_worker" no startup (create-schemas: true, zero migrations = no-op) —
-# comportamento idêntico ao que já uso hoje em docker-compose.
+# Sem migration-job dedicado (ao contrário do video-api): Flyway do próprio app cria
+# o schema "notification_worker" no startup (create-schemas: true).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,8 +27,8 @@ spec:
                 name: fiapx-config
             - secretRef:
                 name: fiapx-secrets
-          # startupProbe: mesmo comentário que deixei em video-api/deployment.yaml — mesmo
-          # problema de boot lento do Spring sob CPU limitada do kind.
+          # Boot do Spring sob CPU limitada do kind é lento — sem startupProbe o
+          # livenessProbe mata o container antes de terminar de subir.
           startupProbe:
             httpGet:
               path: /actuator/health
@@ -48,12 +45,6 @@ spec:
               path: /actuator/health
               port: http
             periodSeconds: 10
-          # Achei ao vivo rodando o cluster de verdade: 256Mi de limite derrubava o pod
-          # com OOMKilled (exit 137) sempre no meio do boot do Spring — JPA + Resilience4j
-          # (circuit breaker + bulkhead com thread pool próprio por canal, desde a
-          # Sprint 6) + cliente de e-mail/webhook juntos pesam mais que o orçamento
-          # original previa. Realinhei com o mesmo padrão do video-api (256Mi/512Mi),
-          # que tem uma pilha de dependências parecida e nunca deu esse problema.
           resources:
             requests:
               cpu: 100m

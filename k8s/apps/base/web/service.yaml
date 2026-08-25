@@ -1,7 +1,4 @@
-# Deixo ClusterIP no base — cada overlay decide como expor externamente (NodePort em
-# k8s/apps/overlays/local via kind extraPortMappings, Ingress em overlays/aws) — mesmo
-# padrão que uso no video-gateway. Exponho o web publicamente ao lado do gateway (é
-# estático, sem lógica de negócio — natureza diferente dos 3 serviços ClusterIP-only).
+# ClusterIP no base — cada overlay decide como expor externamente.
 apiVersion: v1
 kind: Service
 metadata:

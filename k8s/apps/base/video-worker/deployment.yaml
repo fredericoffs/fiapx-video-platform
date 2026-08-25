@@ -1,6 +1,5 @@
-# Deixo replicas: 1 no manifest — quem controla a contagem de réplicas daqui pra frente é o
-# KEDA ScaledObject (scaledobject.yaml), não este Deployment. minReplicaCount do KEDA
-# é a réplica "de repouso" real.
+# replicas aqui é só o valor inicial — quem controla a contagem é o KEDA ScaledObject
+# (scaledobject.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,9 +27,6 @@ spec:
                 name: fiapx-config
             - secretRef:
                 name: fiapx-secrets
-          # startupProbe: mesmo comentário que deixei em video-api/deployment.yaml. Aqui
-          # eu não sofri o problema na prática (boot mais leve, sem JPA/Hibernate), mas
-          # aplico o mesmo padrão pra evitar o mesmo risco por construção.
           startupProbe:
             httpGet:
               path: /actuator/health

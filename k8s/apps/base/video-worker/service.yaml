@@ -1,5 +1,5 @@
-# Deixo ClusterIP só para scrape do /actuator/prometheus (Sprint 7) — video-worker não
-# recebe tráfego HTTP de negócio, consome fila.
+# ClusterIP só para scrape do /actuator/prometheus — video-worker consome fila, não
+# recebe tráfego HTTP de negócio.
 apiVersion: v1
 kind: Service
 metadata:

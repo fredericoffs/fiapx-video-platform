@@ -1,7 +1,5 @@
-# Uso o Bitnami postgresql — banco único compartilhado por video-api (schema video_api) e
-# notification-worker (schema notification_worker, a partir da Sprint 6), ver ADR-008.
-# Mantenho credenciais iguais ao default do docker-compose.yml/.env.example — uso local
-# apenas, nunca produção (mesmo aviso que já deixei no .env.example).
+# Banco único, schema por serviço (video_api, notification_worker) — ver ADR-008.
+# Credenciais só para uso local, iguais ao default do docker-compose.yml/.env.example.
 auth:
   username: fiapx
   password: fiapx

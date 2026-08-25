@@ -1,8 +1,5 @@
-# Deixo SPRING_FLYWAY_ENABLED sem setar aqui de propósito: no Compose (dev local) o
-# video-api segue se automigrando ao subir (comportamento inalterado). No overlay
-# local/aws eu sobrescrevo para "false" via patch — quem migra o schema em
-# Kubernetes é o Job dedicado (migration-job.yaml), que rodo antes do rollout deste
-# Deployment pelos scripts em scripts/k8s-up.sh.
+# SPRING_FLYWAY_ENABLED não é setado aqui de propósito — overlays sobrescrevem para
+# "false": quem migra em Kubernetes é o Job dedicado (migration-job.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,10 +7,7 @@ metadata:
   labels:
     app.kubernetes.io/name: video-api
 spec:
-  # Deixo 1 réplica de repouso — é o HPA (hpa.yaml, minReplicas também reduzido para 1)
-  # quem prova a escala real sob carga; ver comentário equivalente em
-  # k8s/apps/base/video-gateway/deployment.yaml sobre o motivo (testei ao vivo em
-  # 2026-08-19 numa máquina de 8GB).
+  # 1 réplica de repouso — é o HPA (hpa.yaml) quem escala sob carga.
   replicas: 1
   selector:
     matchLabels:
@@ -34,12 +28,8 @@ spec:
                 name: fiapx-config
             - secretRef:
                 name: fiapx-secrets
-          # startupProbe: sob a CPU limitada do kind (250m request), medi o boot completo do
-          # Spring (JPA+Hibernate+RabbitMQ+Security) em ~70-80s na prática — bem acima
-          # do que initialDelaySeconds costuma assumir. Sem isso, a liveness probe mata o
-          # container antes dele terminar de subir (vi isso ao vivo: exitCode 143 em loop,
-          # sempre perto do fim do boot). Enquanto o startupProbe não passar, deixo readiness
-          # e liveness desativadas — não precisam do próprio initialDelaySeconds.
+          # Boot do Spring sob CPU limitada do kind é lento — sem startupProbe o
+          # livenessProbe mata o container antes de terminar de subir.
           startupProbe:
             httpGet:
               path: /actuator/health

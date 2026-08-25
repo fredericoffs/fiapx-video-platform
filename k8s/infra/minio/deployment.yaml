@@ -1,6 +1,4 @@
-# Escrevi um manifest próprio em vez de usar Helm/Bitnami: docker.io/bitnami/minio também
-# não tem mais nenhuma tag pública (mesma causa do rabbitmq, ver comentário lá). Uso a
-# MESMA imagem oficial (minio/minio) já validada no docker-compose.yml.
+# Manifest próprio (não Helm/Bitnami): docker.io/bitnami/minio sem tag pública gratuita.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

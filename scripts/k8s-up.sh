@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
-# Subo aqui o ambiente completo em Kubernetes local (kind), Sprint 4 do Plano de
-# Implementação. É idempotente: pode ser rodado de novo sobre um cluster já existente
-# para reaplicar manifests/reconstruir imagens.
-#
-# A ordem importa: preciso rodar o migration-job ANTES do Deployment do video-api.
-# video-api roda com SPRING_FLYWAY_ENABLED=false no overlay local (ver
-# k8s/apps/overlays/local/kustomization.yaml) — se o Job não tiver terminado antes dos
-# pods do Deployment subirem, o Hibernate (ddl-auto: validate) derruba o container logo
-# no startup por schema ausente. Por isso aplico e espero (`kubectl wait`) o manifest
-# do Job separado do resto, não junto num `kubectl apply -k` só.
+# Idempotente — pode rodar de novo sobre um cluster já existente.
+# Migration Job precisa terminar ANTES do Deployment do video-api (Hibernate
+# ddl-auto: validate derruba o container se o schema não existir ainda).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -55,11 +48,8 @@ JOB_FILE="$(grep -l '^kind: Job$' "${RENDER_DIR}"/doc-*.yaml | head -1)"
 if [ -z "$JOB_FILE" ]; then
   echo "não encontrei o manifest do Job de migração no overlay '${OVERLAY}'"; exit 1
 fi
-# O Job depende do ConfigMap gerado (SQL) e do Secret fiapx-secrets (credenciais do
-# banco) — sem aplicar os dois primeiro, o pod do Job fica preso em ContainerCreating/
-# CreateContainerConfigError esperando por eles (já vi isso ao vivo duas vezes). Em vez
-# de listar as dependências uma a uma, aplico TUDO exceto o Deployment do video-api —
-# é o único recurso que realmente precisa esperar a migração terminar.
+# Aplico tudo exceto o Deployment do video-api — é o único recurso que precisa
+# esperar a migração terminar.
 VIDEO_API_DEPLOY_FILE=""
 for f in "${RENDER_DIR}"/doc-*.yaml; do
   if grep -q '^kind: Deployment$' "$f" && grep -q 'name: video-api$' "$f"; then

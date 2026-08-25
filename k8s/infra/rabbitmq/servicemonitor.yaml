@@ -1,7 +1,5 @@
-# Preciso do label "release: kube-prometheus-stack" pro operator descobrir este
-# ServiceMonitor — com serviceMonitorSelectorNilUsesHelmValues (default do chart), o
-# Prometheus só escuta ServiceMonitors com esse label (nome da release do Helm), não
-# qualquer um no namespace. Ver k8s/addons/values/kube-prometheus-stack.yaml.
+# Label "release: kube-prometheus-stack" obrigatório: o operator só escuta
+# ServiceMonitors com esse label (serviceMonitorSelectorNilUsesHelmValues, default do chart).
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

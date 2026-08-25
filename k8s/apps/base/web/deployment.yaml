@@ -5,9 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: web
 spec:
-  # Deixo 1 réplica de repouso, mesmo padrão que uso nos outros serviços nesta topologia
-  # de 1 nó (ver k8s/kind/cluster-config.yaml). Não coloco HPA: é HTML/JS/CSS estático
-  # servido por nginx, não tem CPU de aplicação pra escalar sob carga real de requisição.
+  # Sem HPA: conteúdo estático servido por nginx, sem CPU de aplicação pra escalar.
   replicas: 1
   selector:
     matchLabels:
@@ -23,8 +21,6 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-          # Uso nginx pra servir conteúdo estático — sem boot lento de JVM (ver startupProbe
-          # em video-api/video-gateway), então readiness/liveness bastam.
           readinessProbe:
             httpGet:
               path: /

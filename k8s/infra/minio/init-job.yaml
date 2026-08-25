@@ -1,6 +1,5 @@
-# Criei o equivalente Kubernetes do serviço "minio-init" do docker-compose.yml — mesma
-# imagem (minio/mc), mesmos 2 buckets. Mesmo motivo de nome fixo + delete-antes-de-
-# aplicar que já expliquei no migration-job.yaml do video-api (Job é imutável).
+# Nome fixo + delete-antes-de-aplicar (ver k8s/apps/base/video-api/migration-job.yaml):
+# Job é imutável, não dá pra reaplicar com kubectl apply direto.
 apiVersion: batch/v1
 kind: Job
 metadata:

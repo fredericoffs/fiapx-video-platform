@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Sprint 4, tarefa 6: disparo N vídeos em sequência rápida contra o video-gateway
-# (via NodePort do kind, localhost:8080) para validar que o KEDA escala o video-worker
-# e volta ao mínimo depois que a fila esvazia. Preciso de ffmpeg local só para gerar o
-# vídeo-fixture sintético (mesmo pré-requisito que já documentei no CLAUDE.md raiz do
-# repo) — nada disso é commitado no repo, gero tudo em /tmp.
+# Dispara N uploads em paralelo contra o video-gateway pra validar o autoscaling do
+# KEDA (video-worker). Requer ffmpeg local (gera o vídeo-fixture em /tmp).
 set -euo pipefail
 
 N="${1:-20}"

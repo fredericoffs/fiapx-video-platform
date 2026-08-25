@@ -1,12 +1,5 @@
-# Desligo os componentes de nó/control-plane que o chart tenta monitorar por padrão
-# (kubeControllerManager/kubeScheduler/kubeProxy/kubeEtcd) — não fazem sentido num nó
-# kind local (não são expostos como o kubeadm faria num cluster gerenciado de verdade)
-# e não alimentam nenhum dos 3 dashboards que preciso (volume de vídeos, duração por
-# status, erros/circuit breakers — tudo métrica de aplicação, não de control-plane).
-# Desligo nodeExporter e kubeStateMetrics também: nó único, sem valor real de nó/objeto
-# Kubernetes pros dashboards pedidos, e cada um a menos é memória que sobra pro que
-# importa (incidente real de memória em 2026-08-19 com 3 nós numa máquina de 8GB — ver
-# k8s/kind/cluster-config.yaml).
+# Componentes de nó/control-plane desligados: não fazem sentido num nó kind local e
+# não alimentam nenhum dos 3 dashboards da aplicação.
 kubeControllerManager:
   enabled: false
 kubeScheduler:
@@ -20,10 +13,6 @@ nodeExporter:
 kubeStateMetrics:
   enabled: false
 
-# Mantenho o mesmo orçamento de requests/limits já usado no projeto pro resto da infra
-# (k8s/infra/values/postgres.yaml: 250m/256Mi requests, 500m/512Mi limits como
-# referência) — ajustado um pouco pra cima só no Prometheus, que é quem de fato
-# armazena as séries temporais.
 prometheus:
   prometheusSpec:
     retention: 2d
@@ -47,10 +36,8 @@ alertmanager:
         memory: 128Mi
 
 grafana:
-  # limits.cpu baixo (250m) travava o boot da Grafana em CrashLoopBackOff, mesmo com o
-  # nó tendo CPU de sobra — vi isso ao vivo (17% de uso no nó, mas o container sendo
-  # limitado mesmo assim). O Grafana 13.x registra uma pilha grande de apiservers
-  # internos no startup, e isso é bem mais pesado que versões antigas.
+  # limits.cpu baixo trava o boot da Grafana em CrashLoopBackOff (registra uma pilha
+  # grande de apiservers internos no startup).
   resources:
     requests:
       cpu: 200m
@@ -58,13 +45,8 @@ grafana:
     limits:
       cpu: 750m
       memory: 384Mi
-  # O pod da Grafana também sobe 2 sidecars (watcher de dashboards + de datasources via
-  # ConfigMap) que, sem isso, sobem sem limite nenhum — descobri isso ao vivo, rodando
-  # `kubectl top pod` num cluster kind real: o total do pod tava bem acima do limite que
-  # eu tinha posto só no container principal, porque os sidecars não contavam.
-  # Primeira tentativa (64Mi de limite) ainda era pouco — os dois sidecars caíram em
-  # OOMKilled (exit 137) rodando de verdade, mesmo num cluster limpo e com CPU/memória
-  # de sobra. Dobrei o limite.
+  # O pod sobe com 2 sidecars (watcher de dashboards/datasources) que não herdam o
+  # limite do container principal — precisam de resources próprios.
   sidecar:
     resources:
       requests:

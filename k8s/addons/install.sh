@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Instalo aqui os add-ons de cluster necessários para autoscaling real (RT2) e para
-# observabilidade (Sprint 7):
-#   - metrics-server: pré-requisito do HPA (video-api). Em kind, o kubelet usa
-#     certificado self-signed -> precisa de --kubelet-insecure-tls (gotcha conhecido,
-#     não é algo que aconteça num cluster gerenciado real).
-#   - KEDA: ScaledObject do video-worker (fila RabbitMQ + CPU).
-#   - kube-prometheus-stack: Prometheus + Grafana + Alertmanager, values.yaml enxuto
-#     (ver k8s/addons/values/kube-prometheus-stack.yaml pro porquê de cada corte).
+# metrics-server, KEDA, kube-prometheus-stack. --kubelet-insecure-tls é necessário em
+# kind (certificado self-signed do kubelet), inofensivo num cluster gerenciado.
 set -euo pipefail
 
 ADDONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

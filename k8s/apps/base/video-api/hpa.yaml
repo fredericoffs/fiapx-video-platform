@@ -1,8 +1,4 @@
-# Uso HPA por CPU (RT2) — depende do metrics-server instalado por k8s/addons/install.sh.
-# Reduzi min/max de 2/6 para 1/3 depois que o teste ao vivo em 2026-08-19 mostrou que
-# rodar tudo em capacidade alta simultaneamente não cabe numa máquina de 8GB (ver
-# comentário em k8s/kind/cluster-config.yaml) — meu objetivo com o HPA é provar que 1
-# réplica vira mais sob carga real, não manter várias ociosas em repouso.
+# HPA por CPU — depende do metrics-server (k8s/addons/install.sh).
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

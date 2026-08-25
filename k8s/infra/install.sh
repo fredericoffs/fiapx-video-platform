@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
-# Instalo aqui as 4 dependências de infra no namespace "fiapx".
-#
-# Postgres e Redis: uso Helm/Bitnami (image.tag ainda disponível gratuitamente no Docker
-# Hub, verifiquei via API em 2026-08-19). RabbitMQ e MinIO: escrevi manifests próprios em
-# k8s/infra/{rabbitmq,minio}/ — descobri durante a Sprint 4 que docker.io/bitnami/
-# rabbitmq e docker.io/bitnami/minio não têm mais NENHUMA tag pública (a Broadcom moveu
-# para o catálogo pago "Bitnami Secure Images"; count:0 na API do Docker Hub para os
-# dois). Uso as MESMAS imagens oficiais já validadas no docker-compose.yml.
-#
-# Confirmei os hostnames reais dos Services via `kubectl get svc`, não assumi de
-# antemão: chart postgresql -> Service "postgres-postgresql"; chart redis -> Service
-# "redis-master" (o helper `common.names.fullname` do Bitnami só colapsa Release+Chart
-# num nome só em alguns charts, não em todos — não dá pra assumir). rabbitmq/minio são
-# manifests próprios, Service literalmente "rabbitmq"/"minio". Todos batem com
-# k8s/apps/base/configmap.yaml (DB_HOST/REDIS_HOST/RABBITMQ_HOST/STORAGE_ENDPOINT).
+# Postgres/Redis via Helm/Bitnami; RabbitMQ/MinIO via manifests próprios (charts
+# Bitnami sem tag pública gratuita). Services reais: postgres-postgresql,
+# redis-master, rabbitmq, minio — batem com k8s/apps/base/configmap.yaml.
 set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-fiapx}"

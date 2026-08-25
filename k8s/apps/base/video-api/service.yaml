@@ -1,5 +1,4 @@
-# Deixo ClusterIP-only, sem overlay que troque o tipo — não exponho o video-api fora do
-# cluster (fecho assim a pendência da Sprint 2; só video-gateway é externo).
+# ClusterIP-only: só video-gateway é exposto fora do cluster.
 apiVersion: v1
 kind: Service
 metadata:

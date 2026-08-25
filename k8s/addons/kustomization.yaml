@@ -4,12 +4,8 @@ namespace: monitoring
 resources:
   - queue-depth-alert.yaml
 
-# Gero o ConfigMap dos dashboards a partir dos *.json reais em k8s/addons/dashboards/
-# — mesma lógica já usada em k8s/apps/base/video-api pras migrations SQL: uma fonte
-# única de verdade, sem duplicar conteúdo grande à mão dentro de um manifest YAML.
-# O label grafana_dashboard: "1" é o que o sidecar da Grafana (kube-prometheus-stack)
-# usa pra descobrir ConfigMaps de dashboard automaticamente, em qualquer namespace
-# (searchNamespace: ALL, default do chart).
+# grafana_dashboard: "1" é o label que o sidecar da Grafana usa pra descobrir
+# ConfigMaps de dashboard automaticamente.
 configMapGenerator:
   - name: fiapx-grafana-dashboards
     files:
