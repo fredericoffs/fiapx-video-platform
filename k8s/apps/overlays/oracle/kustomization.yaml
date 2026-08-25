@@ -1,0 +1,20 @@
+# Sem secret.yaml aqui, diferente do overlay local: valores reais nunca ficam
+# versionados — o workflow cd-oracle.yml cria o Secret fiapx-secrets via kubectl,
+# a partir de GitHub Secrets.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fiapx
+
+resources:
+  - ../../base
+  - ingress.yaml
+
+patches:
+  # Troque pelo IP/domínio público real assim que o Ingress tiver endereço.
+  - target:
+      kind: ConfigMap
+      name: fiapx-config
+    patch: |-
+      - op: replace
+        path: /data/GATEWAY_CORS_ALLOWED_ORIGINS
+        value: "REPLACE_WITH_PUBLIC_URL"

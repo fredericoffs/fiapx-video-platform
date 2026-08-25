@@ -9,3 +9,13 @@ target/
 qodana-results/
 qodana-baseline-results/
 .dependency-check-data/
+
+# Terraform (k8s/terraform/oracle) — state e variáveis nunca versionados: state guarda
+# segredos em texto claro, tfvars guarda as credenciais de API da OCI.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log

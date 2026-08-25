@@ -1,0 +1,34 @@
+# Mesma separação de rotas do overlay local/aws — via ingress-nginx (1 Load Balancer
+# só, ver k8s/addons/install-ingress-nginx.sh). Sem "host": ainda sem domínio, só IP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fiapx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /videos
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8080
