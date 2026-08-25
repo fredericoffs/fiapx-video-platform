@@ -15,7 +15,7 @@
 ![Redis](https://img.shields.io/badge/Redis-rate%20limiting-DC382D?logo=redis&logoColor=white)
 ![Resilience4j](https://img.shields.io/badge/Resilience4j-Circuit%20Breaker%20%2B%20Bulkhead-blueviolet)
 
-Reescrevi a arquitetura do protótipo original (`projeto-fiapx`) para o Hackathon da Fase 5. Guardo a documentação de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD) em [`docs/`](./docs) — este README cobre só o "como rodar".
+Construí esta arquitetura de processamento de vídeos para o Hackathon da Fase 5. Guardo a documentação de arquitetura (RFC, HLD, LLD, ADRs, artefatos de DDD) em [`docs/`](./docs) — este README cobre só o "como rodar".
 
 ## Requisitos do desafio
 
@@ -28,10 +28,10 @@ Reescrevi a arquitetura do protótipo original (`projeto-fiapx`) para o Hackatho
 | Armazenamento persistente                       |   ✅   | Postgres (schema próprio por serviço) + MinIO (S3-compatible, vídeos/zips)                 |
 | Arquitetura horizontalmente escalável           |   ✅   | HPA (`video-api`) + KEDA (`video-worker`), serviços stateless sem sessão em memória         |
 | Testes automatizados e CI/CD                    |   ✅   | JaCoCo ≥90% linha (gate no `mvn verify`) + GitHub Actions (CI + Qodana) a cada push/PR      |
-| Docker / Kubernetes                             |   ✅   | `docker-compose.yml` (dev) + manifests em [`k8s/`](./k8s) (cluster kind validado ao vivo)   |
+| Docker / Kubernetes                             |   ✅   | `docker-compose.yml` (dev) + manifests em [`k8s/`](./k8s) (cluster kind validado ao vivo) + overlay `oracle` para OKE |
 | Message broker (RabbitMQ)                       |   ✅   | RabbitMQ com topologia de DLQ própria por fila                                             |
 | Postgres + Redis                                |   ✅   | Postgres por serviço; Redis no rate limiting de borda (`video-gateway`)                    |
-| Monitoramento (Prometheus/Grafana, ELK, etc.)   |   🔧   | Endpoints Actuator/Micrometer (`/actuator/prometheus`) já expostos nos 4 serviços; stack de observabilidade é a próxima sprint |
+| Monitoramento (Prometheus/Grafana, ELK, etc.)   |   ✅   | `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager) via Helm, 3 dashboards + alerta de profundidade de fila, métricas de negócio e correlation-id ponta a ponta |
 
 ## Arquitetura em uma frase
 
@@ -119,4 +119,6 @@ Faço todo trabalho em `develop`. Mantenho a `main` protegida e ela só recebe c
 
 ## Estado atual
 
-**Sprints 0–6 concluídas** (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)): pipeline fim a fim (upload → fila → `ffmpeg` → zip), autenticação JWT, API + Gateway, suíte de testes automatizados com piso de 90% de cobertura, deploy em Kubernetes local (HPA + KEDA validados ao vivo), frontend web completo (React), e notificação multicanal resiliente (e-mail + webhook, Circuit Breaker + Bulkhead isolados por canal). Próxima etapa: observabilidade (Prometheus/Grafana) e pipeline de entrega contínua.
+**Sprints 0–7 concluídas** (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)): pipeline fim a fim (upload → fila → `ffmpeg` → zip), autenticação JWT, API + Gateway, suíte de testes automatizados com piso de 90% de cobertura, deploy em Kubernetes local (HPA + KEDA validados ao vivo), frontend web completo (React), notificação multicanal resiliente (e-mail + webhook, Circuit Breaker + Bulkhead isolados por canal), e observabilidade completa (métricas de negócio, logging JSON estruturado, correlation-id ponta a ponta, `kube-prometheus-stack`). Pipeline de CD (`cd.yml`) pronto e dormente até a `main` existir no remoto.
+
+Em andamento: deploy real em nuvem via Kubernetes gerenciado (Oracle OKE, Always Free) — Terraform e overlay em `k8s/terraform/oracle/` e `k8s/apps/overlays/oracle/`, ver a emenda Oracle no [ADR-012](./docs/architecture/hld-lld-adr-rfc.md#adr-012--sem-nuvem-pública-como-padrão-de-execução).
