@@ -85,10 +85,7 @@ services:
 
   video-api:
     build: ./video-api
-    # Deixo a porta exposta publicamente só por conveniência de debug/teste local (dev):
-    # isso permite bypassar o video-gateway e furar CORS/rate-limit de borda. No
-    # Kubernetes (k8s/apps/base/video-api) já mantenho o video-api ClusterIP-only —
-    # só o video-gateway fica exposto (LoadBalancer/Ingress).
+    # Porta exposta só por conveniência de debug local — no Kubernetes o video-api é ClusterIP-only.
     ports:
       - "8081:8081"
     environment:
@@ -161,7 +158,7 @@ services:
       REDIS_HOST: redis
       GATEWAY_RATE_LIMIT_CAPACITY: ${GATEWAY_RATE_LIMIT_CAPACITY:-20}
       GATEWAY_RATE_LIMIT_PERIOD_SECONDS: ${GATEWAY_RATE_LIMIT_PERIOD_SECONDS:-60}
-      # Uso um default restrito à origem da SPA (Sprint 5), não "*" — sobrescrevível via .env.
+      # Default restrito à origem da SPA, não "*" — sobrescrevível via .env.
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     depends_on:
       redis:
@@ -174,9 +171,7 @@ services:
     build:
       context: ./web
       args:
-        # É falado pelo browser, não pelo container — publico o gateway na mesma
-        # porta 8080 do host em todos os contextos locais (compose/kind), então o
-        # default já serve sem override.
+        # Falado pelo browser, não pelo container — default já serve sem override.
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
     ports:
       - "5173:8080"

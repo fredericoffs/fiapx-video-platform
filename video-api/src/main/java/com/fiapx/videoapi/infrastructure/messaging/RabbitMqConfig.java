@@ -11,8 +11,7 @@ public class RabbitMqConfig {
 
   @Bean
   public Queue processingQueue(QueueProperties queueProperties) {
-    // Preciso manter os argumentos de dead-letter idênticos aos declarados pelo video-worker
-    // (dono da DLQ), porque o RabbitMQ rejeita redeclaração de fila com argumentos divergentes.
+    // Argumentos de dead-letter precisam bater com os do video-worker (dono da DLQ).
     return QueueBuilder.durable(queueProperties.processing())
         .withArgument("x-dead-letter-exchange", queueProperties.processingDlx())
         .withArgument("x-dead-letter-routing-key", queueProperties.processingDlq())
@@ -26,8 +25,7 @@ public class RabbitMqConfig {
 
   @Bean
   public Queue notificationQueue(QueueProperties queueProperties) {
-    // Preciso manter os argumentos de dead-letter idênticos aos declarados pelo notification-worker
-    // (dono da DLQ), porque o RabbitMQ rejeita redeclaração de fila com argumentos divergentes.
+    // Argumentos de dead-letter precisam bater com os do notification-worker (dono da DLQ).
     return QueueBuilder.durable(queueProperties.notification())
         .withArgument("x-dead-letter-exchange", queueProperties.notificationDlx())
         .withArgument("x-dead-letter-routing-key", queueProperties.notificationDlq())

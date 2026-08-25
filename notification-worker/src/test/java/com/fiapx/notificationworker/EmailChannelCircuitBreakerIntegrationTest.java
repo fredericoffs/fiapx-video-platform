@@ -53,10 +53,7 @@ class EmailChannelCircuitBreakerIntegrationTest {
     CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("email-channel");
     assertThat(circuitBreaker.getState()).isEqualTo(CircuitBreaker.State.OPEN);
 
-    // Com o circuito aberto, a próxima chamada é rejeitada na hora, sem tentar
-    // conectar de novo no SMTP — mesmo comportamento observável de fora (via o
-    // fallback), então não distingo os dois casos no teste, só confirmo que
-    // o circuito realmente abriu.
+    // Circuito aberto rejeita na hora, sem tentar o SMTP de novo — só confirmo que abriu.
     assertThatThrownBy(() -> emailChannel.send(videoId, "erro", "user@example.com").join())
         .isInstanceOf(CompletionException.class);
   }

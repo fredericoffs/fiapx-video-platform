@@ -51,9 +51,7 @@ class VideoProcessingDeadLetterListenerIntegrationTest {
 		assertThat(result.eventType()).isEqualTo(ProcessingEventType.PROCESSING_FAILED);
 		assertThat(result.videoId()).isEqualTo(videoId);
 		assertThat(result.errorMessage()).isNotBlank();
-		// O RabbitMQ preserva as properties da mensagem original (incluindo correlation_id) ao
-		// mover pra DLQ — confirmo aqui que o mesmo id sobrevive até a mensagem final publicada
-		// pelo listener da DLQ em video.status-updates.
+		// Confirma que o correlation_id sobrevive ao RabbitMQ mover a mensagem pra DLQ.
 		assertThat(message.getMessageProperties().getCorrelationId()).isEqualTo("dlq-test-correlation-id");
 	}
 

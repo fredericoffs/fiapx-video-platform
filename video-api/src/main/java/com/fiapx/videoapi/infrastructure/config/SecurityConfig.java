@@ -40,22 +40,15 @@ public class SecurityConfig {
             .anyRequest()
             .authenticated()
         )
-        // Uso response.setStatus(...) direto em vez de HttpStatusEntryPoint/AccessDeniedHandlerImpl
-        // padrão (que chamam response.sendError(...)): descobri ao vivo que sendError() dispara um
-        // forward interno do Tomcat pro /error, reprocessando a cadeia de filtros inteira de novo —
-        // como a app é stateless (sem sessão), o SecurityContext não sobrevive a esse forward, e o
-        // AuthorizationFilter da segunda passada trata "sem Authentication" como não-autenticado,
-        // fazendo até um 403 de verdade (falta de papel ADMIN) virar 401 na resposta final.
+        // response.setStatus(...) direto, não sendError(): sendError() dispara forward pro /error e
+        // perde o SecurityContext (app stateless), transformando um 403 real em 401.
         .exceptionHandling(handling -> handling
             .authenticationEntryPoint((request, response, authException) ->
                 response.setStatus(HttpStatus.UNAUTHORIZED.value()))
             .accessDeniedHandler((request, response, accessDeniedException) ->
                 response.setStatus(HttpStatus.FORBIDDEN.value()))
         )
-        // Preciso registrar o JwtAuthenticationFilter primeiro — o comparador de
-        // ordem do Spring Security só aceita uma classe de filtro como âncora
-        // (JwtAuthenticationFilter.class abaixo) depois que ela própria já foi
-        // registrada com uma ordem, o que só acontece neste addFilterBefore.
+        // JwtAuthenticationFilter precisa ser registrado antes de ser usado como âncora abaixo.
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(correlationIdFilter, JwtAuthenticationFilter.class);
     return http.build();

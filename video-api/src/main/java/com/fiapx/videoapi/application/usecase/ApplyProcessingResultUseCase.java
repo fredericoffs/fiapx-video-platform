@@ -81,9 +81,7 @@ public class ApplyProcessingResultUseCase {
     }
   }
 
-  // Não uso um Timer.Sample vivo aqui: ele não sobreviveria o vídeo atravessar processos (video-api
-  // -> fila -> video-worker -> fila -> video-api) via JVMs diferentes. Calculo a duração direto a
-  // partir do createdAt já persistido, que é a mesma informação, sem depender de estado em memória.
+  // Sem Timer.Sample vivo: não sobreviveria o vídeo atravessar JVMs via fila. Uso o createdAt já persistido.
   private void recordProcessingMetrics(Video video) {
     String status = video.getStatus().name();
     meterRegistry.counter("fiapx.video.processed", "status", status).increment();

@@ -25,9 +25,7 @@ public class RoutesConfig {
     return route("video-api")
         .route(path("/auth/**").or(path("/videos/**")).or(path("/admin/**")), http())
         .before(uri(properties.videoApiUri()))
-        // Ordem importa: o Spring executa os filtros na ordem em que chamo .filter() aqui —
-        // gero o correlation-id primeiro, antes até do rate limiting, porque é o ponto de
-        // origem real da requisição na borda.
+        // Ordem dos .filter() importa: correlation-id nasce antes do rate limiting.
         .filter(correlationIdFilterFunction)
         .filter(rateLimitFilterFunction)
         .build();
