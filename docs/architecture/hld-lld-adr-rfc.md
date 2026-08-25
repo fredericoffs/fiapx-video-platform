@@ -120,19 +120,13 @@ Comunicando-se de forma síncrona (REST, cliente ↔ video-api) e assíncrona (R
 ### Visão de containers
 
 ```mermaid
-%%{
-  init: {
-    'theme': 'neutral',
-    'themeVariables': {
-      'fontFamily': 'Fira Code, monospace',
-      'fontSize': '14px',
-      'primaryColor': '#f4f4f5',
-      'primaryTextColor': '#18181b',
-      'lineColor': '#52525b',
-      'textColor': '#27272a'
-    }
-  }
-}%%
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+  fontFamily: '''Inter Variable'', sans-serif'
+---
 flowchart TB
     CLI["👤 Usuário<br/>(web/CLI)"] -- "REST + JWT" --> GW["🚪 API Gateway<br/>(Spring Cloud Gateway — ver ADR-009)"]
     GW -- "POST /auth/login" --> API
@@ -199,6 +193,13 @@ flowchart TB
 Ver [ADR-010](#adr-010--deploy-em-kubernetes-local-sem-service-mesh) para a decisão e alternativas. Todos os componentes rodam num cluster Kubernetes local (kind ou k3d), sem service mesh:
 
 ```mermaid
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+  fontFamily: '''Inter Variable'', sans-serif'
+---
 flowchart TB
     U["Usuário"] -->|REST + JWT| GW["API Gateway\n(Spring Cloud Gateway)"]
     GW --> API["video-api\n(Deployment, HPA por CPU/RPS)"]
@@ -247,7 +248,13 @@ Dou ao `notification-worker` persistência própria (`PGN` no diagrama, ver [5.5
 **Modelo de dados (PostgreSQL):**
 
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+  fontFamily: '''Inter Variable'', sans-serif'
+---
 erDiagram
     USERS ||--o{ VIDEOS : possui
     VIDEOS ||--o{ OUTBOX_EVENTS : gera
@@ -299,15 +306,13 @@ Os `status` são `{QUEUED, PROCESSING, COMPLETED, FAILED}`. `version` é a colun
 **Diagrama de sequência — upload até conclusão:**
 
 ```mermaid
-%%{
-  init: {
-    'theme': 'neutral',
-    'themeVariables': {
-      'fontFamily': 'Fira Code, monospace',
-      'fontSize': '13px'
-    }
-  }
-}%%
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+  fontFamily: '''Inter Variable'', sans-serif'
+---
 sequenceDiagram
     actor U as Usuário
     participant API as video-api
@@ -356,7 +361,13 @@ Coloco o Spring Cloud Gateway na frente dos 3 serviços — ver [ADR-009](#adr-0
 Dou ao `notification-worker` estado próprio, num banco (ou schema) próprio, mínimo:
 
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+  fontFamily: '''Inter Variable'', sans-serif'
+---
 erDiagram
     NOTIFICATION_ATTEMPTS {
         uuid id PK
