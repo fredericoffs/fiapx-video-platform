@@ -28,8 +28,6 @@ jobs:
         with:
           context: ./${{ matrix.service }}
           push: true
-          build-args: |
-            VITE_API_BASE_URL=${{ secrets.PROD_API_BASE_URL }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/fiapx-${{ matrix.service }}:latest
             ghcr.io/${{ github.repository_owner }}/fiapx-${{ matrix.service }}:${{ github.sha }}
@@ -77,6 +75,7 @@ jobs:
       - name: Deploy no cluster
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
           IMAGE_TAG: ${{ github.sha }}
           DB_USER: ${{ secrets.PROD_DB_USER }}
           DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}

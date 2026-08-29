@@ -16,6 +16,3 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.resources.limits.cpu=250m \
   --set controller.resources.limits.memory=256Mi \
   --wait --timeout 5m
-
-echo "==> aguardando IP público do Load Balancer (pode levar alguns minutos)"
-kubectl -n ingress-nginx get svc ingress-nginx-controller
