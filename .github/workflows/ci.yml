@@ -10,6 +10,8 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     outputs:
       changes: ${{ steps.filter.outputs.changes }}
     steps:
