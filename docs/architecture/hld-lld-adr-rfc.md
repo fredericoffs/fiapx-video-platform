@@ -123,51 +123,46 @@ Comunicando-se de forma síncrona (REST, cliente ↔ video-api) e assíncrona (R
 ---
 config:
   theme: neutral
+  fontFamily: '''Open Sans Variable'', sans-serif'
   layout: elk
   look: classic
-  fontFamily: '''Inter Variable'', sans-serif'
+  themeVariables:
+    fontFamily: '''Open Sans Variable'', sans-serif'
 ---
-flowchart TB
-    CLI["👤 Usuário<br/>(web/CLI)"] -- "REST + JWT" --> GW["🚪 API Gateway<br/>(Spring Cloud Gateway — ver ADR-009)"]
-    GW -- "POST /auth/login" --> API
-    GW -- "POST /videos · GET /videos · GET /videos/{id}" --> API
-
-    subgraph CORE["Serviços de negócio"]
-        API["video-api<br/>Upload · Auth · Status"]
-        WRK["video-worker<br/>Extração de frames (ffmpeg) + zip<br/>(múltiplas réplicas)"]
-        NOT["notification-worker<br/>Envio de e-mail"]
-    end
-
-    subgraph MSG["Mensageria — RabbitMQ"]
-        Q1["fila: video.processing<br/>+ DLQ video.processing.dlq"]
-        Q2["fila: video.notification<br/>+ DLQ video.notification.dlq"]
-        Q3["fila: video.status-updates<br/>(ver ADR-008)"]
-    end
-
-    subgraph DATA["Persistência"]
-        PG[("PostgreSQL<br/>users · videos · jobs · outbox_events · idempotency_keys")]
-        RD[("Redis<br/>cache de status · rate limit login")]
-        S3[("MinIO (S3-compatible)<br/>vídeo original · zip processado")]
-    end
-
-    OBS["📊 Prometheus + Grafana<br/>profundidade de fila · taxa de erro · latência"]
-
-    API -- "grava vídeo original" --> S3
-    API -- "persiste metadata + outbox" --> PG
-    API -- "cache de status / rate limit" --> RD
-    API -- "publisher agendado (outbox)" --> Q1
-    Q1 --> WRK
-    WRK -- "baixa vídeo / envia zip" --> S3
-    WRK -- "ProcessingCompleted/Failed" --> Q3
-    Q3 --> API
-    API -- "aplica status (ver ADR-008)" --> PG
-    API -- "se FAILED: evento de erro (outbox)" --> Q2
-    Q2 --> NOT
-    NOT -. "SMTP externo" .-> EMAIL["✉️ Provedor de e-mail"]
-
-    API -.-> OBS
-    WRK -.-> OBS
-    NOT -.-> OBS
+    flowchart LR
+        subgraph CORE["Serviços de negócio"]
+            API["video-api<br>Upload · Auth · Status"]
+            WRK["video-worker<br>Extração de frames (ffmpeg) + zip<br>(múltiplas réplicas)"]
+            NOT["notification-worker<br>Envio de e-mail"]
+        end
+        subgraph MSG["Mensageria — RabbitMQ"]
+            Q1["fila: video.processing<br>+ DLQ video.processing.dlq"]
+            Q2["fila: video.notification<br>+ DLQ video.notification.dlq"]
+            Q3["fila: video.status-updates<br>(ver ADR-008)"]
+        end
+        subgraph DATA["Persistência"]
+            PG[("PostgreSQL<br>users · videos · jobs · outbox_events · idempotency_keys")]
+            RD[("Redis<br>cache de status · rate limit login")]
+            S3[("MinIO (S3-compatible)<br>vídeo original · zip processado")]
+        end
+        CLI["👤 Usuário<br>(web/CLI)"] -- REST + JWT --> GW["🚪 API Gateway<br>(Spring Cloud Gateway — ver ADR-009)"]
+        GW -- POST /auth/login --> API
+        GW -- POST /videos<br>GET /videos<br>GET /videos/ {id } --> API
+        API -- grava<br>vídeo original --> S3
+        API -- persiste<br>metadata + outbox --> PG
+        API -- cache de status<br>rate limit --> RD
+        API -- publisher agendado<br> ( outbox ) --> Q1
+        Q1 --> WRK
+        WRK -- baixa vídeo<br>envia zip --> S3
+        WRK -- Processing<br>Completed<br>Failed --> Q3
+        Q3 --> API
+        API -- " aplica status<br>(ver ADR-008) " --> PG
+        API -- se FAILED:<br>evento de erro ( outbox ) --> Q2
+        Q2 --> NOT
+        NOT -. SMTP externo .-> EMAIL["✉️ Provedor de e-mail"]
+        API -.-> OBS["📊 Prometheus + Grafana<br>profundidade de fila · taxa de erro · latência"]
+        WRK -.-> OBS
+        NOT -.-> OBS
 ```
 
 **Como leio o diagrama:** setas contínuas são chamadas síncronas (REST, leitura/escrita direta em banco/storage); setas tracejadas são assíncronas (mensageria, e-mail, telemetria). Dou a cada serviço seu próprio ciclo de deploy, e cada um pode escalar independentemente — em particular o `video-worker`, que é o único ponto genuinamente CPU-bound do sistema.

@@ -8,6 +8,7 @@
 
 ```mermaid
 sequenceDiagram
+    autonumber
     actor Usuario as Usuário
     participant Sistema as Sistema (FIAP X)
     participant Worker as Worker de Processamento
@@ -31,6 +32,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
+    autonumber
     actor Usuario as Usuário
     participant Sistema as Sistema (FIAP X)
     participant Worker as Worker de Processamento
