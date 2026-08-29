@@ -36,6 +36,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: Oracle Cloud
     steps:
       - uses: actions/checkout@v7
 
