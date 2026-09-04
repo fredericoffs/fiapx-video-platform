@@ -1,0 +1,73 @@
+name: Destroy Oracle
+
+on:
+  workflow_dispatch:
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Oracle Cloud
+    env:
+      COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+      TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+      TF_VAR_user_ocid: ${{ secrets.OCI_USER_OCID }}
+      TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+      TF_VAR_private_key_pem: ${{ secrets.OCI_PRIVATE_KEY }}
+      TF_VAR_region: ${{ secrets.OCI_REGION }}
+      TF_VAR_compartment_ocid: ${{ secrets.OCI_COMPARTMENT_OCID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Instalar kubectl e helm
+        run: |
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/kubectl
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Instalar OCI CLI
+        run: pip install --quiet oci-cli
+
+      - name: Gerar kubeconfig do cluster OKE (best-effort — pode ja nao existir)
+        env:
+          OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_CLI_USER: ${{ secrets.OCI_USER_OCID }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          CLUSTER_ID="$(oci ce cluster list \
+            --compartment-id '${{ secrets.OCI_COMPARTMENT_OCID }}' \
+            --name fiapx --lifecycle-state ACTIVE \
+            --query 'data[0].id' --raw-output || true)"
+          if [ -n "$CLUSTER_ID" ] && [ "$CLUSTER_ID" != "None" ]; then
+            oci ce cluster create-kubeconfig \
+              --cluster-id "$CLUSTER_ID" \
+              --file "$HOME/.kube/config" \
+              --region "${OCI_CLI_REGION}" \
+              --token-version 2.0.0 || true
+          fi
+
+      # A varredura via oci CLI (fase [3] do script) e a garantia real de que nada fica
+      # rodando, mesmo se a fase [2] (terraform destroy) falhar por qualquer motivo —
+      # nao depende do state do Terraform de jeito nenhum.
+      - name: Destruir tudo (terraform + varredura oci CLI + validacao)
+        env:
+          OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_CLI_USER: ${{ secrets.OCI_USER_OCID }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_OS_NAMESPACE: ${{ secrets.OCI_OS_NAMESPACE }}
+          OCI_S3_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY_ID }}
+          OCI_S3_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_ACCESS_KEY }}
+        run: |
+          chmod +x ./scripts/oracle-destroy.sh ./scripts/oracle-validate.sh ./scripts/oracle-tf-init.sh
+          ./scripts/oracle-destroy.sh --compartment-id "$COMPARTMENT_OCID" --auto-approve

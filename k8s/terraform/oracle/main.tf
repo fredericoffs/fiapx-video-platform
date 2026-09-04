@@ -8,6 +8,10 @@ terraform {
       version = "~> 6.0"
     }
   }
+
+  # Backend remoto: Object Storage da Oracle (API S3-compatible). Bucket/credenciais
+  # vêm de -backend-config em runtime (scripts/oracle-tf-init.sh), nunca commitados.
+  backend "s3" {}
 }
 
 provider "oci" {
