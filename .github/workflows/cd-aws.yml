@@ -41,7 +41,11 @@ jobs:
     env:
       TF_VAR_cluster_role_arn: ${{ vars.EKS_CLUSTER_ROLE_ARN || '' }}
       TF_VAR_node_role_arn: ${{ vars.EKS_NODE_ROLE_ARN || '' }}
+      # Opcionais: se o secret existir no GitHub o Terraform usa esse valor; vazio → gera e
+      # publica no SSM (/fiapx/...). O job deploy lê tudo do SSM.
       TF_VAR_db_password: ${{ secrets.PROD_DB_PASSWORD }}
+      TF_VAR_jwt_secret: ${{ secrets.PROD_JWT_SECRET }}
+      TF_VAR_notification_webhook_url: ${{ secrets.PROD_NOTIFICATION_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v7
 
@@ -132,9 +136,5 @@ jobs:
         env:
           ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
           IMAGE_TAG: ${{ github.sha }}
-          DB_USER: ${{ secrets.PROD_DB_USER }}
-          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
-          JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
-          # Opcional: destino do canal webhook de notificação (não há SMTP na AWS).
-          NOTIFICATION_WEBHOOK_URL: ${{ secrets.PROD_NOTIFICATION_WEBHOOK_URL }}
+          # DB_USER/DB_PASSWORD/JWT_SECRET/NOTIFICATION_WEBHOOK_URL vêm do SSM (/fiapx/...).
         run: ./scripts/k8s-deploy-aws.sh

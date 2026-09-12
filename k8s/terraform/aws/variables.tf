@@ -103,9 +103,24 @@ variable "private_subnet_cidrs" {
 
 # ---- Serviços gerenciados (RDS, ElastiCache, SQS, S3) ----
 variable "db_password" {
-  description = "Senha do usuário master do RDS (vem do secret PROD_DB_PASSWORD; nunca versionar)"
+  description = "Senha do usuário master do RDS. Vazia → gerada (random_password) e publicada no SSM; preenchida (TF_VAR_db_password = PROD_DB_PASSWORD) → usada como está. Nunca versionar."
   type        = string
   sensitive   = true
+  default     = ""
+}
+
+variable "jwt_secret" {
+  description = "Segredo HS256 dos JWTs. Vazio → gerado e publicado no SSM; preenchido (TF_VAR_jwt_secret = PROD_JWT_SECRET) → usado como está."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "notification_webhook_url" {
+  description = "URL do canal webhook da notificação (opcional; TF_VAR_notification_webhook_url = PROD_NOTIFICATION_WEBHOOK_URL). Vazia → parâmetro não é criado."
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 variable "db_username" {

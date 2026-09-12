@@ -238,6 +238,19 @@ delete_sqs_queues() {
   done
 }
 
+delete_ssm_parameters() {
+  local names name
+  names="$(aws_text ssm get-parameters-by-path --path "/${PROJECT}" --recursive --query 'Parameters[].Name')"
+  if is_empty "$names"; then
+    print_status "[OK]" "Parametros SSM" "nenhum sob /${PROJECT}"
+    return
+  fi
+  for name in $names; do
+    aws ssm delete-parameter --region "$AWS_REGION" --name "$name" >/dev/null 2>&1 || true
+    print_status "[INFO]" "SSM delete" "$name"
+  done
+}
+
 delete_video_buckets() {
   local buckets bucket
   buckets="$(aws_text s3api list-buckets --query "Buckets[?starts_with(Name, '${PROJECT}-videos-')].Name")"
@@ -416,6 +429,7 @@ aws_cli_cleanup() {
   delete_elasticache
   delete_sqs_queues
   delete_video_buckets
+  delete_ssm_parameters
   delete_vpc_and_deps
   if [[ "$DESTROY_TF_STATE" == "true" ]]; then
     require_cmd jq

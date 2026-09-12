@@ -145,6 +145,10 @@ run_count_check "Buckets S3 de video ($PROJECT-videos-*)" "false" \
   aws s3api list-buckets --region "$AWS_REGION" \
     --query "length(Buckets[?starts_with(Name, '${PROJECT}-videos-')])" --output text
 
+run_count_check "Parametros SSM (/$PROJECT/*)" "false" \
+  aws ssm get-parameters-by-path --region "$AWS_REGION" --path "/${PROJECT}" --recursive \
+    --query 'length(Parameters)' --output text
+
 run_count_check "Volumes EBS disponiveis (nao anexados)" "false" \
   aws ec2 describe-volumes --region "$AWS_REGION" \
     --filters "Name=status,Values=available" \

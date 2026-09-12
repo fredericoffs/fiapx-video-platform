@@ -4,7 +4,10 @@
 # configurado (aws eks update-kubeconfig). Mesma ordenação do scripts/k8s-up.sh (migration
 # Job antes do Deployment do video-api), com imagens do ECR e sem infra self-hosted: os hosts
 # de RDS/ElastiCache, os buckets S3 e a URL da fila SQS (KEDA) são descobertos por nome via
-# aws CLI e injetados no ConfigMap em runtime, sem depender do state do Terraform.
+# aws CLI e injetados no ConfigMap em runtime, sem depender do state do Terraform. Os
+# segredos da aplicação (DB_USER, DB_PASSWORD, JWT_SECRET, NOTIFICATION_WEBHOOK_URL) vêm do
+# SSM Parameter Store (/fiapx/..., criados pelo Terraform); variáveis de ambiente com o
+# mesmo nome, se definidas, têm precedência (uso local).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,8 +22,6 @@ PROJECT="${PROJECT:-fiapx}"
 
 : "${ECR_REGISTRY:?defina ECR_REGISTRY (ex.: 123456789012.dkr.ecr.us-east-1.amazonaws.com)}"
 : "${IMAGE_TAG:?defina IMAGE_TAG}"
-: "${DB_PASSWORD:?defina DB_PASSWORD (senha master do RDS, a mesma do terraform)}"
-: "${JWT_SECRET:?defina JWT_SECRET}"
 
 command -v aws >/dev/null || { echo "aws CLI não encontrado"; exit 1; }
 command -v kustomize >/dev/null || { echo "kustomize não encontrado"; exit 1; }
@@ -68,8 +69,22 @@ wait_for_dns() {
   return 0
 }
 
-echo "==> [1/9] serviços gerenciados (descoberta por nome via aws CLI)"
+# Parâmetro SSM por nome; "" se não existir (só o webhook é opcional).
+ssm_param() {
+  aws ssm get-parameter --region "$AWS_REGION" --name "$1" --with-decryption \
+    --query 'Parameter.Value' --output text 2>/dev/null || true
+}
+
+echo "==> [1/9] serviços gerenciados (descoberta por nome via aws CLI) e segredos (SSM)"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+DB_USER="${DB_USER:-$(ssm_param "/${PROJECT}/db/username")}"
+DB_PASSWORD="${DB_PASSWORD:-$(ssm_param "/${PROJECT}/db/password")}"
+JWT_SECRET="${JWT_SECRET:-$(ssm_param "/${PROJECT}/jwt/secret")}"
+NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL:-$(ssm_param "/${PROJECT}/notification/webhook-url")}"
+[ -n "$DB_USER" ] || { echo "parâmetro SSM /${PROJECT}/db/username não encontrado (terraform apply rodou?)" >&2; exit 1; }
+[ -n "$DB_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/db/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
+[ -n "$JWT_SECRET" ] || { echo "parâmetro SSM /${PROJECT}/jwt/secret não encontrado (terraform apply rodou?)" >&2; exit 1; }
+echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
 DB_HOST="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
   --query 'DBInstances[0].Endpoint.Address' --output text)"
 DB_STATUS="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
@@ -104,9 +119,9 @@ echo "==> [5/9] Secret fiapx-secrets"
 kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
 kubectl -n "$NAMESPACE" create secret generic fiapx-secrets \
   --from-literal=JWT_SECRET="${JWT_SECRET}" \
-  --from-literal=DB_USER="${DB_USER:-fiapx}" \
+  --from-literal=DB_USER="${DB_USER}" \
   --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
-  --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL:-}" \
+  --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "==> [6/9] apontando as imagens do overlay pro ECR (tag ${IMAGE_TAG})"
