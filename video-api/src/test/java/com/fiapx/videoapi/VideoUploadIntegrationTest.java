@@ -84,6 +84,8 @@ class VideoUploadIntegrationTest {
         .toList();
     assertThat(events).hasSize(1);
     assertThat(events.getFirst().getEventType()).isEqualTo("VideoUploadRequested");
-    assertThat(events.getFirst().isPublished()).isFalse();
+    // O relay (OutboxPublisherJob, a cada 3 s) pode já ter publicado o evento — o que este
+    // teste garante é que o upload gravou o evento na mesma transação, não o estado do relay.
+    assertThat(events.getFirst().getPayload()).contains(videoId.toString()).contains("\"eventId\"");
   }
 }

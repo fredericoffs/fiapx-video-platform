@@ -2,6 +2,7 @@ package com.fiapx.videoworker.application.usecase;
 
 import com.fiapx.videoworker.application.dto.VideoUploadRequestedPayload;
 import com.fiapx.videoworker.domain.exception.FfmpegProcessingException;
+import com.fiapx.videoworker.domain.exception.UnsupportedVideoInputException;
 import com.fiapx.videoworker.domain.model.ProcessingResult;
 import com.fiapx.videoworker.domain.port.Archiver;
 import com.fiapx.videoworker.domain.port.FrameExtractor;
@@ -14,6 +15,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,7 @@ import org.springframework.util.FileSystemUtils;
 public class ProcessVideoUseCase {
 
   private static final Logger log = LoggerFactory.getLogger(ProcessVideoUseCase.class);
+  private static final Set<String> ALLOWED_EXTENSIONS = Set.of("mp4", "mov", "avi", "mkv", "webm");
 
   private final StorageClient storageClient;
   private final FrameExtractor frameExtractor;
@@ -47,7 +51,8 @@ public class ProcessVideoUseCase {
   public ProcessingResult handle(VideoUploadRequestedPayload payload) {
     Path tempDir = createTempDir(payload);
     try {
-      Path videoFile = tempDir.resolve(payload.originalFilename());
+      // Nome interno controlado: o nome original do usuário nunca vira caminho em disco.
+      Path videoFile = resolveInside(tempDir, "input." + inputExtension(payload));
       try (InputStream in = storageClient.download(storageProperties.bucketRaw(), payload.storageKey())) {
         Files.copy(in, videoFile, StandardCopyOption.REPLACE_EXISTING);
       }
@@ -65,7 +70,7 @@ public class ProcessVideoUseCase {
       }
 
       return ProcessingResult.success(payload.videoId(), zipKey);
-    } catch (FfmpegProcessingException businessFailure) {
+    } catch (FfmpegProcessingException | UnsupportedVideoInputException businessFailure) {
       return ProcessingResult.failure(payload.videoId(), businessFailure.getMessage());
     } catch (IOException e) {
       throw new UncheckedIOException("Falha de I/O ao processar vídeo " + payload.videoId(), e);
@@ -76,6 +81,40 @@ public class ProcessVideoUseCase {
         log.warn("Falha ao limpar diretório temporário {}", tempDir, e);
       }
     }
+  }
+
+  /** Extensão só da lista aceita, vinda da chave de storage (gerada pela API) ou, como fallback, do nome original. */
+  private static String inputExtension(VideoUploadRequestedPayload payload) {
+    String fromKey = extensionOf(payload.storageKey());
+    if (ALLOWED_EXTENSIONS.contains(fromKey)) {
+      return fromKey;
+    }
+    String fromName = extensionOf(payload.originalFilename());
+    if (ALLOWED_EXTENSIONS.contains(fromName)) {
+      return fromName;
+    }
+    throw new UnsupportedVideoInputException(
+        "Extensão de vídeo não suportada para " + payload.videoId() + " (" + payload.originalFilename() + ")");
+  }
+
+  private static String extensionOf(String name) {
+    if (name == null) {
+      return "";
+    }
+    int dot = name.lastIndexOf('.');
+    if (dot < 0 || dot == name.length() - 1) {
+      return "";
+    }
+    String ext = name.substring(dot + 1).toLowerCase(Locale.ROOT);
+    return ext.chars().allMatch(Character::isLetterOrDigit) ? ext : "";
+  }
+
+  private static Path resolveInside(Path base, String fileName) {
+    Path resolved = base.resolve(fileName).normalize();
+    if (!resolved.startsWith(base) || resolved.equals(base)) {
+      throw new IllegalStateException("Caminho fora do diretório temporário: " + resolved);
+    }
+    return resolved;
   }
 
   private Path createTempDir(VideoUploadRequestedPayload payload) {

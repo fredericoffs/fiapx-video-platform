@@ -8,6 +8,7 @@ import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -27,7 +28,14 @@ public class NotificationDeadLetterListener {
   public void onMessage(String rawJson, @Header(value = AmqpHeaders.CORRELATION_ID, required = false) String correlationId) {
     MDC.put("correlationId", correlationId);
     try {
-      NotificationRequestedMessage message = objectMapper.readValue(rawJson, NotificationRequestedMessage.class);
+      NotificationRequestedMessage message;
+      try {
+        message = objectMapper.readValue(rawJson, NotificationRequestedMessage.class);
+      } catch (JacksonException e) {
+        // A DLQ não tem outra DLQ: uma mensagem malformada aqui é registrada e descartada.
+        log.error("Mensagem malformada na DLQ de video.notification, descartada: {}", e.getMessage());
+        return;
+      }
       log.error(
           "Vídeo {} esgotou as tentativas de notificação em todos os canais e caiu na DLQ de video.notification",
           message.videoId());

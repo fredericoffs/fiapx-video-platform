@@ -21,6 +21,10 @@ jobs:
         id: filter
         with:
           filters: |
+            infra:
+              - 'k8s/**'
+              - 'scripts/**'
+              - '.github/workflows/**'
             video-gateway:
               - 'video-gateway/**'
               - '.github/workflows/ci.yml'
@@ -82,6 +86,9 @@ jobs:
           java-version: "21"
           distribution: "temurin"
           cache: "maven"
+      # FfmpegFrameExtractorRealBinaryTest roda contra o ffmpeg de verdade quando presente.
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Build and test
         run: ./mvnw -B verify
       - name: Upload test reports
@@ -230,6 +237,41 @@ jobs:
       - name: Build Docker image
         working-directory: web
         run: docker build -t web:ci .
+
+  # Lint estático de tudo que não é código de serviço: scripts, workflows, Terraform e overlays.
+  infra-lint:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.changes), 'infra')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.10.5"
+          terraform_wrapper: false
+      - name: Install shellcheck, actionlint, kubectl
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- latest /usr/local/bin >/dev/null
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/kubectl
+      - name: shellcheck
+        run: shellcheck scripts/*.sh k8s/addons/*.sh k8s/infra/*.sh
+      - name: actionlint
+        run: actionlint
+      - name: terraform fmt + validate (sem backend)
+        working-directory: k8s/terraform/aws
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: kustomize (overlays local e aws)
+        run: |
+          kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/apps/overlays/local > /dev/null
+          kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/apps/overlays/aws > /dev/null
+          kubectl kustomize k8s/addons > /dev/null
 
   # Valida os manifests k8s/ contra um cluster kind real, provando que o KEDA escala
   # o video-worker sob carga (scripts/k8s-up.sh, mesmo script usado localmente).

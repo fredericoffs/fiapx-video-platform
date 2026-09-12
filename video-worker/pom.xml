@@ -47,6 +47,10 @@
       <artifactId>s3</artifactId>
     </dependency>
     <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sqs</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
       <version>3.1.0</version>
@@ -121,6 +125,11 @@
       <artifactId>testcontainers-rabbitmq</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-localstack</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -152,9 +161,6 @@
                    decidiu, por escrito, que fica fora do gate. -->
               <excludes>
                 <exclude>**/*Application.class</exclude>
-                <exclude>**/infrastructure/ffmpeg/**</exclude>
-                <exclude>**/infrastructure/archive/**</exclude>
-                <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
               </excludes>
             </configuration>
           </execution>
@@ -165,19 +171,11 @@
               <goal>check</goal>
             </goals>
             <configuration>
-              <!-- FfmpegFrameExtractor, ZipFileArchiver e S3StorageClient são adapters de
-                   borda que invocam processo externo (ffmpeg), I/O real de arquivo e o SDK
-                   da AWS — deliberadamente substituídos por fakes nos testes (ver
-                   VideoProcessingListenerIntegrationTest), então não são exercitados por
-                   nenhuma suíte automatizada hoje. Excluídos do gate de cobertura por
-                   decisão arquitetural (hexagonal: lógica de negócio testada por unidade,
-                   adapters de I/O externo validados por integração/observação em runtime),
-                   não para maquiar o número. -->
+              <!-- Só a classe main fica fora do gate: ffmpeg/archive têm testes unitários
+                   (binário fake e ffmpeg real quando disponível) e o S3StorageClient tem
+                   teste de integração com LocalStack. -->
               <excludes>
                 <exclude>**/*Application.class</exclude>
-                <exclude>**/infrastructure/ffmpeg/**</exclude>
-                <exclude>**/infrastructure/archive/**</exclude>
-                <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
               </excludes>
               <rules>
                 <rule>

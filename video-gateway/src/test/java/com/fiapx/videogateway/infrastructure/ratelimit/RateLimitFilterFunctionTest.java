@@ -35,6 +35,35 @@ class RateLimitFilterFunctionTest {
     request = mock(ServerRequest.class);
     next = mock(HandlerFunction.class);
     when(request.remoteAddress()).thenReturn(Optional.of(new InetSocketAddress("192.168.0.10", 54321)));
+    headers = mock(ServerRequest.Headers.class);
+    when(request.headers()).thenReturn(headers);
+    when(headers.firstHeader(RateLimitFilterFunction.FORWARDED_FOR)).thenReturn(null);
+  }
+
+  private ServerRequest.Headers headers;
+
+  @Test
+  void usesFirstForwardedForAddressWhenBehindAProxy() throws Exception {
+    when(headers.firstHeader(RateLimitFilterFunction.FORWARDED_FOR)).thenReturn("203.0.113.7, 10.30.2.1");
+    when(rateLimiter.tryConsume("203.0.113.7")).thenReturn(true);
+    ServerResponse expectedResponse = ServerResponse.ok().build();
+    when(next.handle(request)).thenReturn(expectedResponse);
+
+    ServerResponse response = filterFunction.filter(request, next);
+
+    assertThat(response).isSameAs(expectedResponse);
+    verify(rateLimiter, never()).tryConsume("192.168.0.10");
+  }
+
+  @Test
+  void ignoresBlankForwardedForHeader() throws Exception {
+    when(headers.firstHeader(RateLimitFilterFunction.FORWARDED_FOR)).thenReturn(" , ");
+    when(rateLimiter.tryConsume("192.168.0.10")).thenReturn(true);
+    when(next.handle(request)).thenReturn(ServerResponse.ok().build());
+
+    filterFunction.filter(request, next);
+
+    verify(rateLimiter).tryConsume("192.168.0.10");
   }
 
   @Test

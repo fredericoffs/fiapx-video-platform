@@ -1,0 +1,130 @@
+package com.fiapx.videoworker;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+import com.fiapx.videoworker.application.dto.VideoUploadRequestedPayload;
+import com.fiapx.videoworker.domain.port.MessagePublisher;
+import com.fiapx.videoworker.infrastructure.config.QueueProperties;
+import com.fiapx.videoworker.infrastructure.config.StorageProperties;
+import com.fiapx.videoworker.infrastructure.messaging.dto.ProcessingEventType;
+import com.fiapx.videoworker.infrastructure.messaging.dto.ProcessingResultMessage;
+import com.fiapx.videoworker.infrastructure.messaging.sqs.SqsMessagePublisher;
+import com.fiapx.videoworker.infrastructure.messaging.sqs.SqsTestSupport;
+import com.fiapx.videoworker.support.FakeStorageClient;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.junit.jupiter.api.Test;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
+import tools.jackson.databind.ObjectMapper;
+
+/** Perfil aws de ponta a ponta: pedido chega por SQS, worker publica Started + resultado; redrive vira FAILED. */
+@SpringBootTest
+@ActiveProfiles("aws")
+class AwsProfileIntegrationTest {
+
+  static final SqsClient SQS = SqsTestSupport.client();
+
+  @DynamicPropertySource
+  static void awsProfile(DynamicPropertyRegistry registry) {
+    // Redrive rápido (visibilidade 1s, 2 recebimentos) para o teste da DLQ terminar em segundos.
+    SqsTestSupport.createQueueWithDlq(SQS, "fiapx-video-processing", 1, 2);
+    SqsTestSupport.createPlainQueues(SQS, List.of("fiapx-video-status-updates", "fiapx-video-status-updates-dlq"));
+    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
+    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
+    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
+    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
+    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
+    registry.add("fiapx.storage.endpoint", () -> "");
+  }
+
+  @Autowired
+  private ApplicationContext context;
+
+  @Autowired
+  private MessagePublisher messagePublisher;
+
+  @Autowired
+  private QueueProperties queueProperties;
+
+  @Autowired
+  private StorageProperties storageProperties;
+
+  @Autowired
+  private FakeStorageClient fakeStorageClient;
+
+  @Autowired
+  private ObjectMapper objectMapper;
+
+  @Test
+  void contextUsesSqsAdaptersAndNoRabbitBeans() {
+    assertThat(messagePublisher).isInstanceOf(SqsMessagePublisher.class);
+    assertThat(context.getBeanNamesForType(RabbitTemplate.class)).isEmpty();
+  }
+
+  @Test
+  void processesRequestFromSqsAndPublishesStartedThenCompleted() {
+    UUID videoId = UUID.randomUUID();
+    String storageKey = "raw/" + videoId + "/source.mp4";
+    fakeStorageClient.seed(storageProperties.bucketRaw(), storageKey, "fake-video-bytes".getBytes());
+    send(new VideoUploadRequestedPayload(videoId, storageKey, "movie.mp4", UUID.randomUUID(), 1), "corr-sqs");
+
+    List<ProcessingResultMessage> results = collectResultsFor(videoId, 2);
+
+    assertThat(results).extracting(ProcessingResultMessage::eventType)
+        .containsExactly(ProcessingEventType.PROCESSING_STARTED, ProcessingEventType.PROCESSING_COMPLETED);
+    assertThat(results.get(1).zipStorageKey()).isEqualTo("processed/" + videoId + "/" + videoId + ".zip");
+  }
+
+  @Test
+  void requestThatExhaustsRedriveEndsAsProcessingFailed() {
+    UUID videoId = UUID.randomUUID();
+    send(new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/never-seeded.mp4", "never-seeded.mp4",
+        UUID.randomUUID(), 1), "corr-dlq");
+
+    await().atMost(Duration.ofSeconds(60)).untilAsserted(() -> {
+      List<ProcessingResultMessage> results = collectResultsFor(videoId, 1);
+      assertThat(results).extracting(ProcessingResultMessage::eventType)
+          .contains(ProcessingEventType.PROCESSING_FAILED);
+    });
+  }
+
+  private void send(VideoUploadRequestedPayload payload, String correlationId) {
+    SQS.sendMessage(SendMessageRequest.builder()
+        .queueUrl(SqsTestSupport.urlOf(SQS, queueProperties.processing()))
+        .messageBody(objectMapper.writeValueAsString(payload))
+        .messageAttributes(java.util.Map.of("correlationId",
+            MessageAttributeValue.builder().dataType("String").stringValue(correlationId).build()))
+        .build());
+  }
+
+  private final List<ProcessingResultMessage> seen = new CopyOnWriteArrayList<>();
+
+  /** Drena a fila de resultados (várias mensagens de vários testes) e devolve as do vídeo pedido. */
+  private List<ProcessingResultMessage> collectResultsFor(UUID videoId, int expected) {
+    String url = SqsTestSupport.urlOf(SQS, queueProperties.statusUpdates());
+    await().atMost(Duration.ofSeconds(30)).until(() -> {
+      SQS.receiveMessage(b -> b.queueUrl(url).maxNumberOfMessages(10).waitTimeSeconds(1)).messages()
+          .forEach(m -> {
+            seen.add(objectMapper.readValue(m.body(), ProcessingResultMessage.class));
+            SQS.deleteMessage(d -> d.queueUrl(url).receiptHandle(m.receiptHandle()));
+          });
+      return seen.stream().filter(r -> videoId.equals(r.videoId())).count() >= expected;
+    });
+    return seen.stream().filter(r -> videoId.equals(r.videoId()))
+        .filter(r -> r.eventType() != ProcessingEventType.PROCESSING_STARTED
+            || expected > 1)
+        .toList();
+  }
+}

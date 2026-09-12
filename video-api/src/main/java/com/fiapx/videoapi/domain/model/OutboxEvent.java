@@ -12,6 +12,7 @@ public class OutboxEvent {
   private final String correlationId;
   private boolean published;
   private final Instant createdAt;
+  private final int attempts;
 
   public OutboxEvent(
       UUID id,
@@ -22,6 +23,19 @@ public class OutboxEvent {
       boolean published,
       Instant createdAt
   ) {
+    this(id, aggregateId, eventType, payload, correlationId, published, createdAt, 0);
+  }
+
+  public OutboxEvent(
+      UUID id,
+      UUID aggregateId,
+      String eventType,
+      String payload,
+      String correlationId,
+      boolean published,
+      Instant createdAt,
+      int attempts
+  ) {
     this.id = id;
     this.aggregateId = aggregateId;
     this.eventType = eventType;
@@ -29,6 +43,7 @@ public class OutboxEvent {
     this.correlationId = correlationId;
     this.published = published;
     this.createdAt = createdAt;
+    this.attempts = attempts;
   }
 
   public static OutboxEvent newEvent(
@@ -37,7 +52,18 @@ public class OutboxEvent {
       String payload,
       String correlationId
   ) {
-    return new OutboxEvent(UUID.randomUUID(), aggregateId, eventType, payload, correlationId, false, Instant.now());
+    return newEvent(UUID.randomUUID(), aggregateId, eventType, payload, correlationId);
+  }
+
+  /** O id do evento é decidido por quem monta o payload, para viajar dentro dele (idempotência no consumidor). */
+  public static OutboxEvent newEvent(
+      UUID eventId,
+      UUID aggregateId,
+      String eventType,
+      String payload,
+      String correlationId
+  ) {
+    return new OutboxEvent(eventId, aggregateId, eventType, payload, correlationId, false, Instant.now(), 0);
   }
 
   public void markPublished() {
@@ -70,5 +96,9 @@ public class OutboxEvent {
 
   public Instant getCreatedAt() {
     return createdAt;
+  }
+
+  public int getAttempts() {
+    return attempts;
   }
 }

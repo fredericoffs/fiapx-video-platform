@@ -24,9 +24,11 @@ public class RateLimitFilterFunction implements HandlerFilterFunction<ServerResp
 		this.properties = properties;
 	}
 
+	static final String FORWARDED_FOR = "X-Forwarded-For";
+
 	@Override
 	public @NonNull ServerResponse filter(ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
-		String clientKey = request.remoteAddress().map(addr -> addr.getAddress().getHostAddress()).orElse("unknown");
+		String clientKey = resolveClientKey(request);
 		if (!rateLimiter.tryConsume(clientKey)) {
 			long periodSeconds = properties.rateLimit().periodSeconds();
 			ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -41,5 +43,21 @@ public class RateLimitFilterFunction implements HandlerFilterFunction<ServerResp
 					.body(problemDetail);
 		}
 		return next.handle(request);
+	}
+
+	/**
+	 * Atrás do ingress-nginx/ELB o remoteAddress é sempre o IP do proxy — sem olhar o
+	 * X-Forwarded-For todos os usuários dividiriam a mesma cota. Uso o primeiro IP da
+	 * cadeia (o cliente original); sem o header, caio no endereço direto da conexão.
+	 */
+	private static String resolveClientKey(ServerRequest request) {
+		String forwardedFor = request.headers().firstHeader(FORWARDED_FOR);
+		if (forwardedFor != null && !forwardedFor.isBlank()) {
+			String first = forwardedFor.split(",")[0].strip();
+			if (!first.isEmpty()) {
+				return first;
+			}
+		}
+		return request.remoteAddress().map(addr -> addr.getAddress().getHostAddress()).orElse("unknown");
 	}
 }

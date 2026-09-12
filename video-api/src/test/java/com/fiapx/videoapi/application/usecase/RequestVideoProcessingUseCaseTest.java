@@ -44,7 +44,7 @@ class RequestVideoProcessingUseCaseTest {
     storageClient = mock(StorageClient.class);
     ObjectMapper objectMapper = JsonMapper.builder().build();
     StorageProperties storageProperties = new StorageProperties("http://localhost:9000", "key", "secret",
-        "videos-raw", "videos-processed");
+        "videos-raw", "videos-processed", "us-east-1", true);
 
     when(videoRepository.save(any(Video.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -70,7 +70,8 @@ class RequestVideoProcessingUseCaseTest {
     assertThat(savedVideo.getUserId()).isEqualTo(userId);
     assertThat(savedVideo.getOriginalFilename()).isEqualTo("movie.mp4");
     assertThat(savedVideo.getStatus()).isEqualTo(VideoStatus.QUEUED);
-    assertThat(savedVideo.getStorageKey()).contains(savedVideo.getId().toString()).contains("movie.mp4");
+    // Chave de storage com nome interno: o nome original do usuário nunca vira caminho.
+    assertThat(savedVideo.getStorageKey()).isEqualTo("raw/" + savedVideo.getId() + "/source.mp4");
 
     ArgumentCaptor<OutboxEvent> eventCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
     verify(outboxEventRepository).save(eventCaptor.capture());

@@ -5,17 +5,23 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.fiapx.videoworker.infrastructure.config.QueueProperties;
 
 @Configuration
+@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "rabbitmq", matchIfMissing = true)
 public class RabbitMqConfig {
 
+	// Argumentos de dead-letter precisam bater com os do video-api (dono da DLQ de resultados).
 	@Bean
 	public Queue statusUpdatesQueue(QueueProperties queueProperties) {
-		return QueueBuilder.durable(queueProperties.statusUpdates()).build();
+		return QueueBuilder.durable(queueProperties.statusUpdates())
+				.withArgument("x-dead-letter-exchange", queueProperties.statusUpdatesDlx())
+				.withArgument("x-dead-letter-routing-key", queueProperties.statusUpdatesDlq())
+				.build();
 	}
 
 	@Bean

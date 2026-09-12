@@ -122,6 +122,7 @@ services:
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-minioadmin}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-minioadmin}
+      FFMPEG_TIMEOUT_MINUTES: ${FFMPEG_TIMEOUT_MINUTES:-15}
     depends_on:
       rabbitmq:
         condition: service_healthy

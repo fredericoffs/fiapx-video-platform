@@ -1,6 +1,7 @@
 package com.fiapx.notificationworker.application.usecase;
 
 import com.fiapx.notificationworker.application.dto.NotificationRequestedMessage;
+import com.fiapx.notificationworker.domain.exception.DuplicateNotificationException;
 import com.fiapx.notificationworker.domain.exception.NotificationDeliveryException;
 import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
@@ -16,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -118,5 +120,19 @@ class SendFailureNotificationUseCaseTest {
     CompletableFuture<Void> future = new CompletableFuture<>();
     future.completeExceptionally(new RuntimeException(message));
     return future;
+  }
+
+  @Test
+  void treatsDuplicateSentRecordAsAlreadyDeliveredAndDoesNotFallBackToWebhook() {
+    UUID videoId = UUID.randomUUID();
+    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(false);
+    when(emailChannel.send(videoId, "erro", "user@example.com"))
+        .thenReturn(CompletableFuture.completedFuture(null));
+    doThrow(new DuplicateNotificationException(videoId, NotificationChannelType.EMAIL))
+        .when(notificationAttemptRepository).save(any());
+
+    useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
+
+    verify(webhookChannel, never()).send(any(), any(), any());
   }
 }

@@ -1,6 +1,7 @@
 # Mesma separação de rotas do overlay local — via ingress-nginx (1 Classic ELB só,
 # ver k8s/addons/install-ingress-nginx.sh). Sem "host": ainda sem domínio, só o
-# hostname do ELB.
+# hostname do ELB. Convenção: API admin sempre em /admin/<recurso> (vai pro gateway);
+# /admin exato é a página da SPA (cai em / → web). Prefixo mais longo vence no nginx.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -22,6 +23,20 @@ spec:
                 port:
                   number: 8080
           - path: /videos
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /admin/users
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /admin/videos
             pathType: Prefix
             backend:
               service:

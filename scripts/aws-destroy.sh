@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016  # crases sao sintaxe JMESPath do --query, nao expansao de shell
-# Desprovisiona tudo da AWS (EKS + node group + ELB + volumes + ECR + VPC) apos uma
+# Desprovisiona tudo da AWS (EKS + node group + ELB + volumes + ECR + RDS + ElastiCache +
+# SQS + S3 + VPC) apos uma
 # sessao de testes. Mesmo padrao de destroy-zero-cost-aws.sh das fases anteriores:
 #   [1] limpeza Kubernetes (ELB do ingress-nginx + namespaces, best-effort) — libera
 #       o Load Balancer e os volumes EBS antes do Terraform tentar apagar a VPC
@@ -191,6 +192,79 @@ terminate_instances_in_vpc() {
   print_status "[INFO]" "EC2 terminate" "$ids"
 }
 
+delete_rds() {
+  local db="${PROJECT}-postgres"
+  if aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "$db" >/dev/null 2>&1; then
+    aws rds modify-db-instance --region "$AWS_REGION" --db-instance-identifier "$db" \
+      --no-deletion-protection --apply-immediately >/dev/null 2>&1 || true
+    aws rds delete-db-instance --region "$AWS_REGION" --db-instance-identifier "$db" \
+      --skip-final-snapshot --delete-automated-backups >/dev/null 2>&1 || true
+    print_status "[INFO]" "RDS" "$db (delete solicitado, aguardando...)"
+    aws rds wait db-instance-deleted --region "$AWS_REGION" --db-instance-identifier "$db" >/dev/null 2>&1 || true
+  else
+    print_status "[OK]" "RDS" "nenhuma instancia $db"
+  fi
+  aws rds delete-db-subnet-group --region "$AWS_REGION" --db-subnet-group-name "${PROJECT}-rds" >/dev/null 2>&1 || true
+  local snaps snap
+  snaps="$(aws_text rds describe-db-snapshots --db-instance-identifier "$db" --query 'DBSnapshots[].DBSnapshotIdentifier')"
+  for snap in $snaps; do
+    is_empty "$snap" && continue
+    aws rds delete-db-snapshot --region "$AWS_REGION" --db-snapshot-identifier "$snap" >/dev/null 2>&1 || true
+  done
+}
+
+delete_elasticache() {
+  local cluster="${PROJECT}-redis"
+  if aws elasticache describe-cache-clusters --region "$AWS_REGION" --cache-cluster-id "$cluster" >/dev/null 2>&1; then
+    aws elasticache delete-cache-cluster --region "$AWS_REGION" --cache-cluster-id "$cluster" >/dev/null 2>&1 || true
+    print_status "[INFO]" "ElastiCache" "$cluster (delete solicitado, aguardando...)"
+    aws elasticache wait cache-cluster-deleted --region "$AWS_REGION" --cache-cluster-id "$cluster" >/dev/null 2>&1 || true
+  else
+    print_status "[OK]" "ElastiCache" "nenhum cluster $cluster"
+  fi
+  aws elasticache delete-cache-subnet-group --region "$AWS_REGION" --cache-subnet-group-name "${PROJECT}-redis" >/dev/null 2>&1 || true
+}
+
+delete_sqs_queues() {
+  local urls url
+  urls="$(aws_text sqs list-queues --queue-name-prefix "${PROJECT}-" --query 'QueueUrls')"
+  if is_empty "$urls"; then
+    print_status "[OK]" "Filas SQS" "nenhuma com prefixo '${PROJECT}-'"
+    return
+  fi
+  for url in $urls; do
+    aws sqs delete-queue --region "$AWS_REGION" --queue-url "$url" >/dev/null 2>&1 || true
+    print_status "[INFO]" "SQS delete" "$url"
+  done
+}
+
+delete_ssm_parameters() {
+  local names name
+  names="$(aws_text ssm get-parameters-by-path --path "/${PROJECT}" --recursive --query 'Parameters[].Name')"
+  if is_empty "$names"; then
+    print_status "[OK]" "Parametros SSM" "nenhum sob /${PROJECT}"
+    return
+  fi
+  for name in $names; do
+    aws ssm delete-parameter --region "$AWS_REGION" --name "$name" >/dev/null 2>&1 || true
+    print_status "[INFO]" "SSM delete" "$name"
+  done
+}
+
+delete_video_buckets() {
+  local buckets bucket
+  buckets="$(aws_text s3api list-buckets --query "Buckets[?starts_with(Name, '${PROJECT}-videos-')].Name")"
+  if is_empty "$buckets"; then
+    print_status "[OK]" "Buckets S3 de video" "nenhum com prefixo '${PROJECT}-videos-'"
+    return
+  fi
+  for bucket in $buckets; do
+    aws s3 rm "s3://${bucket}" --recursive --region "$AWS_REGION" >/dev/null 2>&1 || true
+    aws s3api delete-bucket --bucket "$bucket" --region "$AWS_REGION" >/dev/null 2>&1 || true
+    print_status "[INFO]" "S3 delete" "$bucket"
+  done
+}
+
 delete_available_volumes() {
   local ids id
   ids="$(aws_text ec2 describe-volumes \
@@ -350,6 +424,12 @@ aws_cli_cleanup() {
   delete_eks_by_name
   delete_ecr_repositories
   delete_available_volumes
+  # Gerenciados ficam nas subnets privadas: precisam sumir antes da VPC (ENIs/SGs deles).
+  delete_rds
+  delete_elasticache
+  delete_sqs_queues
+  delete_video_buckets
+  delete_ssm_parameters
   delete_vpc_and_deps
   if [[ "$DESTROY_TF_STATE" == "true" ]]; then
     require_cmd jq

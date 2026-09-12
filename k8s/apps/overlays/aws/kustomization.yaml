@@ -1,8 +1,7 @@
-# Sem secret.yaml aqui, diferente do overlay local: valores reais nunca ficam
-# versionados — cd-aws.yml cria o Secret fiapx-secrets via kubectl a partir de
-# GitHub Secrets. GATEWAY_CORS_ALLOWED_ORIGINS e o API_BASE_URL do web também não
-# são patches estáticos: scripts/k8s-deploy-aws.sh descobre o hostname do ELB do
-# ingress-nginx em runtime e propaga os dois.
+# Perfil aws: serviços gerenciados no lugar da infra self-hosted — RDS (DB_HOST), ElastiCache
+# (REDIS_HOST), S3 (buckets) e SQS (nomes de fila fiapx-*). Os valores que só existem depois
+# do Terraform (hosts, buckets, URL da fila pro KEDA, URL pública do ELB) são preenchidos em
+# runtime por scripts/k8s-deploy-aws.sh via kubectl patch; secrets vêm do GitHub (cd-aws.yml).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: fiapx
@@ -10,3 +9,87 @@ namespace: fiapx
 resources:
   - ../../base
   - ingress.yaml
+
+patches:
+  # Perfil Spring + storage S3 real + SSL no RDS + nomes das filas SQS.
+  - target:
+      kind: ConfigMap
+      name: fiapx-config
+    patch: |-
+      - op: add
+        path: /data/SPRING_PROFILES_ACTIVE
+        value: "aws"
+      - op: replace
+        path: /data/STORAGE_ENDPOINT
+        value: ""
+      - op: add
+        path: /data/STORAGE_PATH_STYLE
+        value: "false"
+      - op: add
+        path: /data/STORAGE_REGION
+        value: "us-east-1"
+      - op: add
+        path: /data/AWS_REGION
+        value: "us-east-1"
+      - op: replace
+        path: /data/DB_SSLMODE
+        value: "require"
+      - op: replace
+        path: /data/QUEUE_PROCESSING
+        value: "fiapx-video-processing"
+      - op: replace
+        path: /data/QUEUE_PROCESSING_DLQ
+        value: "fiapx-video-processing-dlq"
+      - op: replace
+        path: /data/QUEUE_STATUS_UPDATES
+        value: "fiapx-video-status-updates"
+      - op: replace
+        path: /data/QUEUE_STATUS_UPDATES_DLQ
+        value: "fiapx-video-status-updates-dlq"
+      - op: replace
+        path: /data/QUEUE_NOTIFICATION
+        value: "fiapx-video-notification"
+      - op: replace
+        path: /data/QUEUE_NOTIFICATION_DLQ
+        value: "fiapx-video-notification-dlq"
+  # Quem migra é o Job (base); o app só valida o schema.
+  - target:
+      kind: Deployment
+      name: video-api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value: []
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_FLYWAY_ENABLED
+          value: "false"
+  # KEDA por profundidade da fila SQS: identidade do operador (LabRole do nó via IMDS) —
+  # não há IRSA no Learner Lab. queueURL recebe a URL real no deploy (kubectl patch).
+  - target:
+      kind: TriggerAuthentication
+      name: rabbitmq-trigger-auth
+    patch: |-
+      - op: replace
+        path: /spec
+        value:
+          podIdentity:
+            provider: aws
+  - target:
+      kind: ScaledObject
+      name: video-worker
+    patch: |-
+      - op: replace
+        path: /spec/triggers
+        value:
+          - type: aws-sqs-queue
+            metadata:
+              queueURL: fiapx-video-processing
+              queueLength: "5"
+              awsRegion: us-east-1
+              identityOwner: operator
+          - type: cpu
+            metricType: Utilization
+            metadata:
+              value: "70"

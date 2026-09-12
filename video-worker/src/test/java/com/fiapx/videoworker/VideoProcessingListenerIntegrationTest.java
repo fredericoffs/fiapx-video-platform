@@ -80,7 +80,8 @@ class VideoProcessingListenerIntegrationTest {
 		long deadline = System.currentTimeMillis() + 15_000;
 		while (System.currentTimeMillis() < deadline) {
 			Message message = rabbitTemplate.receive(queue, 500);
-			if (message != null && new String(message.getBody()).contains(needle)) {
+			if (message != null && new String(message.getBody()).contains(needle)
+					&& !new String(message.getBody()).contains("ProcessingStarted")) {
 				return message;
 			}
 		}

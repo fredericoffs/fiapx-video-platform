@@ -5,7 +5,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=video_api
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=video_api&sslmode=${DB_SSLMODE:disable}
     username: ${DB_USER:fiapx}
     password: ${DB_PASSWORD:fiapx}
   jpa:
@@ -24,6 +24,12 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # Publisher confirms + returns: a outbox só marca publicado depois que o broker confirma
+    # (ver RabbitMessagePublisher); mandatory faz fila inexistente virar "return", não silêncio.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         retry:
@@ -66,6 +72,9 @@ fiapx:
     secret-key: ${STORAGE_SECRET_KEY:minioadmin}
     bucket-raw: ${STORAGE_BUCKET_RAW:videos-raw}
     bucket-processed: ${STORAGE_BUCKET_PROCESSED:videos-processed}
+    # Vazios no perfil aws: endpoint regional do S3 e credenciais da cadeia padrão do SDK.
+    region: ${STORAGE_REGION:us-east-1}
+    path-style: ${STORAGE_PATH_STYLE:true}
   jwt:
     secret: ${JWT_SECRET:change-me-in-production-min-32-chars-please}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:30}
@@ -73,8 +82,13 @@ fiapx:
     login-rate-limit:
       max-attempts: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:5}
       window-seconds: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:60}
+  messaging:
+    provider: ${MESSAGING_PROVIDER:rabbitmq}
+    confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}
   queues:
     status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
+    status-updates-dlx: ${QUEUE_STATUS_UPDATES_DLX:video.status-updates.dlx}
+    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:video.status-updates.dlq}
     notification: ${QUEUE_NOTIFICATION:video.notification}
     processing: ${QUEUE_PROCESSING:video.processing}
   outbox:
