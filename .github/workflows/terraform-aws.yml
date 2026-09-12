@@ -1,7 +1,9 @@
 name: Terraform - AWS EKS
 
-# Provisiona (ou destrói) VPC + EKS + ECR + RDS + ElastiCache + SQS + S3 no Learner Lab. Credenciais temporárias do
-# lab ficam no GitHub Environment "AWS" e precisam ser renovadas a cada sessão.
+# Provisiona (ou destrói) VPC + EKS + ECR + RDS + ElastiCache + SQS + S3 no Learner Lab, à mão.
+# O cd-aws.yml já faz plan/apply automaticamente antes do deploy; este workflow serve pra
+# revisar um plan, forçar um apply isolado ou destruir só o Terraform. Credenciais
+# temporárias do lab ficam no GitHub Environment "AWS" e precisam ser renovadas a cada sessão.
 on:
   workflow_dispatch:
     inputs:
