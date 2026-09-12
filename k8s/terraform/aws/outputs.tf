@@ -48,6 +48,6 @@ output "ssm_parameter_prefix" {
 }
 
 output "s3_buckets" {
-  description = "Buckets de vídeos (raw/processed)"
-  value       = { for key, bucket in aws_s3_bucket.videos : key => bucket.bucket }
+  description = "Buckets de vídeos (raw/processed) — criados por scripts/aws-buckets-init.sh"
+  value       = local.video_buckets
 }

@@ -62,6 +62,8 @@ export TF_VAR_aws_region="$AWS_REGION"
 
 terraform -chdir="$TF_DIR" fmt -check
 "$ROOT_DIR/scripts/aws-tf-init.sh" "$TF_DIR"
+# Buckets de vídeo ficam fora do Terraform (SCP do lab nega a leitura de Object Lock).
+"$ROOT_DIR/scripts/aws-buckets-init.sh"
 terraform -chdir="$TF_DIR" validate
 
 if [[ "$APPLY_IF_CHANGED" == "true" ]]; then
