@@ -9,9 +9,10 @@
 
 ## Arquitetura
 
-- [`architecture/hld-lld-adr-rfc.md`](./architecture/hld-lld-adr-rfc.md) — documento principal: RFC (motivação e proposta), HLD (visão de containers e topologia de implantação), LLD (modelo de dados com diagramas ER por schema, contratos de API, diagramas de sequência) e os 13 ADRs técnicos (broker, outbox, storage, autenticação, observabilidade, linguagem/runtime, comunicação entre serviços, API Gateway, Kubernetes, notificação multicanal, política de nuvem, consulta de status).
+- [`architecture/hld-lld-adr-rfc.md`](./architecture/hld-lld-adr-rfc.md) — documento principal: RFC (motivação e proposta), HLD (visão de containers e topologia de implantação), LLD (modelo de dados com diagramas ER por schema, contratos de API, diagramas de sequência) e os 14 ADRs técnicos (broker, outbox, storage, autenticação, observabilidade, linguagem/runtime, comunicação entre serviços, API Gateway, Kubernetes, notificação multicanal, política de nuvem, consulta de status, serviços gerenciados por perfil).
 - [`architecture/rfc/RFC-001-rabbitmq-vs-kafka.md`](./architecture/rfc/RFC-001-rabbitmq-vs-kafka.md) — RFC curto: problema, proposta, comparação com Kafka, consequências e como validar (par do ADR-002).
 - [`architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md`](./architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md) — RFC curto: problema, proposta, comparação com Kong/Traefik, consequências e como validar (par do ADR-009).
+- [`architecture/rfc/RFC-003-sqs-vs-rabbitmq-no-perfil-aws.md`](./architecture/rfc/RFC-003-sqs-vs-rabbitmq-no-perfil-aws.md) — RFC curto: Amazon SQS no lugar do RabbitMQ self-hosted quando a plataforma roda na AWS; tabela de equivalência das garantias, alternativas e como validar (par da emenda do ADR-002 e do ADR-014).
 
 ## API
 
