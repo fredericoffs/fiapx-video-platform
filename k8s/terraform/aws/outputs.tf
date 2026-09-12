@@ -6,6 +6,14 @@ output "cluster_endpoint" {
   value = aws_eks_cluster.this.endpoint
 }
 
+output "cluster_role_arn" {
+  value = local.cluster_role_arn
+}
+
+output "node_role_arn" {
+  value = local.node_role_arn
+}
+
 output "vpc_id" {
   value = aws_vpc.this.id
 }
