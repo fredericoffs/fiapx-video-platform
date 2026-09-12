@@ -2,21 +2,30 @@ package com.fiapx.videoapi.application.job;
 
 import com.fiapx.videoapi.application.usecase.ApplyProcessingResultUseCase;
 import com.fiapx.videoapi.application.usecase.RequestVideoProcessingUseCase;
+import com.fiapx.videoapi.domain.model.OutboundMessage;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.port.MessagePublisher;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.infrastructure.config.OutboxProperties;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
+import java.time.Duration;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+/**
+ * Relay da outbox: reserva um lote (lease, SKIP LOCKED — várias réplicas podem rodar ao
+ * mesmo tempo sem duplicar), publica fora de transação e só marca publicado após a
+ * confirmação do broker. Falha libera a reserva e conta a tentativa; o evento volta no
+ * próximo ciclo (entrega at-least-once — o consumidor precisa ser idempotente).
+ */
 @Component
 public class OutboxPublisherJob {
 
   private static final Logger log = LoggerFactory.getLogger(OutboxPublisherJob.class);
+  static final Duration LEASE = Duration.ofSeconds(30);
 
   private final OutboxEventRepository outboxEventRepository;
   private final MessagePublisher messagePublisher;
@@ -37,14 +46,17 @@ public class OutboxPublisherJob {
 
   @Scheduled(fixedDelayString = "${fiapx.outbox.publish-interval-ms:3000}")
   public void publishPending() {
-    List<OutboxEvent> pending = outboxEventRepository.findUnpublished(outboxProperties.batchSize());
-    for (OutboxEvent event : pending) {
+    List<OutboxEvent> claimed = outboxEventRepository.claimUnpublished(outboxProperties.batchSize(), LEASE);
+    for (OutboxEvent event : claimed) {
       try {
         String targetQueue = resolveQueue(event.getEventType());
-        messagePublisher.publish(targetQueue, event.getPayload(), event.getCorrelationId());
+        messagePublisher.publish(targetQueue,
+            OutboundMessage.of(event.getPayload(), event.getCorrelationId(), event.getId().toString()));
         outboxEventRepository.markPublished(event.getId());
       } catch (Exception e) {
-        log.error("Falha ao publicar outbox event {} ({})", event.getId(), event.getEventType(), e);
+        log.error("Falha ao publicar outbox event {} ({}), tentativa {}", event.getId(), event.getEventType(),
+            event.getAttempts() + 1, e);
+        outboxEventRepository.releaseAfterFailure(event.getId());
       }
     }
   }

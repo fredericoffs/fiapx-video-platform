@@ -1,6 +1,7 @@
 package com.fiapx.videoworker.infrastructure.messaging;
 
 import com.fiapx.videoworker.domain.exception.MessagePublishException;
+import com.fiapx.videoworker.domain.model.OutboundMessage;
 import com.fiapx.videoworker.domain.port.MessagePublisher;
 import java.time.Duration;
 import java.util.UUID;
@@ -23,6 +24,8 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "rabbitmq", matchIfMissing = true)
 public class RabbitMessagePublisher implements MessagePublisher {
 
+  public static final String EVENT_ID_HEADER = "eventId";
+
   private final RabbitTemplate rabbitTemplate;
   private final Duration confirmTimeout;
 
@@ -35,13 +38,16 @@ public class RabbitMessagePublisher implements MessagePublisher {
   }
 
   @Override
-  public void publish(String queueName, String payloadJson, String correlationId) {
+  public void publish(String queueName, OutboundMessage message) {
     CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
-    rabbitTemplate.convertAndSend("", queueName, payloadJson, message -> {
-      if (correlationId != null) {
-        message.getMessageProperties().setCorrelationId(correlationId);
+    rabbitTemplate.convertAndSend("", queueName, message.payloadJson(), amqpMessage -> {
+      if (message.correlationId() != null) {
+        amqpMessage.getMessageProperties().setCorrelationId(message.correlationId());
       }
-      return message;
+      if (message.eventId() != null) {
+        amqpMessage.getMessageProperties().setHeader(EVENT_ID_HEADER, message.eventId());
+      }
+      return amqpMessage;
     }, correlationData);
     awaitConfirmation(queueName, correlationData);
   }

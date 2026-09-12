@@ -33,7 +33,7 @@ class MalformedMessageHandlingTest {
         .isInstanceOf(AmqpRejectAndDontRequeueException.class);
 
     verifyNoInteractions(processVideoUseCase);
-    verify(messagePublisher, never()).publish(anyString(), anyString(), any());
+    verify(messagePublisher, never()).publish(anyString(), any());
   }
 
   @Test
@@ -43,6 +43,6 @@ class MalformedMessageHandlingTest {
 
     listener.onMessage("{isto nao e json", null);
 
-    verify(messagePublisher, never()).publish(anyString(), anyString(), any());
+    verify(messagePublisher, never()).publish(anyString(), any());
   }
 }

@@ -13,6 +13,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -58,13 +59,22 @@ public class ApplyProcessingResultUseCase {
 
     Video video = maybeVideo.get();
     if (video.isTerminal()) {
-      log.info("Ignorando evento de resultado para vídeo {} já em estado terminal ({})", video.getId(), video.getStatus());
+      log.info("Ignorando evento {} para vídeo {} já em estado terminal ({})", message.eventType(), video.getId(),
+          video.getStatus());
+      return;
+    }
+
+    if (message.eventType() == ProcessingEventType.PROCESSING_STARTED) {
+      if (video.startProcessing()) {
+        videoRepository.save(video);
+      }
       return;
     }
 
     switch (message.eventType()) {
       case PROCESSING_COMPLETED -> video.complete(message.zipStorageKey());
       case PROCESSING_FAILED -> video.fail(message.errorMessage());
+      default -> throw new IllegalStateException("Evento de resultado inesperado: " + message.eventType());
     }
 
     videoRepository.save(video);
@@ -72,10 +82,12 @@ public class ApplyProcessingResultUseCase {
 
     if (message.eventType() == ProcessingEventType.PROCESSING_FAILED) {
       String recipientEmail = resolveRecipientEmail(video);
-      NotificationRequestedPayload payload =
-          new NotificationRequestedPayload(video.getId(), video.getErrorMessage(), recipientEmail);
+      UUID eventId = UUID.randomUUID();
+      NotificationRequestedPayload payload = new NotificationRequestedPayload(
+          video.getId(), video.getErrorMessage(), recipientEmail, eventId,
+          NotificationRequestedPayload.CURRENT_CONTRACT_VERSION);
       OutboxEvent event = OutboxEvent.newEvent(
-          video.getId(), EVENT_TYPE_NOTIFICATION_REQUESTED, writeJson(payload), MDC.get("correlationId")
+          eventId, video.getId(), EVENT_TYPE_NOTIFICATION_REQUESTED, writeJson(payload), MDC.get("correlationId")
       );
       outboxEventRepository.save(event);
     }

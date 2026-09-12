@@ -49,6 +49,19 @@ public class Video {
     return userId != null && userId.equals(requesterId);
   }
 
+  /**
+   * QUEUED → PROCESSING quando o worker começa. Só sai de QUEUED: um "started" atrasado
+   * (depois do resultado) ou repetido não regride nem altera estado terminal.
+   */
+  public boolean startProcessing() {
+    if (status != VideoStatus.QUEUED) {
+      return false;
+    }
+    this.status = VideoStatus.PROCESSING;
+    this.updatedAt = Instant.now();
+    return true;
+  }
+
   public void complete(String zipStorageKey) {
     this.status = VideoStatus.COMPLETED;
     this.zipStorageKey = zipStorageKey;

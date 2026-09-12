@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.fiapx.videoworker.domain.exception.MessagePublishException;
+import com.fiapx.videoworker.domain.model.OutboundMessage;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
@@ -25,14 +26,14 @@ class RabbitMessagePublisherTest {
   void returnsNormallyWhenBrokerAcks() {
     stubSend(correlation -> correlation.getFuture().complete(new CorrelationData.Confirm(true, null)));
 
-    assertThatCode(() -> publisher.publish("video.status-updates", "{}", "corr-1")).doesNotThrowAnyException();
+    assertThatCode(() -> publisher.publish("video.status-updates", OutboundMessage.of("{}", "corr-1", "evt-1"))).doesNotThrowAnyException();
   }
 
   @Test
   void failsWhenBrokerNacks() {
     stubSend(correlation -> correlation.getFuture().complete(new CorrelationData.Confirm(false, "queue full")));
 
-    assertThatThrownBy(() -> publisher.publish("video.status-updates", "{}", null))
+    assertThatThrownBy(() -> publisher.publish("video.status-updates", OutboundMessage.of("{}", null, "evt-1")))
         .isInstanceOf(MessagePublishException.class)
         .hasMessageContaining("nack")
         .hasMessageContaining("queue full");
@@ -46,7 +47,7 @@ class RabbitMessagePublisherTest {
       correlation.getFuture().complete(new CorrelationData.Confirm(true, null));
     });
 
-    assertThatThrownBy(() -> publisher.publish("nao-existe", "{}", null))
+    assertThatThrownBy(() -> publisher.publish("nao-existe", OutboundMessage.of("{}", null, "evt-1")))
         .isInstanceOf(MessagePublishException.class)
         .hasMessageContaining("devolvida")
         .hasMessageContaining("NO_ROUTE");
@@ -56,7 +57,7 @@ class RabbitMessagePublisherTest {
   void failsWhenConfirmationNeverArrives() {
     stubSend(correlation -> { /* broker mudo: future nunca completa */ });
 
-    assertThatThrownBy(() -> publisher.publish("video.status-updates", "{}", null))
+    assertThatThrownBy(() -> publisher.publish("video.status-updates", OutboundMessage.of("{}", null, "evt-1")))
         .isInstanceOf(MessagePublishException.class)
         .hasMessageContaining("não confirmou");
   }

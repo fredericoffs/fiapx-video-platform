@@ -42,4 +42,10 @@ public class OutboxEventEntity {
 
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
+
+	@Column(name = "locked_until")
+	private Instant lockedUntil;
+
+	@Column(nullable = false)
+	private int attempts;
 }

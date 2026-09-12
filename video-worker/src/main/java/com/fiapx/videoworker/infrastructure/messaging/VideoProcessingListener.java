@@ -2,6 +2,7 @@ package com.fiapx.videoworker.infrastructure.messaging;
 
 import com.fiapx.videoworker.application.dto.VideoUploadRequestedPayload;
 import com.fiapx.videoworker.application.usecase.ProcessVideoUseCase;
+import com.fiapx.videoworker.domain.model.OutboundMessage;
 import com.fiapx.videoworker.domain.model.ProcessingResult;
 import com.fiapx.videoworker.domain.port.MessagePublisher;
 import com.fiapx.videoworker.infrastructure.config.QueueProperties;
@@ -49,9 +50,11 @@ public class VideoProcessingListener {
     MDC.put("correlationId", correlationId);
     try {
       VideoUploadRequestedPayload payload = parse(rawJson);
+      // QUEUED → PROCESSING na API: sinal de início, antes do trabalho pesado.
+      publish(new ProcessingResultMessage(ProcessingEventType.PROCESSING_STARTED, payload.videoId(), null, null,
+          payload.eventId()), correlationId);
       ProcessingResult result = processVideoUseCase.handle(payload);
-      ProcessingResultMessage message = toResultMessage(result);
-      messagePublisher.publish(queueProperties.statusUpdates(), objectMapper.writeValueAsString(message), correlationId);
+      publish(toResultMessage(result, payload.eventId()), correlationId);
     } finally {
       MDC.remove("correlationId");
     }
@@ -66,12 +69,18 @@ public class VideoProcessingListener {
     }
   }
 
-  private ProcessingResultMessage toResultMessage(ProcessingResult result) {
+  private void publish(ProcessingResultMessage message, String correlationId) {
+    String eventId = message.eventId() != null ? message.eventId().toString() : null;
+    messagePublisher.publish(queueProperties.statusUpdates(),
+        OutboundMessage.of(objectMapper.writeValueAsString(message), correlationId, eventId));
+  }
+
+  private ProcessingResultMessage toResultMessage(ProcessingResult result, java.util.UUID eventId) {
     if (result.isSuccess()) {
       return new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED, result.getVideoId(),
-          result.getZipStorageKey(), null);
+          result.getZipStorageKey(), null, eventId);
     }
     return new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED, result.getVideoId(), null,
-        result.getErrorMessage());
+        result.getErrorMessage(), eventId);
   }
 }

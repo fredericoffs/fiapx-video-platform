@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fiapx.videoapi.domain.exception.MessagePublishException;
+import com.fiapx.videoapi.domain.model.OutboundMessage;
 import com.fiapx.videoapi.domain.port.MessagePublisher;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class StatusUpdatesDeadLetterIntegrationTest {
 
   @Test
   void publishingToAnUnroutableQueueFailsInsteadOfSilentlySucceeding() {
-    assertThatThrownBy(() -> messagePublisher.publish("fila-que-nao-existe-" + System.nanoTime(), "{}", "corr-x"))
+    assertThatThrownBy(() -> messagePublisher.publish("fila-que-nao-existe-" + System.nanoTime(), OutboundMessage.of("{}", "corr-x", null)))
         .isInstanceOf(MessagePublishException.class)
         .hasMessageContaining("devolvida");
   }

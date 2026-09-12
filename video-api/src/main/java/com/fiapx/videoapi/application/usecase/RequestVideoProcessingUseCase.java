@@ -61,13 +61,16 @@ public class RequestVideoProcessingUseCase {
     Video video = Video.newQueued(videoId, command.userId(), command.originalFilename(), storageKey);
     videoRepository.save(video);
 
+    UUID eventId = UUID.randomUUID();
     VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(
         videoId,
         storageKey,
-        command.originalFilename()
+        command.originalFilename(),
+        eventId,
+        VideoUploadRequestedPayload.CURRENT_CONTRACT_VERSION
     );
     OutboxEvent event = OutboxEvent.newEvent(
-        videoId, EVENT_TYPE_VIDEO_UPLOAD_REQUESTED, writeJson(payload), MDC.get("correlationId")
+        eventId, videoId, EVENT_TYPE_VIDEO_UPLOAD_REQUESTED, writeJson(payload), MDC.get("correlationId")
     );
     outboxEventRepository.save(event);
 

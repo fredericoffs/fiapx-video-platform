@@ -18,6 +18,27 @@ class VideoTest {
   }
 
   @Test
+  void startProcessingMovesQueuedToProcessingOnlyOnce() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+
+    assertThat(video.startProcessing()).isTrue();
+    assertThat(video.getStatus()).isEqualTo(VideoStatus.PROCESSING);
+    assertThat(video.isTerminal()).isFalse();
+
+    assertThat(video.startProcessing()).as("started repetido é no-op").isFalse();
+    assertThat(video.getStatus()).isEqualTo(VideoStatus.PROCESSING);
+  }
+
+  @Test
+  void lateStartProcessingNeverRegressesATerminalVideo() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    video.complete("processed/movie.zip");
+
+    assertThat(video.startProcessing()).isFalse();
+    assertThat(video.getStatus()).isEqualTo(VideoStatus.COMPLETED);
+  }
+
+  @Test
   void completeSetsCompletedStatusAndZipKey() {
     Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
 

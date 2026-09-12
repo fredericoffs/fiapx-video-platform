@@ -1,6 +1,7 @@
 package com.fiapx.notificationworker.application.usecase;
 
 import com.fiapx.notificationworker.application.dto.NotificationRequestedMessage;
+import com.fiapx.notificationworker.domain.exception.DuplicateNotificationException;
 import com.fiapx.notificationworker.domain.exception.NotificationDeliveryException;
 import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
@@ -55,12 +56,21 @@ public class SendFailureNotificationUseCase {
     NotificationChannel channel = channelsByType.get(type);
     try {
       channel.send(message.videoId(), message.errorMessage(), message.recipientEmail()).join();
-      notificationAttemptRepository.save(NotificationAttempt.sent(message.videoId(), type));
+      registerSent(message, type);
       return true;
     } catch (RuntimeException e) {
       notificationAttemptRepository.save(NotificationAttempt.failed(message.videoId(), type, e.getMessage()));
       log.warn("Falha ao notificar vídeo {} pelo canal {}: {}", message.videoId(), type, e.getMessage());
       return false;
+    }
+  }
+
+  // Corrida entre réplicas/reentrega: o banco recusa o segundo SENT — já foi entregue, sucesso.
+  private void registerSent(NotificationRequestedMessage message, NotificationChannelType type) {
+    try {
+      notificationAttemptRepository.save(NotificationAttempt.sent(message.videoId(), type));
+    } catch (DuplicateNotificationException e) {
+      log.info("Envio por {} do vídeo {} já registrado por outra execução (idempotência)", type, message.videoId());
     }
   }
 }

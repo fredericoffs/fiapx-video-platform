@@ -59,6 +59,43 @@ class ApplyProcessingResultUseCaseTest {
   }
 
   @Test
+  void processingStartedMovesQueuedVideoToProcessingWithoutMetricsOrNotification() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(new ProcessingResultMessage(ProcessingEventType.PROCESSING_STARTED, video.getId(), null, null));
+
+    ArgumentCaptor<Video> captor = ArgumentCaptor.forClass(Video.class);
+    verify(videoRepository).save(captor.capture());
+    assertThat(captor.getValue().getStatus()).isEqualTo(VideoStatus.PROCESSING);
+    verify(outboxEventRepository, never()).save(any());
+    assertThat(meterRegistry.find("fiapx.video.processed").counter()).isNull();
+  }
+
+  @Test
+  void repeatedProcessingStartedDoesNotSaveAgain() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    video.startProcessing();
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(new ProcessingResultMessage(ProcessingEventType.PROCESSING_STARTED, video.getId(), null, null));
+
+    verify(videoRepository, never()).save(any());
+  }
+
+  @Test
+  void lateProcessingStartedIsIgnoredForTerminalVideo() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    video.complete("zip-key");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    useCase.handle(new ProcessingResultMessage(ProcessingEventType.PROCESSING_STARTED, video.getId(), null, null));
+
+    verify(videoRepository, never()).save(any());
+    assertThat(video.getStatus()).isEqualTo(VideoStatus.COMPLETED);
+  }
+
+  @Test
   void appliesCompletedStatusFromProcessingCompletedEvent() {
     Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
     when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
