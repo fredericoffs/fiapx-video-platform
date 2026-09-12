@@ -14,8 +14,16 @@ import com.fiapx.videoworker.domain.exception.FfmpegProcessingException;
 import com.fiapx.videoworker.domain.port.FrameExtractor;
 import com.fiapx.videoworker.infrastructure.config.FfmpegProperties;
 
+/**
+ * Executa o ffmpeg como subprocesso com prazo real: a saída vai para um arquivo (não leio o
+ * stdout de forma bloqueante antes do {@code waitFor}, senão o timeout nunca dispara), e ao
+ * expirar ou ser interrompido eu derrubo o processo e seus descendentes antes de falhar.
+ */
 @Component
 public class FfmpegFrameExtractor implements FrameExtractor {
+
+	static final int MAX_LOG_BYTES = 64 * 1024;
+	private static final long KILL_GRACE_SECONDS = 5;
 
 	private final FfmpegProperties ffmpegProperties;
 
@@ -28,27 +36,77 @@ public class FfmpegFrameExtractor implements FrameExtractor {
 		List<String> command = List.of(ffmpegProperties.binaryPath(), "-y", "-hide_banner", "-loglevel", "error", "-i",
 				videoFile.toString(), "-vf", "fps=" + fps, outputDir.resolve("frame_%04d.png").toString());
 
-		Process process;
-		String output;
+		Path logFile = createLogFile(outputDir);
 		try {
-			process = new ProcessBuilder(command).redirectErrorStream(true).start();
-			output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-			boolean finished = process.waitFor(ffmpegProperties.processTimeoutMinutes(), TimeUnit.MINUTES);
-			if (!finished) {
-				process.destroyForcibly();
-				throw new FfmpegProcessingException("Timeout de processamento excedido (" + videoFile + ")");
+			int exitCode = run(command, logFile, videoFile);
+			if (exitCode != 0) {
+				throw new FfmpegProcessingException("ffmpeg saiu com código " + exitCode + ": " + readLog(logFile));
 			}
+			ensureFramesWereProduced(outputDir, videoFile);
+		} finally {
+			try {
+				Files.deleteIfExists(logFile);
+			} catch (IOException ignored) {
+				// log é temporário; falha na limpeza não muda o resultado
+			}
+		}
+	}
+
+	private int run(List<String> command, Path logFile, Path videoFile) {
+		Process process;
+		try {
+			process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(logFile.toFile()).start();
 		} catch (IOException e) {
 			throw new FfmpegProcessingException("Falha ao executar ffmpeg para " + videoFile, e);
+		}
+
+		try {
+			boolean finished = process.waitFor(ffmpegProperties.processTimeoutMinutes(), TimeUnit.MINUTES);
+			if (!finished) {
+				killTree(process);
+				throw new FfmpegProcessingException("Timeout de processamento excedido após "
+						+ ffmpegProperties.processTimeoutMinutes() + " min (" + videoFile + ")");
+			}
+			return process.exitValue();
 		} catch (InterruptedException e) {
+			killTree(process);
 			Thread.currentThread().interrupt();
 			throw new FfmpegProcessingException("Execução do ffmpeg interrompida para " + videoFile, e);
 		}
+	}
 
-		if (process.exitValue() != 0) {
-			throw new FfmpegProcessingException("ffmpeg saiu com código " + process.exitValue() + ": " + output);
+	private static void killTree(Process process) {
+		process.descendants().forEach(ProcessHandle::destroyForcibly);
+		process.destroyForcibly();
+		try {
+			process.waitFor(KILL_GRACE_SECONDS, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 		}
+	}
 
+	private static Path createLogFile(Path outputDir) {
+		try {
+			Path parent = outputDir.getParent() != null ? outputDir.getParent() : outputDir;
+			return Files.createTempFile(parent, "ffmpeg-", ".log");
+		} catch (IOException e) {
+			throw new FfmpegProcessingException("Falha ao preparar log do ffmpeg em " + outputDir, e);
+		}
+	}
+
+	/** Só o começo do log entra na mensagem de erro — o arquivo em si é limitado pelo ffmpeg em loglevel error. */
+	private static String readLog(Path logFile) {
+		try {
+			byte[] bytes = Files.readAllBytes(logFile);
+			int length = Math.min(bytes.length, MAX_LOG_BYTES);
+			String text = new String(bytes, 0, length, StandardCharsets.UTF_8).strip();
+			return bytes.length > MAX_LOG_BYTES ? text + " [log truncado]" : text;
+		} catch (IOException e) {
+			return "(log indisponível: " + e.getMessage() + ")";
+		}
+	}
+
+	private static void ensureFramesWereProduced(Path outputDir, Path videoFile) {
 		try (Stream<Path> files = Files.list(outputDir)) {
 			if (files.findAny().isEmpty()) {
 				throw new FfmpegProcessingException("Nenhum frame extraído — vídeo pode estar corrompido: " + videoFile);

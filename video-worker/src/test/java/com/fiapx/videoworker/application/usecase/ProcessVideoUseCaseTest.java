@@ -78,6 +78,92 @@ class ProcessVideoUseCaseTest {
   }
 
   @Test
+  void writesInputUnderAnInternalNameEvenWhenOriginalFilenameTriesPathTraversal() throws Exception {
+    UUID videoId = UUID.randomUUID();
+    Path outside = Files.createTempDirectory("fiapx-outside");
+    String adversarial = "../../" + outside.getFileName() + "/pwned.mp4";
+    VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/source.mp4",
+        adversarial);
+
+    when(storageClient.download(eq("videos-raw"), eq(payload.storageKey())))
+        .thenReturn(new ByteArrayInputStream("fake-video-bytes".getBytes()));
+
+    AtomicReference<Path> capturedVideoFile = new AtomicReference<>();
+    doAnswer(invocation -> {
+          Path videoFile = invocation.getArgument(0);
+          Path framesDir = invocation.getArgument(1);
+          capturedVideoFile.set(videoFile);
+          Files.createFile(framesDir.resolve("frame_0001.png"));
+          return null;
+        }
+    ).when(frameExtractor).extractFrames(any(), any(), anyInt());
+    doAnswer(invocation -> {
+          Files.write(invocation.getArgument(1), "zip".getBytes());
+          return null;
+        }
+    ).when(archiver).zip(any(), any());
+
+    ProcessingResult result = useCase.handle(payload);
+
+    assertThat(result.isSuccess()).isTrue();
+    assertThat(capturedVideoFile.get().getFileName().toString()).isEqualTo("input.mp4");
+    assertThat(capturedVideoFile.get().getParent().getFileName().toString()).startsWith("fiapx-" + videoId);
+    try (var leftovers = Files.list(outside)) {
+      assertThat(leftovers).isEmpty();
+    }
+  }
+
+  @Test
+  void returnsFailureWhenNeitherStorageKeyNorOriginalFilenameHasSupportedExtension() {
+    UUID videoId = UUID.randomUUID();
+    VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/source.exe",
+        "../../etc/passwd");
+
+    ProcessingResult result = useCase.handle(payload);
+
+    assertThat(result.isSuccess()).isFalse();
+    assertThat(result.getErrorMessage()).contains("Extensão de vídeo não suportada");
+    verify(storageClient, never()).download(anyString(), anyString());
+  }
+
+  @Test
+  void fallsBackToOriginalFilenameExtensionWhenStorageKeyHasNone() throws Exception {
+    UUID videoId = UUID.randomUUID();
+    VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/source", "clip.WEBM");
+
+    when(storageClient.download(anyString(), anyString()))
+        .thenReturn(new ByteArrayInputStream("fake-video-bytes".getBytes()));
+    AtomicReference<Path> capturedVideoFile = new AtomicReference<>();
+    doAnswer(invocation -> {
+          capturedVideoFile.set(invocation.getArgument(0));
+          Files.createFile(((Path) invocation.getArgument(1)).resolve("frame_0001.png"));
+          return null;
+        }
+    ).when(frameExtractor).extractFrames(any(), any(), anyInt());
+    doAnswer(invocation -> {
+          Files.write(invocation.getArgument(1), "zip".getBytes());
+          return null;
+        }
+    ).when(archiver).zip(any(), any());
+
+    ProcessingResult result = useCase.handle(payload);
+
+    assertThat(result.isSuccess()).isTrue();
+    assertThat(capturedVideoFile.get().getFileName().toString()).isEqualTo("input.webm");
+  }
+
+  @Test
+  void returnsFailureWhenOriginalFilenameIsNullAndStorageKeyHasNoExtension() {
+    UUID videoId = UUID.randomUUID();
+    VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/source.", null);
+
+    ProcessingResult result = useCase.handle(payload);
+
+    assertThat(result.isSuccess()).isFalse();
+    verify(storageClient, never()).download(anyString(), anyString());
+  }
+
+  @Test
   void returnsFailureResultWhenFfmpegBusinessFailureHappens() {
     UUID videoId = UUID.randomUUID();
     VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/movie.mp4", "movie.mp4");

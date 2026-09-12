@@ -152,8 +152,6 @@
                    decidiu, por escrito, que fica fora do gate. -->
               <excludes>
                 <exclude>**/*Application.class</exclude>
-                <exclude>**/infrastructure/ffmpeg/**</exclude>
-                <exclude>**/infrastructure/archive/**</exclude>
                 <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
               </excludes>
             </configuration>
@@ -165,18 +163,12 @@
               <goal>check</goal>
             </goals>
             <configuration>
-              <!-- FfmpegFrameExtractor, ZipFileArchiver e S3StorageClient são adapters de
-                   borda que invocam processo externo (ffmpeg), I/O real de arquivo e o SDK
-                   da AWS — deliberadamente substituídos por fakes nos testes (ver
-                   VideoProcessingListenerIntegrationTest), então não são exercitados por
-                   nenhuma suíte automatizada hoje. Excluídos do gate de cobertura por
-                   decisão arquitetural (hexagonal: lógica de negócio testada por unidade,
-                   adapters de I/O externo validados por integração/observação em runtime),
-                   não para maquiar o número. -->
+              <!-- S3StorageClient chama o SDK da AWS e é substituído por fake nos testes
+                   de listener; fica fora do gate até ter teste próprio de integração.
+                   FfmpegFrameExtractor e ZipFileArchiver têm testes unitários próprios
+                   (binário fake e ffmpeg real quando disponível) e entram no gate. -->
               <excludes>
                 <exclude>**/*Application.class</exclude>
-                <exclude>**/infrastructure/ffmpeg/**</exclude>
-                <exclude>**/infrastructure/archive/**</exclude>
                 <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
               </excludes>
               <rules>

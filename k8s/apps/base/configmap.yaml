@@ -32,6 +32,7 @@ data:
   QUEUE_PROCESSING_DLX: "video.processing.dlx"
   QUEUE_PROCESSING_DLQ: "video.processing.dlq"
   FFMPEG_FPS: "1"
+  FFMPEG_TIMEOUT_MINUTES: "15"
   SMTP_HOST: "mailhog"
   SMTP_PORT: "1025"
   # Mailhog não roda no cluster — sem isso, o health indicator de mail do Actuator

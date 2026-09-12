@@ -2,6 +2,7 @@ package com.fiapx.videoapi.infrastructure.web;
 
 import com.fiapx.videoapi.domain.exception.EmailAlreadyRegisteredException;
 import com.fiapx.videoapi.domain.exception.InvalidCredentialsException;
+import com.fiapx.videoapi.domain.exception.InvalidFilenameException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
 import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
 import com.fiapx.videoapi.domain.exception.UserNotFoundException;
@@ -58,6 +59,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(UnsupportedVideoFormatException.class)
   public ProblemDetail handleUnsupportedVideoFormat(UnsupportedVideoFormatException e) {
     return problem(HttpStatus.BAD_REQUEST, "Formato de vídeo não suportado", e.getMessage());
+  }
+
+  @ExceptionHandler(InvalidFilenameException.class)
+  public ProblemDetail handleInvalidFilename(InvalidFilenameException e) {
+    return problem(HttpStatus.BAD_REQUEST, "Nome de arquivo inválido", e.getMessage());
   }
 
   private ProblemDetail problem(HttpStatus status, String title, String detail) {

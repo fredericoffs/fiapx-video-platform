@@ -44,10 +44,11 @@ public class RequestVideoProcessingUseCase {
 
   @Transactional
   public VideoUploadResult handle(VideoUploadCommand command) {
-    VideoFormatValidator.validate(command.originalFilename());
+    String extension = VideoFormatValidator.validatedExtension(command.originalFilename());
 
     UUID videoId = UUID.randomUUID();
-    String storageKey = "raw/" + videoId + "/" + command.originalFilename();
+    // Nome interno controlado: o nome original do usuário fica só como metadado do vídeo.
+    String storageKey = "raw/" + videoId + "/source." + extension;
 
     storageClient.upload(
         storageProperties.bucketRaw(),

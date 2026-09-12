@@ -41,6 +41,8 @@ fiapx:
   ffmpeg:
     binary-path: ${FFMPEG_PATH:ffmpeg}
     fps: ${FFMPEG_FPS:1}
+    # Prazo real do subprocesso; alinhar ao visibility timeout da fila de processamento.
+    process-timeout-minutes: ${FFMPEG_TIMEOUT_MINUTES:15}
   queues:
     processing: ${QUEUE_PROCESSING:video.processing}
     status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
