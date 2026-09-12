@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { videoKeys, type Video } from '@/shared/api/videos'
 import { uploadVideo } from '@/features/upload/api/upload-video'
+import { randomId } from '@/shared/lib/random-id'
 
 interface UploadVariables {
   file: File
@@ -18,7 +19,7 @@ export function useUploadMutation() {
       const previous = queryClient.getQueryData<Video[]>(videoKeys.list())
 
       const optimisticVideo: Video = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         userId: '',
         originalFilename: file.name,
         status: 'QUEUED',
