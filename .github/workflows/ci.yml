@@ -267,6 +267,14 @@ jobs:
           terraform fmt -check -recursive
           terraform init -backend=false -input=false
           terraform validate
+      - name: migrations do video-api listadas no configMapGenerator
+        # O Job de migração só enxerga os .sql listados em k8s/apps/base/video-api/kustomization.yaml.
+        run: |
+          missing=0
+          for f in video-api/src/main/resources/db/migration/*.sql; do
+            grep -q "db/migration/$(basename "$f")" k8s/apps/base/video-api/kustomization.yaml || { echo "faltando no configMapGenerator: $f"; missing=1; }
+          done
+          exit $missing
       - name: kustomize (overlays local e aws)
         run: |
           kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/apps/overlays/local > /dev/null
