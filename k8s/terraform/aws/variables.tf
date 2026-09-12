@@ -16,10 +16,12 @@ variable "cluster_name" {
   default     = "fiapx"
 }
 
+# Manter numa versão em STANDARD_SUPPORT (aws eks describe-cluster-versions):
+# suporte estendido custa 6x mais por hora de control plane.
 variable "kubernetes_version" {
-  description = "Versão do Kubernetes do cluster"
+  description = "Versão do Kubernetes do cluster (mudar recria o cluster, não faz upgrade in-place)"
   type        = string
-  default     = "1.31"
+  default     = "1.36"
 }
 
 # Learner Lab não permite criar IAM roles: o cluster e os nós assumem roles pré-criadas,
@@ -30,10 +32,12 @@ variable "cluster_role_name_regex" {
   default     = ".*LabEksClusterRole.*"
 }
 
+# LabRole, não *-LabEksNodeRole-*: a LabEksNodeRole só tem as 3 políticas básicas de
+# worker (sem EC2/EBS) e o driver EBS CSI, sem IRSA, herda as permissões do nó.
 variable "node_role_name_regex" {
-  description = "Regex do nome da IAM role dos nós (Learner Lab: *-LabEksNodeRole-*)"
+  description = "Regex do nome da IAM role dos nós (Learner Lab: LabRole, que tem as políticas amplas do lab)"
   type        = string
-  default     = ".*LabEksNodeRole.*"
+  default     = "^LabRole$"
 }
 
 variable "cluster_role_arn" {
