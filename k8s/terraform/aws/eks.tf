@@ -27,6 +27,41 @@ resource "aws_eks_cluster" "this" {
   depends_on = [aws_route_table_association.public]
 }
 
+# Sem IRSA (Learner Lab não permite criar roles), o driver EBS CSI pega credenciais
+# pelo IMDS do nó; com VPC CNI o pod está a 2 saltos do IMDS, e o padrão do node
+# group (hop limit 1) bloqueia — o controlador fica em CrashLoopBackOff com
+# "no EC2 IMDS role found". Launch template só pra subir o hop limit.
+resource "aws_launch_template" "node" {
+  name_prefix = "${var.cluster_name}-ng-"
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = var.node_disk_size_gb
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name    = "${var.cluster_name}-node"
+      Project = var.project
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # Nós em subnet pública (sem NAT Gateway) — precisam de IP público pra puxar imagens
 # do ECR e charts Helm.
 resource "aws_eks_node_group" "this" {
@@ -37,7 +72,11 @@ resource "aws_eks_node_group" "this" {
   subnet_ids      = aws_subnet.public[*].id
   instance_types  = [var.node_instance_type]
   ami_type        = "AL2023_x86_64_STANDARD"
-  disk_size       = var.node_disk_size_gb
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = aws_launch_template.node.latest_version
+  }
 
   scaling_config {
     desired_size = var.node_desired_size
