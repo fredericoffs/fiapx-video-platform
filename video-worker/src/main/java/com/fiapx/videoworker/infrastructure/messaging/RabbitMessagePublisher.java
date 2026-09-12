@@ -1,7 +1,7 @@
-package com.fiapx.videoapi.infrastructure.messaging;
+package com.fiapx.videoworker.infrastructure.messaging;
 
-import com.fiapx.videoapi.domain.exception.MessagePublishException;
-import com.fiapx.videoapi.domain.port.MessagePublisher;
+import com.fiapx.videoworker.domain.exception.MessagePublishException;
+import com.fiapx.videoworker.domain.port.MessagePublisher;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -16,8 +16,8 @@ import org.springframework.stereotype.Component;
 /**
  * Publica no exchange default (routing key = nome da fila) e só devolve depois que o broker
  * confirma (publisher confirm) e sem a mensagem ter sido devolvida (mandatory/return). Nack,
- * return ou prazo esgotado viram {@link MessagePublishException}: quem chama (outbox) não
- * marca o evento como publicado.
+ * return ou prazo esgotado viram {@link MessagePublishException}: o listener que chamou não
+ * conclui o consumo, então a mensagem original volta para retry/DLQ em vez de sumir.
  */
 @Component
 @ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "rabbitmq", matchIfMissing = true)

@@ -24,6 +24,12 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # Publisher confirms + returns: a outbox só marca publicado depois que o broker confirma
+    # (ver RabbitMessagePublisher); mandatory faz fila inexistente virar "return", não silêncio.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         retry:
@@ -73,8 +79,13 @@ fiapx:
     login-rate-limit:
       max-attempts: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:5}
       window-seconds: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:60}
+  messaging:
+    provider: ${MESSAGING_PROVIDER:rabbitmq}
+    confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}
   queues:
     status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
+    status-updates-dlx: ${QUEUE_STATUS_UPDATES_DLX:video.status-updates.dlx}
+    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:video.status-updates.dlq}
     notification: ${QUEUE_NOTIFICATION:video.notification}
     processing: ${QUEUE_PROCESSING:video.processing}
   outbox:

@@ -25,6 +25,8 @@ data:
   GATEWAY_RATE_LIMIT_PERIOD_SECONDS: "60"
   GATEWAY_CORS_ALLOWED_ORIGINS: "http://localhost:5173"
   QUEUE_STATUS_UPDATES: "video.status-updates"
+  QUEUE_STATUS_UPDATES_DLX: "video.status-updates.dlx"
+  QUEUE_STATUS_UPDATES_DLQ: "video.status-updates.dlq"
   QUEUE_NOTIFICATION: "video.notification"
   QUEUE_NOTIFICATION_DLX: "video.notification.dlx"
   QUEUE_NOTIFICATION_DLQ: "video.notification.dlq"

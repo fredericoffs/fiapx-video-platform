@@ -10,6 +10,8 @@ public record QueueProperties(
     String notification,
     @DefaultValue("video.processing.dlx") String processingDlx,
     @DefaultValue("video.processing.dlq") String processingDlq,
+    @DefaultValue("video.status-updates.dlx") String statusUpdatesDlx,
+    @DefaultValue("video.status-updates.dlq") String statusUpdatesDlq,
     @DefaultValue("video.notification.dlx") String notificationDlx,
     @DefaultValue("video.notification.dlq") String notificationDlq
 ) {

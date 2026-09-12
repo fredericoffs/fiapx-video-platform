@@ -14,11 +14,30 @@ spec:
         - alert: FiapxQueueDepthHigh
           # Limiar de 50 mensagens pendentes: acima disso, o video-worker não está
           # dando conta do ritmo de upload — sinal de que precisa escalar (KEDA) ou
-          # investigar um consumidor travado.
-          expr: rabbitmq_queue_messages_ready{queue=~"video\\.(processing|notification|status-updates)"} > 50
+          # investigar um consumidor travado. rabbitmq_* vem do broker (local/kind);
+          # fiapx_queue_messages_visible vem dos próprios serviços (perfil aws, SQS).
+          expr: |
+            max by (queue) (rabbitmq_queue_messages_ready{queue=~"video\\.(processing|notification|status-updates)"}) > 50
+            or
+            max by (queue) (fiapx_queue_messages_visible{queue!~".*-dlq$"}) > 50
           for: 2m
           labels:
             severity: warning
           annotations:
             summary: "Fila {{ $labels.queue }} com profundidade alta"
             description: "{{ $labels.queue }} está com {{ $value }} mensagens prontas para consumo há mais de 2 minutos — verificar se o consumidor correspondente está saudável."
+        - alert: FiapxDeadLetterQueueNotEmpty
+          # Qualquer mensagem numa DLQ é trabalho perdido até alguém olhar: resultado que não
+          # atualizou o status, vídeo que esgotou tentativas, notificação que falhou nos dois
+          # canais. Replay controlado: scripts/rabbitmq-replay-dlq.sh (local) ou
+          # `aws sqs start-message-move-task` (AWS).
+          expr: |
+            max by (queue) (rabbitmq_queue_messages_ready{queue=~"video\\..*\\.dlq"}) > 0
+            or
+            max by (queue) (fiapx_queue_messages_visible{queue=~".*-dlq$"}) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DLQ {{ $labels.queue }} com mensagens retidas"
+            description: "{{ $labels.queue }} tem {{ $value }} mensagem(ns) que esgotaram as tentativas — investigar a causa antes de reprocessar."

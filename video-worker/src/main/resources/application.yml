@@ -9,6 +9,13 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # Publisher confirms + returns: o resultado só é considerado publicado após o ack do broker
+    # (ver RabbitMessagePublisher); sem isso o consumo da fila de processamento terminaria
+    # com um resultado que ninguém recebeu.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         prefetch: ${RABBITMQ_PREFETCH:1}
@@ -43,9 +50,14 @@ fiapx:
     fps: ${FFMPEG_FPS:1}
     # Prazo real do subprocesso; alinhar ao visibility timeout da fila de processamento.
     process-timeout-minutes: ${FFMPEG_TIMEOUT_MINUTES:15}
+  messaging:
+    provider: ${MESSAGING_PROVIDER:rabbitmq}
+    confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}
   queues:
     processing: ${QUEUE_PROCESSING:video.processing}
     status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
+    status-updates-dlx: ${QUEUE_STATUS_UPDATES_DLX:video.status-updates.dlx}
+    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:video.status-updates.dlq}
     processing-dlx: ${QUEUE_PROCESSING_DLX:video.processing.dlx}
     processing-dlq: ${QUEUE_PROCESSING_DLQ:video.processing.dlq}
 

@@ -7,7 +7,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record QueueProperties(
     String processing, String statusUpdates,
     @DefaultValue("video.processing.dlx") String processingDlx,
-    @DefaultValue("video.processing.dlq") String processingDlq
+    @DefaultValue("video.processing.dlq") String processingDlq,
+    @DefaultValue("video.status-updates.dlx") String statusUpdatesDlx,
+    @DefaultValue("video.status-updates.dlq") String statusUpdatesDlq
 ) {
 
 }
