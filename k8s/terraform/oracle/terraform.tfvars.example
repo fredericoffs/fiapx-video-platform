@@ -1,9 +1,0 @@
-# Copie para terraform.tfvars (gitignored) e preencha com valores reais.
-# Gere a chave de API em OCI Console > Profile > API Keys > Add API Key.
-tenancy_ocid     = "ocid1.tenancy.oc1..xxxxx"
-user_ocid        = "ocid1.user.oc1..xxxxx"
-fingerprint      = "xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
-private_key_pem  = "" # conteúdo do .pem baixado ao criar a API key
-region           = "sa-saopaulo-1"
-compartment_ocid = "ocid1.tenancy.oc1..xxxxx" # pode ser o mesmo da tenancy
-ssh_public_key   = "" # opcional

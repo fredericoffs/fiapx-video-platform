@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ingress-nginx — só necessário em clusters reais expostos via Ingress
-# (overlays/oracle, overlays/aws). O overlay local usa NodePort direto.
+# (overlays/aws — em EKS o Service LoadBalancer vira um Classic ELB). O overlay
+# local usa NodePort direto.
 set -euo pipefail
 
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null

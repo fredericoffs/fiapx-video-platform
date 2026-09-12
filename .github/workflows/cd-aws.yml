@@ -1,0 +1,97 @@
+name: CD - AWS EKS
+
+# Builda as 5 imagens, publica no ECR e faz o deploy no cluster EKS já provisionado
+# por terraform-aws.yml. Requer sessão do Learner Lab ativa (secrets AWS_* renovados).
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-aws
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: fiapx
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: AWS
+    outputs:
+      ecr_registry: ${{ steps.ecr.outputs.registry }}
+    strategy:
+      matrix:
+        service: [video-gateway, video-api, video-worker, notification-worker, web]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/fiapx/${{ matrix.service }}:latest
+            ${{ steps.ecr.outputs.registry }}/fiapx/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: AWS
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar kubectl, kustomize e helm
+        run: |
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/kubectl
+
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/kustomize
+
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Gerar kubeconfig do cluster EKS
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
+
+      - name: Deploy no cluster
+        env:
+          ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          DB_USER: ${{ secrets.PROD_DB_USER }}
+          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+          RABBITMQ_USER: ${{ secrets.PROD_RABBITMQ_USER }}
+          RABBITMQ_PASSWORD: ${{ secrets.PROD_RABBITMQ_PASSWORD }}
+          STORAGE_ACCESS_KEY: ${{ secrets.PROD_STORAGE_ACCESS_KEY }}
+          STORAGE_SECRET_KEY: ${{ secrets.PROD_STORAGE_SECRET_KEY }}
+          JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+        run: ./scripts/k8s-deploy-aws.sh

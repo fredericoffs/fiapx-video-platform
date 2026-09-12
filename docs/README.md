@@ -5,6 +5,7 @@
 ## Enunciado
 
 - [`enunciado.md`](./enunciado.md) — enunciado original do desafio (Hackathon Fase 5), com os requisitos funcionais/técnicos e a lista de entregáveis.
+- [`Learner_Lab.md`](./Learner_Lab.md) — regras e limites do AWS Academy Learner Lab (regiões, `LabRole`/`LabEksClusterRole`, tipos de instância, budget), ambiente do deploy em nuvem (ver a emenda AWS no ADR-012).
 
 ## Arquitetura
 

@@ -1,8 +1,6 @@
 # FIAP X — Plataforma de Processamento de Vídeos
 
 [![CI](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml)
-[![Qodana](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana_code_quality.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana_code_quality.yml)
-![Cobertura](https://img.shields.io/badge/cobertura%20Qodana-96%25-brightgreen)
 ![Arquitetura](https://img.shields.io/badge/arquitetura-hexagonal%20%2F%20ArchUnit-informational)
 
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white)
@@ -27,8 +25,8 @@ Construí esta arquitetura de processamento de vídeos para o Hackathon da Fase 
 | Notificação de erro (e-mail ou similar)         |   ✅   | `notification-worker` — e-mail com fallback para webhook, Circuit Breaker + Bulkhead por canal |
 | Armazenamento persistente                       |   ✅   | Postgres (schema próprio por serviço) + MinIO (S3-compatible, vídeos/zips)                 |
 | Arquitetura horizontalmente escalável           |   ✅   | HPA (`video-api`) + KEDA (`video-worker`), serviços stateless sem sessão em memória         |
-| Testes automatizados e CI/CD                    |   ✅   | JaCoCo ≥90% linha (gate no `mvn verify`) + GitHub Actions (CI + Qodana) a cada push/PR      |
-| Docker / Kubernetes                             |   ✅   | `docker-compose.yml` (dev) + manifests em [`k8s/`](./k8s) (cluster kind validado ao vivo) + overlay `oracle` para OKE |
+| Testes automatizados e CI/CD                    |   ✅   | JaCoCo ≥90% linha (gate no `mvn verify`) + GitHub Actions (CI) a cada push/PR      |
+| Docker / Kubernetes                             |   ✅   | `docker-compose.yml` (dev) + manifests em [`k8s/`](./k8s) (cluster kind validado ao vivo) + overlay `aws` e Terraform (`k8s/terraform/aws/`) para EKS |
 | Message broker (RabbitMQ)                       |   ✅   | RabbitMQ com topologia de DLQ própria por fila                                             |
 | Postgres + Redis                                |   ✅   | Postgres por serviço; Redis no rate limiting de borda (`video-gateway`)                    |
 | Monitoramento (Prometheus/Grafana, ELK, etc.)   |   ✅   | `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager) via Helm, 3 dashboards + alerta de profundidade de fila, métricas de negócio e correlation-id ponta a ponta |
@@ -105,7 +103,7 @@ cd video-gateway && ./mvnw -B verify
 
 CI: dei a cada serviço seu próprio workflow em `.github/workflows/`, disparado só quando arquivos daquele serviço mudam (`paths:` filter) — simulo assim um pipeline independente por microsserviço mesmo dentro do monorepo.
 
-**Qualidade e segurança**: análise estática de qualidade de código via [Qodana](https://www.jetbrains.com/qodana/) (`qodana.yaml` + `.github/workflows/qodana_code_quality.yml`, roda sobre o repositório inteiro a cada PR/push em `develop`); cobertura de teste com piso de 90% (linha, JaCoCo) nos 4 serviços — gate no `mvn verify` (`jacoco:check`), relatório publicado como artefato do CI; e análise de vulnerabilidades (OWASP Dependency-Check nas dependências Maven + Trivy nas imagens Docker, ambos disparados no CI e publicados como artefato) fazem parte formal da entrega, não só do processo interno de desenvolvimento.
+**Qualidade e cobertura**: cobertura de teste com piso de 90% (linha, JaCoCo) nos 4 serviços — gate no `mvn verify` (`jacoco:check`), relatório publicado como artefato do CI.
 
 **Documentação da API**: cada serviço expõe Swagger UI em `/swagger-ui.html` (OpenAPI 3.1 em `/v3/api-docs`, via [springdoc-openapi](https://springdoc.org/)) — mais relevante no `video-api`, que tem os endpoints de negócio (`/auth/**`, `/videos/**`). Postman collection correspondente versionada em [`docs/postman/fiapx-video-api.postman_collection.json`](./docs/postman/fiapx-video-api.postman_collection.json).
 
@@ -119,6 +117,22 @@ Faço todo trabalho em `develop`. Mantenho a `main` protegida e ela só recebe c
 
 ## Estado atual
 
-**Sprints 0–7 concluídas** (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)): pipeline fim a fim (upload → fila → `ffmpeg` → zip), autenticação JWT, API + Gateway, suíte de testes automatizados com piso de 90% de cobertura, deploy em Kubernetes local (HPA + KEDA validados ao vivo), frontend web completo (React), notificação multicanal resiliente (e-mail + webhook, Circuit Breaker + Bulkhead isolados por canal), e observabilidade completa (métricas de negócio, logging JSON estruturado, correlation-id ponta a ponta, `kube-prometheus-stack`). Pipeline de CD (`cd.yml`) pronto e dormente até a `main` existir no remoto.
+**Sprints 0–7 concluídas** (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)): pipeline fim a fim (upload → fila → `ffmpeg` → zip), autenticação JWT, API + Gateway, suíte de testes automatizados com piso de 90% de cobertura, deploy em Kubernetes local (HPA + KEDA validados ao vivo), frontend web completo (React), notificação multicanal resiliente (e-mail + webhook, Circuit Breaker + Bulkhead isolados por canal), e observabilidade completa (métricas de negócio, logging JSON estruturado, correlation-id ponta a ponta, `kube-prometheus-stack`).
 
-Em andamento: deploy real em nuvem via Kubernetes gerenciado (Oracle OKE, Always Free) — Terraform e overlay em `k8s/terraform/oracle/` e `k8s/apps/overlays/oracle/`, ver a emenda Oracle no [ADR-012](./docs/architecture/hld-lld-adr-rfc.md#adr-012--sem-nuvem-pública-como-padrão-de-execução).
+Em andamento: deploy real em nuvem via Kubernetes gerenciado (AWS EKS, Learner Lab) — Terraform em `k8s/terraform/aws/`, overlay em `k8s/apps/overlays/aws/` e workflows `terraform-aws.yml` / `cd-aws.yml` / `destroy-aws.yml`, ver a emenda AWS no [ADR-012](./docs/architecture/hld-lld-adr-rfc.md#adr-012--sem-nuvem-pública-como-padrão-de-execução). Validado estaticamente (`terraform validate`, `kubectl kustomize`); ainda não aplicado contra a conta.
+
+## Deploy na AWS (EKS)
+
+Tudo roda pelo GitHub Actions, no Environment `AWS` (secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` do Learner Lab — expiram a cada sessão — e os `PROD_*` da aplicação). Ordem:
+
+1. `Terraform - AWS EKS` (`terraform-aws.yml`, `action: plan` e depois `apply`) — VPC, cluster EKS (`t3.large` ×2, add-on EBS CSI), 5 repositórios ECR. State no bucket S3 `fiapx-terraform-state-<account>`, criado automaticamente por `scripts/aws-tf-init.sh`.
+2. `CD - AWS EKS` (`cd-aws.yml`, a cada push em `main` ou manual) — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh` (add-ons, infra self-hosted, migração, aplicação). A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job.
+3. `Destroy AWS` (`destroy-aws.yml`) — ao fim de cada sessão: `scripts/aws-destroy.sh` (limpeza k8s → `terraform destroy` → varredura via `aws` CLI independente do state → `scripts/aws-validate.sh --strict`).
+
+Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
+
+```bash
+pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
+```
+
+O script valida as credenciais (`aws sts get-caller-identity`), grava o perfil `default` em `~/.aws/credentials` e atualiza os secrets no Environment `AWS` via `gh`.
