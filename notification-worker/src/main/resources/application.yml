@@ -5,7 +5,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=notification_worker
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=notification_worker&sslmode=${DB_SSLMODE:disable}
     username: ${DB_USER:fiapx}
     password: ${DB_PASSWORD:fiapx}
   jpa:

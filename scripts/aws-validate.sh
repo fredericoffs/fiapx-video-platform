@@ -129,6 +129,22 @@ run_count_check "VPCs do projeto ($PROJECT)" "true" \
     --filters "Name=tag:Project,Values=${PROJECT}" \
     --query 'length(Vpcs)' --output text
 
+run_count_check "Instancias RDS ($PROJECT-*)" "true" \
+  aws rds describe-db-instances --region "$AWS_REGION" \
+    --query "length(DBInstances[?starts_with(DBInstanceIdentifier, '${PROJECT}-')])" --output text
+
+run_count_check "Clusters ElastiCache ($PROJECT-*)" "true" \
+  aws elasticache describe-cache-clusters --region "$AWS_REGION" \
+    --query "length(CacheClusters[?starts_with(CacheClusterId, '${PROJECT}-')])" --output text
+
+run_count_check "Filas SQS ($PROJECT-*)" "false" \
+  aws sqs list-queues --region "$AWS_REGION" --queue-name-prefix "${PROJECT}-" \
+    --query 'length(QueueUrls || `[]`)' --output text
+
+run_count_check "Buckets S3 de video ($PROJECT-videos-*)" "false" \
+  aws s3api list-buckets --region "$AWS_REGION" \
+    --query "length(Buckets[?starts_with(Name, '${PROJECT}-videos-')])" --output text
+
 run_count_check "Volumes EBS disponiveis (nao anexados)" "false" \
   aws ec2 describe-volumes --region "$AWS_REGION" \
     --filters "Name=status,Values=available" \

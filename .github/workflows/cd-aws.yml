@@ -1,7 +1,7 @@
 name: CD - AWS EKS
 
 # Builda as 5 imagens, publica no ECR e faz o deploy no cluster EKS já provisionado
-# por terraform-aws.yml. Requer sessão do Learner Lab ativa (secrets AWS_* renovados).
+# por terraform-aws.yml (que também cria RDS, ElastiCache, SQS e S3). Requer sessão do Learner Lab ativa (secrets AWS_* renovados).
 on:
   push:
     branches: [ main ]
@@ -89,9 +89,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           DB_USER: ${{ secrets.PROD_DB_USER }}
           DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
-          RABBITMQ_USER: ${{ secrets.PROD_RABBITMQ_USER }}
-          RABBITMQ_PASSWORD: ${{ secrets.PROD_RABBITMQ_PASSWORD }}
-          STORAGE_ACCESS_KEY: ${{ secrets.PROD_STORAGE_ACCESS_KEY }}
-          STORAGE_SECRET_KEY: ${{ secrets.PROD_STORAGE_SECRET_KEY }}
           JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+          # Opcional: destino do canal webhook de notificação (não há SMTP na AWS).
+          NOTIFICATION_WEBHOOK_URL: ${{ secrets.PROD_NOTIFICATION_WEBHOOK_URL }}
         run: ./scripts/k8s-deploy-aws.sh

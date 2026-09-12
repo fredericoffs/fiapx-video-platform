@@ -15,9 +15,14 @@ spec:
           image: flyway/flyway:10-alpine
           args:
             - migrate
+          # DB_HOST/DB_PORT/DB_NAME/DB_SSLMODE vêm do ConfigMap (envFrom) — mesmo destino dos
+          # serviços, seja o Postgres do cluster (local) ou o RDS (perfil aws).
+          envFrom:
+            - configMapRef:
+                name: fiapx-config
           env:
             - name: FLYWAY_URL
-              value: jdbc:postgresql://postgres-postgresql:5432/fiapx
+              value: jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
             - name: FLYWAY_SCHEMAS
               value: video_api
             - name: FLYWAY_DEFAULT_SCHEMA
