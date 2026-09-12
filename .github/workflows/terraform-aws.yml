@@ -26,8 +26,10 @@ jobs:
     environment: AWS
     env:
       AWS_REGION: us-east-1
-      TF_VAR_cluster_role_name: ${{ vars.EKS_CLUSTER_ROLE_NAME || 'LabEksClusterRole' }}
-      TF_VAR_node_role_name: ${{ vars.EKS_NODE_ROLE_NAME || 'LabEksClusterRole' }}
+      # Opcionais: ARNs explícitos das roles; sem eles o Terraform acha as roles do
+      # Learner Lab por regex (*-LabEksClusterRole-*, *-LabEksNodeRole-*).
+      TF_VAR_cluster_role_arn: ${{ vars.EKS_CLUSTER_ROLE_ARN || '' }}
+      TF_VAR_node_role_arn: ${{ vars.EKS_NODE_ROLE_ARN || '' }}
     steps:
       - uses: actions/checkout@v7
 

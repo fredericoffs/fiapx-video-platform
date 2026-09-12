@@ -28,9 +28,21 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+# As roles pré-criadas do Learner Lab têm prefixo/sufixo aleatórios no nome
+# (ex.: c2215...-LabEksClusterRole-hLR76TS0IpSF), então são localizadas por regex
+# em vez de nome fixo. Um ARN explícito (cluster_role_arn/node_role_arn) tem
+# prioridade sobre a descoberta.
+data "aws_iam_roles" "cluster" {
+  name_regex = var.cluster_role_name_regex
+}
+
+data "aws_iam_roles" "node" {
+  name_regex = var.node_role_name_regex
+}
+
 locals {
   account_id       = data.aws_caller_identity.current.account_id
-  cluster_role_arn = "arn:aws:iam::${local.account_id}:role/${var.cluster_role_name}"
-  node_role_arn    = "arn:aws:iam::${local.account_id}:role/${var.node_role_name}"
+  cluster_role_arn = var.cluster_role_arn != "" ? var.cluster_role_arn : sort(tolist(data.aws_iam_roles.cluster.arns))[0]
+  node_role_arn    = var.node_role_arn != "" ? var.node_role_arn : sort(tolist(data.aws_iam_roles.node.arns))[0]
   ecr_registry     = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 }

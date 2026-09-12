@@ -22,17 +22,30 @@ variable "kubernetes_version" {
   default     = "1.31"
 }
 
-# Learner Lab não permite criar IAM roles: o cluster e os nós assumem roles pré-criadas.
-variable "cluster_role_name" {
-  description = "Nome da IAM role do control plane (Learner Lab: LabEksClusterRole)"
+# Learner Lab não permite criar IAM roles: o cluster e os nós assumem roles pré-criadas,
+# cujos nomes carregam prefixo/sufixo aleatórios — por isso a busca é por regex.
+variable "cluster_role_name_regex" {
+  description = "Regex do nome da IAM role do control plane (Learner Lab: *-LabEksClusterRole-*)"
   type        = string
-  default     = "LabEksClusterRole"
+  default     = ".*LabEksClusterRole.*"
 }
 
-variable "node_role_name" {
-  description = "Nome da IAM role dos nós (Learner Lab: LabEksClusterRole; trocar por LabRole se o EBS CSI falhar por permissão)"
+variable "node_role_name_regex" {
+  description = "Regex do nome da IAM role dos nós (Learner Lab: *-LabEksNodeRole-*)"
   type        = string
-  default     = "LabEksClusterRole"
+  default     = ".*LabEksNodeRole.*"
+}
+
+variable "cluster_role_arn" {
+  description = "ARN explícito da role do control plane (opcional; ignora a busca por regex)"
+  type        = string
+  default     = ""
+}
+
+variable "node_role_arn" {
+  description = "ARN explícito da role dos nós (opcional; ex.: arn:aws:iam::<conta>:role/LabRole se o EBS CSI falhar por permissão)"
+  type        = string
+  default     = ""
 }
 
 # Learner Lab: tipos até "large", máximo 9 instâncias / 32 vCPU simultâneas.
