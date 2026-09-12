@@ -3,7 +3,7 @@ import type { paths } from '@/shared/api/schema.gen'
 import { useSessionStore } from '@/shared/lib/session-store'
 
 // window.__ENV__ é injetado em runtime pelo entrypoint do container (docker-entrypoint.sh),
-// permitindo a mesma imagem 'web' apontar pra URLs diferentes por cluster (Oracle, AWS, ...)
+// permitindo a mesma imagem 'web' apontar pra URLs diferentes por cluster (AWS, kind, ...)
 // sem rebuild. VITE_API_BASE_URL (build-time) fica só como fallback pro dev local.
 const nonEmpty = (value: string | undefined) => (value && value.length > 0 ? value : undefined)
 

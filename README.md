@@ -26,7 +26,7 @@ Construí esta arquitetura de processamento de vídeos para o Hackathon da Fase 
 | Armazenamento persistente                       |   ✅   | Postgres (schema próprio por serviço) + MinIO (S3-compatible, vídeos/zips)                 |
 | Arquitetura horizontalmente escalável           |   ✅   | HPA (`video-api`) + KEDA (`video-worker`), serviços stateless sem sessão em memória         |
 | Testes automatizados e CI/CD                    |   ✅   | JaCoCo ≥90% linha (gate no `mvn verify`) + GitHub Actions (CI) a cada push/PR      |
-| Docker / Kubernetes                             |   ✅   | `docker-compose.yml` (dev) + manifests em [`k8s/`](./k8s) (cluster kind validado ao vivo) + overlay `oracle` para OKE |
+| Docker / Kubernetes                             |   ✅   | `docker-compose.yml` (dev) + manifests em [`k8s/`](./k8s) (cluster kind validado ao vivo) + overlay `aws` e Terraform (`k8s/terraform/aws/`) para EKS |
 | Message broker (RabbitMQ)                       |   ✅   | RabbitMQ com topologia de DLQ própria por fila                                             |
 | Postgres + Redis                                |   ✅   | Postgres por serviço; Redis no rate limiting de borda (`video-gateway`)                    |
 | Monitoramento (Prometheus/Grafana, ELK, etc.)   |   ✅   | `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager) via Helm, 3 dashboards + alerta de profundidade de fila, métricas de negócio e correlation-id ponta a ponta |
@@ -117,6 +117,16 @@ Faço todo trabalho em `develop`. Mantenho a `main` protegida e ela só recebe c
 
 ## Estado atual
 
-**Sprints 0–7 concluídas** (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)): pipeline fim a fim (upload → fila → `ffmpeg` → zip), autenticação JWT, API + Gateway, suíte de testes automatizados com piso de 90% de cobertura, deploy em Kubernetes local (HPA + KEDA validados ao vivo), frontend web completo (React), notificação multicanal resiliente (e-mail + webhook, Circuit Breaker + Bulkhead isolados por canal), e observabilidade completa (métricas de negócio, logging JSON estruturado, correlation-id ponta a ponta, `kube-prometheus-stack`). Pipeline de CD (`cd.yml`) pronto e dormente até a `main` existir no remoto.
+**Sprints 0–7 concluídas** (Spring Boot 4.1.0, Java 21 — ver [ADR-007](./docs/architecture/hld-lld-adr-rfc.md#adr-007--linguagens-e-versão-de-runtime-dos-serviços)): pipeline fim a fim (upload → fila → `ffmpeg` → zip), autenticação JWT, API + Gateway, suíte de testes automatizados com piso de 90% de cobertura, deploy em Kubernetes local (HPA + KEDA validados ao vivo), frontend web completo (React), notificação multicanal resiliente (e-mail + webhook, Circuit Breaker + Bulkhead isolados por canal), e observabilidade completa (métricas de negócio, logging JSON estruturado, correlation-id ponta a ponta, `kube-prometheus-stack`).
 
-Em andamento: deploy real em nuvem via Kubernetes gerenciado (Oracle OKE, Always Free) — Terraform e overlay em `k8s/terraform/oracle/` e `k8s/apps/overlays/oracle/`, ver a emenda Oracle no [ADR-012](./docs/architecture/hld-lld-adr-rfc.md#adr-012--sem-nuvem-pública-como-padrão-de-execução).
+Em andamento: deploy real em nuvem via Kubernetes gerenciado (AWS EKS, Learner Lab) — Terraform em `k8s/terraform/aws/`, overlay em `k8s/apps/overlays/aws/` e workflows `terraform-aws.yml` / `cd-aws.yml` / `destroy-aws.yml`, ver a emenda AWS no [ADR-012](./docs/architecture/hld-lld-adr-rfc.md#adr-012--sem-nuvem-pública-como-padrão-de-execução). Validado estaticamente (`terraform validate`, `kubectl kustomize`); ainda não aplicado contra a conta.
+
+## Deploy na AWS (EKS)
+
+Tudo roda pelo GitHub Actions, no Environment `AWS` (secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` do Learner Lab — expiram a cada sessão — e os `PROD_*` da aplicação). Ordem:
+
+1. `Terraform - AWS EKS` (`terraform-aws.yml`, `action: plan` e depois `apply`) — VPC, cluster EKS (`t3.large` ×2, add-on EBS CSI), 5 repositórios ECR. State no bucket S3 `fiapx-terraform-state-<account>`, criado automaticamente por `scripts/aws-tf-init.sh`.
+2. `CD - AWS EKS` (`cd-aws.yml`, a cada push em `main` ou manual) — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh` (add-ons, infra self-hosted, migração, aplicação). A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job.
+3. `Destroy AWS` (`destroy-aws.yml`) — ao fim de cada sessão: `scripts/aws-destroy.sh` (limpeza k8s → `terraform destroy` → varredura via `aws` CLI independente do state → `scripts/aws-validate.sh --strict`).
+
+Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`, `scripts/aws-sync-gh-secrets.sh` para renovar os 3 secrets via `gh`).

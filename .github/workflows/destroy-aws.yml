@@ -1,0 +1,59 @@
+name: Destroy AWS
+
+# Derruba tudo ao fim de uma sessão de testes (budget do Learner Lab). A varredura
+# via aws CLI (fase [3] do script) garante a limpeza mesmo se o terraform destroy
+# falhar — não depende do state.
+on:
+  workflow_dispatch:
+    inputs:
+      destroy_tf_state:
+        description: "Remover também o bucket S3 do state do Terraform"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-aws
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: AWS
+    env:
+      AWS_REGION: us-east-1
+      CLUSTER_NAME: fiapx
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+          terraform_wrapper: false
+
+      - name: Instalar kubectl e helm
+        run: |
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/kubectl
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Gerar kubeconfig do cluster EKS (best-effort — pode já não existir)
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME" || true
+
+      - name: Destruir tudo (k8s + terraform + varredura aws CLI + validação)
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.destroy_tf_state }}" = "true" ]; then EXTRA="--destroy-tf-state"; fi
+          ./scripts/aws-destroy.sh --region "$AWS_REGION" --auto-approve $EXTRA

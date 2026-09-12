@@ -1,15 +1,18 @@
-# Placeholder — ver emenda AWS no ADR-012. Falta ingressClassName real (ex.: alb),
-# host/TLS/cert-manager.
+# Mesma separação de rotas do overlay local — via ingress-nginx (1 Classic ELB só,
+# ver k8s/addons/install-ingress-nginx.sh). Sem "host": ainda sem domínio, só o
+# hostname do ELB.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: fiapx
   annotations:
-    kubernetes.io/ingress.class: "REPLACE_ME" # ex.: alb
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # video-api aceita upload até 520MB (spring.servlet.multipart.max-request-size).
+    nginx.ingress.kubernetes.io/proxy-body-size: "520m"
 spec:
+  ingressClassName: nginx
   rules:
-    - host: REPLACE_ME.example.com
-      http:
+    - http:
         paths:
           - path: /auth
             pathType: Prefix

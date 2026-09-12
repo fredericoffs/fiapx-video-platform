@@ -1,0 +1,58 @@
+name: Terraform - AWS EKS
+
+# Provisiona (ou destrói) VPC + EKS + ECR no Learner Lab. Credenciais temporárias do
+# lab ficam no GitHub Environment "AWS" e precisam ser renovadas a cada sessão.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação do Terraform"
+        required: true
+        type: choice
+        options: [ plan, apply, destroy ]
+        default: plan
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-aws
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: AWS
+    env:
+      AWS_REGION: us-east-1
+      TF_VAR_cluster_role_name: ${{ vars.EKS_CLUSTER_ROLE_NAME || 'LabEksClusterRole' }}
+      TF_VAR_node_role_name: ${{ vars.EKS_NODE_ROLE_NAME || 'LabEksClusterRole' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform plan
+        if: inputs.action == 'plan'
+        run: ./scripts/aws-up.sh --region "$AWS_REGION" --plan-only
+
+      - name: terraform apply
+        if: inputs.action == 'apply'
+        run: ./scripts/aws-up.sh --region "$AWS_REGION" --auto-approve
+
+      - name: terraform destroy
+        if: inputs.action == 'destroy'
+        run: |
+          ./scripts/aws-tf-init.sh k8s/terraform/aws
+          terraform -chdir=k8s/terraform/aws destroy -input=false -auto-approve
