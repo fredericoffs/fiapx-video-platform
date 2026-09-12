@@ -10,6 +10,11 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     # video-api aceita upload até 520MB (spring.servlet.multipart.max-request-size).
     nginx.ingress.kubernetes.io/proxy-body-size: "520m"
+    # Download do zip processado pode passar de 1GB; sem isso o nginx corta a conexão
+    # depois de 60s sem tráfego (default) e o navegador recebe "Failed to fetch".
+    # Precisa acompanhar o idle timeout do Classic ELB (k8s/addons/install-ingress-nginx.sh).
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: nginx
   rules:
