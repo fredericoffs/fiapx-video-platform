@@ -1,44 +1,20 @@
-# Buckets privados de vídeos (originais e zips). Nome com o account id (S3 é global) e
-# force_destroy porque o ambiente é descartado a cada sessão.
-resource "aws_s3_bucket" "videos" {
-  for_each = toset(["raw", "processed"])
-
-  bucket        = "${var.project}-videos-${each.key}-${local.account_id}"
-  force_destroy = true
-
-  tags = {
-    Name = "${var.project}-videos-${each.key}"
+# Buckets de vídeo (originais e zips): fiapx-videos-{raw,processed}-<account>. Criados por
+# scripts/aws-buckets-init.sh (aws CLI, idempotente, antes do plan) e não por aws_s3_bucket:
+# a SCP do Learner Lab nega s3:GetBucketObjectLockConfiguration, que o provider chama ao ler
+# o bucket, e o apply falha logo após a criação. O Terraform só publica os nomes (outputs).
+locals {
+  video_buckets = {
+    raw       = "${var.project}-videos-raw-${local.account_id}"
+    processed = "${var.project}-videos-processed-${local.account_id}"
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "videos" {
-  for_each = aws_s3_bucket.videos
+# Esquece do state os buckets criados por aws_s3_bucket numa versão anterior deste módulo,
+# sem apagá-los (os objetos e a limpeza ficam com scripts/aws-destroy.sh).
+removed {
+  from = aws_s3_bucket.videos
 
-  bucket                  = each.value.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "videos" {
-  for_each = aws_s3_bucket.videos
-
-  bucket = each.value.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_versioning" "videos" {
-  for_each = aws_s3_bucket.videos
-
-  bucket = each.value.id
-
-  versioning_configuration {
-    status = "Disabled"
+  lifecycle {
+    destroy = false
   }
 }
