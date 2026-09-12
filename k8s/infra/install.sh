@@ -11,7 +11,19 @@ REGISTRY="oci://registry-1.docker.io/bitnamicharts"
 kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
 
 install_helm() {
-  local release="$1" chart="$2" values="$3"
+  local release="$1" chart="$2" values="$3" status
+  # Um release que ficou failed/pending (ex.: --wait estourou o timeout numa execução
+  # anterior) bloqueia o próximo upgrade — remove antes, mantendo os PVCs.
+  status=""
+  if command -v jq >/dev/null 2>&1; then
+    status="$( (helm status "$release" --namespace "$NAMESPACE" -o json 2>/dev/null || true) | jq -r '.info.status // empty')"
+  fi
+  case "$status" in
+    failed|pending-install|pending-upgrade|pending-rollback)
+      echo "==> release ${release} em estado '${status}', removendo antes de reinstalar"
+      helm uninstall "$release" --namespace "$NAMESPACE" --wait --timeout 3m || true
+      ;;
+  esac
   echo "==> helm upgrade --install ${release} ${REGISTRY}/${chart}"
   helm upgrade --install "$release" "${REGISTRY}/${chart}" \
     --namespace "$NAMESPACE" \

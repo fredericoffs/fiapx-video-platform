@@ -69,8 +69,9 @@ wait_for_dns() {
   return 0
 }
 
-echo "==> [1/8] add-on aws-ebs-csi-driver"
+echo "==> [1/8] add-on aws-ebs-csi-driver + StorageClass padrão (gp3)"
 wait_for_ebs_csi
+kubectl apply -f "$ROOT_DIR/k8s/addons/aws/storageclass-gp3.yaml"
 
 echo "==> [2/8] ingress-nginx"
 "$ROOT_DIR/k8s/addons/install-ingress-nginx.sh"
