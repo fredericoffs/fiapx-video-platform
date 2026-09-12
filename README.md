@@ -129,4 +129,10 @@ Tudo roda pelo GitHub Actions, no Environment `AWS` (secrets `AWS_ACCESS_KEY_ID`
 2. `CD - AWS EKS` (`cd-aws.yml`, a cada push em `main` ou manual) — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh` (add-ons, infra self-hosted, migração, aplicação). A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job.
 3. `Destroy AWS` (`destroy-aws.yml`) — ao fim de cada sessão: `scripts/aws-destroy.sh` (limpeza k8s → `terraform destroy` → varredura via `aws` CLI independente do state → `scripts/aws-validate.sh --strict`).
 
-Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`, `scripts/aws-sync-gh-secrets.sh` para renovar os 3 secrets via `gh`).
+Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
+
+```bash
+pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
+```
+
+O script valida as credenciais (`aws sts get-caller-identity`), grava o perfil `default` em `~/.aws/credentials` e atualiza os secrets no Environment `AWS` via `gh`.
