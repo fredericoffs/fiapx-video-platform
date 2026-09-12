@@ -1,0 +1,123 @@
+name: Security scan (manual)
+
+# OWASP Dependency-Check (dependências Maven) + Trivy (imagens Docker) — só sob
+# demanda (workflow_dispatch), fora da esteira de CI de cada push. Relatórios
+# publicados como artefatos do run.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jvm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      # Sequencial: downloads simultâneos da base NVD estouram o rate limit da API.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        service: [video-gateway, video-api, video-worker, notification-worker]
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      # Cache da base NVD compartilhado entre os 4 serviços, key por dia.
+      - name: Get date for Dependency-Check cache key
+        id: get-date
+        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Dependency-Check NVD cache
+        id: restore-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+            dependency-check-nvd-
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw -B dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.service }}-dependency-check-report
+          path: ${{ matrix.service }}/target/dependency-check-report.html
+          retention-days: 30
+
+      - name: Build Docker image
+        run: docker build -t ${{ matrix.service }}:scan .
+
+      # Pinado por SHA (não tag): tags 0.0.1-0.34.2 tiveram supply-chain attack (GHSA-69fq-xp46-6x23).
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.service }}:scan
+          version: v0.74.0
+          format: sarif
+          output: ${{ matrix.service }}/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.service }}-trivy-report
+          path: ${{ matrix.service }}/trivy-results.sarif
+          retention-days: 30
+
+      - name: Save Dependency-Check NVD cache
+        if: always() && steps.restore-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .dependency-check-data
+          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm audit (dependências)
+        run: npm audit --audit-level=high
+
+      - name: Build Docker image
+        run: docker build -t web:scan .
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: web:scan
+          version: v0.74.0
+          format: sarif
+          output: web/trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-trivy-report
+          path: web/trivy-results.sarif
+          retention-days: 30
