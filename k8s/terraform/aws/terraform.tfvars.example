@@ -3,7 +3,7 @@
 # AWS_SECRET_ACCESS_KEY e AWS_SESSION_TOKEN do ambiente (Learner Lab > AWS Details).
 aws_region         = "us-east-1"
 cluster_name       = "fiapx"
-kubernetes_version = "1.31"
+kubernetes_version = "1.36"
 # Roles descobertas por regex (nomes do Learner Lab têm prefixo/sufixo aleatórios);
 # cluster_role_arn / node_role_arn sobrescrevem a busca se preenchidos.
 cluster_role_name_regex = ".*LabEksClusterRole.*"
