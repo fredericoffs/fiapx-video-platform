@@ -105,6 +105,12 @@ CI: dei a cada serviço seu próprio workflow em `.github/workflows/`, disparado
 
 **Qualidade e cobertura**: cobertura de teste com piso de 90% (linha, JaCoCo) nos 4 serviços — gate no `mvn verify` (`jacoco:check`), relatório publicado como artefato do CI.
 
+**Análise de segurança e qualidade (sob demanda)**: dois workflows manuais (`workflow_dispatch`, aba Actions), fora da esteira de cada push para não atrasá-la. `Security scan` roda OWASP Dependency-Check nas dependências Maven dos 4 serviços, `npm audit` no `web` e Trivy nas 5 imagens Docker, publicando os relatórios (HTML e SARIF) como artefatos do run. `Qodana` roda a análise estática JetBrains nos projetos JVM e web, com cobertura JaCoCo/lcov anexada.
+
+**Script de criação do banco de dados**: migrations Flyway versionadas por serviço — [`video-api/src/main/resources/db/migration`](./video-api/src/main/resources/db/migration) (`V1__init.sql` a `V4__outbox_correlation_id.sql`: vídeos, outbox, usuários, papel admin, correlation-id) e [`notification-worker/src/main/resources/db/migration`](./notification-worker/src/main/resources/db/migration) (`V1__init.sql`: registro de notificações). Cada serviço migra só o próprio schema; no Kubernetes a migração roda num Job antes do Deployment do `video-api`. Os buckets do MinIO são criados por `minio-init` (Compose) ou pelo Job `minio-init` (`k8s/infra/minio/init-job.yaml`).
+
+**Documentação de arquitetura**: [`docs/architecture/hld-lld-adr-rfc.md`](./docs/architecture/hld-lld-adr-rfc.md) (RFC, HLD, LLD com diagramas ER por schema, 13 ADRs) e os RFCs curtos [`RFC-001`](./docs/architecture/rfc/RFC-001-rabbitmq-vs-kafka.md) (RabbitMQ vs Kafka) e [`RFC-002`](./docs/architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md) (Spring Cloud Gateway vs Kong). Índice completo em [`docs/README.md`](./docs/README.md).
+
 **Documentação da API**: cada serviço expõe Swagger UI em `/swagger-ui.html` (OpenAPI 3.1 em `/v3/api-docs`, via [springdoc-openapi](https://springdoc.org/)) — mais relevante no `video-api`, que tem os endpoints de negócio (`/auth/**`, `/videos/**`). Postman collection correspondente versionada em [`docs/postman/fiapx-video-api.postman_collection.json`](./docs/postman/fiapx-video-api.postman_collection.json).
 
 ## Concorrência: virtual threads
