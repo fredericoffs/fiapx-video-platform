@@ -100,3 +100,78 @@ variable "private_subnet_cidrs" {
   type        = list(string)
   default     = ["10.30.32.0/20", "10.30.48.0/20"]
 }
+
+# ---- Serviços gerenciados (RDS, ElastiCache, SQS, S3) ----
+variable "db_password" {
+  description = "Senha do usuário master do RDS (vem do secret PROD_DB_PASSWORD; nunca versionar)"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_username" {
+  description = "Usuário master do RDS — o mesmo DB_USER dos serviços"
+  type        = string
+  default     = "fiapx"
+}
+
+variable "db_name" {
+  description = "Banco único; cada serviço usa o próprio schema (video_api, notification_worker)"
+  type        = string
+  default     = "fiapx"
+}
+
+variable "db_engine_version" {
+  description = "Versão major do PostgreSQL no RDS"
+  type        = string
+  default     = "17"
+}
+
+# Learner Lab: só nano/micro/small/medium.
+variable "db_instance_class" {
+  description = "Classe da instância RDS"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "db_allocated_storage_gb" {
+  description = "Armazenamento do RDS em GB (gp2, máximo 100 no Learner Lab)"
+  type        = number
+  default     = 20
+}
+
+variable "redis_node_type" {
+  description = "Tipo do nó ElastiCache"
+  type        = string
+  default     = "cache.t3.micro"
+}
+
+variable "redis_engine_version" {
+  description = "Versão do Redis no ElastiCache"
+  type        = string
+  default     = "7.1"
+}
+
+variable "redis_parameter_group" {
+  description = "Parameter group do ElastiCache (família redis7)"
+  type        = string
+  default     = "default.redis7"
+}
+
+# Deve cobrir FFMPEG_TIMEOUT_MINUTES (15 min) — o consumer ainda estende por heartbeat.
+variable "sqs_processing_visibility_timeout_seconds" {
+  description = "Visibility timeout da fila de processamento"
+  type        = number
+  default     = 960
+}
+
+variable "sqs_max_receive_count" {
+  description = "Recebimentos antes de mover para a DLQ (redrive)"
+  type        = number
+  default     = 3
+}
+
+variable "sqs_message_retention_seconds" {
+  description = "Retenção das mensagens (filas e DLQs)"
+  type        = number
+  default     = 345600
+}

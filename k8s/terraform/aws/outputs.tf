@@ -26,3 +26,23 @@ output "ecr_registry" {
 output "kubeconfig_command" {
   value = "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.this.name}"
 }
+
+output "rds_endpoint" {
+  description = "Host do PostgreSQL (DB_HOST)"
+  value       = aws_db_instance.this.address
+}
+
+output "redis_endpoint" {
+  description = "Host do Redis (REDIS_HOST)"
+  value       = aws_elasticache_cluster.this.cache_nodes[0].address
+}
+
+output "sqs_queue_urls" {
+  description = "URLs das filas principais, por chave lógica"
+  value       = { for key, queue in aws_sqs_queue.main : key => queue.url }
+}
+
+output "s3_buckets" {
+  description = "Buckets de vídeos (raw/processed)"
+  value       = { for key, bucket in aws_s3_bucket.videos : key => bucket.bucket }
+}

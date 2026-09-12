@@ -1,6 +1,6 @@
 name: Terraform - AWS EKS
 
-# Provisiona (ou destrói) VPC + EKS + ECR no Learner Lab. Credenciais temporárias do
+# Provisiona (ou destrói) VPC + EKS + ECR + RDS + ElastiCache + SQS + S3 no Learner Lab. Credenciais temporárias do
 # lab ficam no GitHub Environment "AWS" e precisam ser renovadas a cada sessão.
 on:
   workflow_dispatch:
@@ -30,6 +30,8 @@ jobs:
       # Learner Lab por regex (*-LabEksClusterRole-*, *-LabEksNodeRole-*).
       TF_VAR_cluster_role_arn: ${{ vars.EKS_CLUSTER_ROLE_ARN || '' }}
       TF_VAR_node_role_arn: ${{ vars.EKS_NODE_ROLE_ARN || '' }}
+      # Senha master do RDS — a mesma que cd-aws.yml entrega aos serviços como DB_PASSWORD.
+      TF_VAR_db_password: ${{ secrets.PROD_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v7
 
