@@ -1,0 +1,27 @@
+# Perfil aws (SPRING_PROFILES_ACTIVE=aws): SQS no lugar do RabbitMQ e S3 real no lugar do MinIO.
+# Sem RabbitMQ no classpath ativo: a autoconfiguração e o health indicator ficam fora, e os
+# beans Rabbit (condicionais a fiapx.messaging.provider=rabbitmq) não são criados.
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration
+      - org.springframework.boot.amqp.autoconfigure.health.RabbitHealthContributorAutoConfiguration
+
+fiapx:
+  messaging:
+    provider: sqs
+  sqs:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${SQS_ENDPOINT:}
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:}
+    access-key: ${STORAGE_ACCESS_KEY:}
+    secret-key: ${STORAGE_SECRET_KEY:}
+    path-style: ${STORAGE_PATH_STYLE:false}
+  queues:
+    processing: ${QUEUE_PROCESSING:fiapx-video-processing}
+    processing-dlq: ${QUEUE_PROCESSING_DLQ:fiapx-video-processing-dlq}
+    status-updates: ${QUEUE_STATUS_UPDATES:fiapx-video-status-updates}
+    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:fiapx-video-status-updates-dlq}
+    notification: ${QUEUE_NOTIFICATION:fiapx-video-notification}
+    notification-dlq: ${QUEUE_NOTIFICATION_DLQ:fiapx-video-notification-dlq}
