@@ -69,8 +69,8 @@ public class RabbitMessagePublisher implements MessagePublisher {
       throw new MessagePublishException("Mensagem devolvida pelo broker (fila " + queueName + " não roteável): "
           + correlationData.getReturned().getReplyText());
     }
-    if (!confirm.isAck()) {
-      throw new MessagePublishException("Broker recusou (nack) a publicação em " + queueName + ": " + confirm.getReason());
+    if (!confirm.ack()) {
+      throw new MessagePublishException("Broker recusou (nack) a publicação em " + queueName + ": " + confirm.reason());
     }
   }
 }
