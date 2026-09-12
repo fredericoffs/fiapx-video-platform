@@ -44,7 +44,7 @@ class RequestVideoProcessingUseCaseTest {
     storageClient = mock(StorageClient.class);
     ObjectMapper objectMapper = JsonMapper.builder().build();
     StorageProperties storageProperties = new StorageProperties("http://localhost:9000", "key", "secret",
-        "videos-raw", "videos-processed");
+        "videos-raw", "videos-processed", "us-east-1", true);
 
     when(videoRepository.save(any(Video.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

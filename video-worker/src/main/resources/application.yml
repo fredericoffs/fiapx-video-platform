@@ -45,6 +45,9 @@ fiapx:
     secret-key: ${STORAGE_SECRET_KEY:minioadmin}
     bucket-raw: ${STORAGE_BUCKET_RAW:videos-raw}
     bucket-processed: ${STORAGE_BUCKET_PROCESSED:videos-processed}
+    # Vazios no perfil aws: endpoint regional do S3 e credenciais da cadeia padrão do SDK.
+    region: ${STORAGE_REGION:us-east-1}
+    path-style: ${STORAGE_PATH_STYLE:true}
   ffmpeg:
     binary-path: ${FFMPEG_PATH:ffmpeg}
     fps: ${FFMPEG_FPS:1}

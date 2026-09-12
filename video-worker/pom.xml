@@ -121,6 +121,11 @@
       <artifactId>testcontainers-rabbitmq</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-localstack</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -152,7 +157,6 @@
                    decidiu, por escrito, que fica fora do gate. -->
               <excludes>
                 <exclude>**/*Application.class</exclude>
-                <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
               </excludes>
             </configuration>
           </execution>
@@ -163,13 +167,11 @@
               <goal>check</goal>
             </goals>
             <configuration>
-              <!-- S3StorageClient chama o SDK da AWS e é substituído por fake nos testes
-                   de listener; fica fora do gate até ter teste próprio de integração.
-                   FfmpegFrameExtractor e ZipFileArchiver têm testes unitários próprios
-                   (binário fake e ffmpeg real quando disponível) e entram no gate. -->
+              <!-- Só a classe main fica fora do gate: ffmpeg/archive têm testes unitários
+                   (binário fake e ffmpeg real quando disponível) e o S3StorageClient tem
+                   teste de integração com LocalStack. -->
               <excludes>
                 <exclude>**/*Application.class</exclude>
-                <exclude>**/infrastructure/storage/S3StorageClient.class</exclude>
               </excludes>
               <rules>
                 <rule>

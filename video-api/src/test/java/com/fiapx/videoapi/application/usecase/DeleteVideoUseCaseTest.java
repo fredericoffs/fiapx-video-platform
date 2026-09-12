@@ -30,7 +30,7 @@ class DeleteVideoUseCaseTest {
     videoRepository = mock(VideoRepository.class);
     storageClient = mock(StorageClient.class);
     StorageProperties storageProperties = new StorageProperties("http://localhost:9000", "key", "secret",
-        "videos-raw", "videos-processed");
+        "videos-raw", "videos-processed", "us-east-1", true);
     useCase = new DeleteVideoUseCase(videoRepository, storageClient, storageProperties);
   }
 
