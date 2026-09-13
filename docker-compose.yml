@@ -123,6 +123,7 @@ services:
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-minioadmin}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-minioadmin}
       FFMPEG_TIMEOUT_MINUTES: ${FFMPEG_TIMEOUT_MINUTES:-15}
+      FFMPEG_MAX_DURATION_SECONDS: ${FFMPEG_MAX_DURATION_SECONDS:-1800}
     depends_on:
       rabbitmq:
         condition: service_healthy
