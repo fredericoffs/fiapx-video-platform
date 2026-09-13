@@ -43,7 +43,7 @@ wait_for_ebs_csi() {
   return 1
 }
 
-# Na AWS o Service LoadBalancer expõe hostname (Classic ELB), não IP.
+# Na AWS o Service LoadBalancer expõe hostname (NLB), não IP.
 wait_for_lb_hostname() {
   local timeout=300 elapsed=0 host=""
   while [ "$elapsed" -lt "$timeout" ]; do
