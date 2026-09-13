@@ -24,7 +24,6 @@ public class FfmpegFrameExtractor implements FrameExtractor {
 
 	static final int MAX_LOG_BYTES = 64 * 1024;
 	private static final long KILL_GRACE_SECONDS = 5;
-	private static final long PROBE_TIMEOUT_SECONDS = 30;
 
 	private final FfmpegProperties ffmpegProperties;
 
@@ -107,22 +106,26 @@ public class FfmpegFrameExtractor implements FrameExtractor {
 			throw new FfmpegProcessingException("Falha ao executar ffprobe para " + videoFile, e);
 		}
 
-		String output;
 		try {
-			// Saída do ffprobe é minúscula (um número) — ler tudo antes do waitFor não arrisca o
-			// deadlock que o run() do ffmpeg evita (ali a saída pode ser grande e demorada).
-			output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
-			if (!process.waitFor(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+			// Ao contrário do run() do ffmpeg (saída redirecionada pra arquivo, pode ser grande e
+			// demorada), aqui é seguro esperar o processo primeiro e ler a saída depois: a saída do
+			// ffprobe com esses argumentos é só um número, nunca chega perto de encher o buffer do
+			// pipe do SO — não arrisca o processo travar num write() esperando alguém ler.
+			if (!process.waitFor(ffmpegProperties.probeTimeoutSeconds(), TimeUnit.SECONDS)) {
 				killTree(process);
 				throw new FfmpegProcessingException("Timeout ao consultar duração do vídeo " + videoFile);
 			}
-		} catch (IOException e) {
-			killTree(process);
-			throw new FfmpegProcessingException("Falha ao ler saída do ffprobe para " + videoFile, e);
 		} catch (InterruptedException e) {
 			killTree(process);
 			Thread.currentThread().interrupt();
 			throw new FfmpegProcessingException("Execução do ffprobe interrompida para " + videoFile, e);
+		}
+
+		String output;
+		try {
+			output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
+		} catch (IOException e) {
+			throw new FfmpegProcessingException("Falha ao ler saída do ffprobe para " + videoFile, e);
 		}
 
 		if (process.exitValue() != 0) {

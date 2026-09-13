@@ -56,6 +56,7 @@ fiapx:
     process-timeout-minutes: ${FFMPEG_TIMEOUT_MINUTES:15}
     # 1800s = 30 min. <= 0 desliga o limite.
     max-duration-seconds: ${FFMPEG_MAX_DURATION_SECONDS:1800}
+    probe-timeout-seconds: ${FFMPEG_PROBE_TIMEOUT_SECONDS:30}
   messaging:
     provider: ${MESSAGING_PROVIDER:rabbitmq}
     confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}

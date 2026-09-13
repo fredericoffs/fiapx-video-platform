@@ -41,7 +41,7 @@ class FfmpegFrameExtractorRealBinaryTest {
 
     Path frames = Files.createDirectory(tempDir.resolve("frames"));
     // maxDurationSeconds=60: bem acima dos 3s do vídeo, prova que o ffprobe real não barra o caminho feliz.
-    new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 60)).extractFrames(video, frames, 1);
+    new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 60, 30)).extractFrames(video, frames, 1);
 
     try (Stream<Path> files = Files.list(frames)) {
       assertThat(files.filter(p -> p.toString().endsWith(".png")).count()).isBetween(2L, 4L);
@@ -55,7 +55,7 @@ class FfmpegFrameExtractorRealBinaryTest {
 
     // maxDurationSeconds=0: desliga o limite, senão o próprio ffprobe já rejeitaria a entrada
     // corrompida antes de chegar no ffmpeg, que é o que este teste quer exercitar.
-    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 0))
+    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 0, 30))
         .extractFrames(video, frames, 1))
         .isInstanceOf(FfmpegProcessingException.class)
         .hasMessageContaining("código");
@@ -71,7 +71,7 @@ class FfmpegFrameExtractorRealBinaryTest {
 
     Path frames = Files.createDirectory(tempDir.resolve("frames"));
 
-    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 1))
+    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 1, 30))
         .extractFrames(video, frames, 1))
         .isInstanceOf(FfmpegProcessingException.class)
         .hasMessageContaining("excede o limite de 1s");

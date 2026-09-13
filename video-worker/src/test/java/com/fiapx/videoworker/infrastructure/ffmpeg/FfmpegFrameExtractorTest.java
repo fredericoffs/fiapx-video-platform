@@ -212,6 +212,42 @@ class FfmpegFrameExtractorTest {
   }
 
   @Test
+  void killsFfprobeAndFailsWhenProbeTimeoutExpires() throws IOException {
+    Path fakeFfprobe = fakeBinary("""
+        #!/bin/sh
+        sleep 30
+        exit 0
+        """);
+
+    Instant start = Instant.now();
+    assertThatThrownBy(() -> extractorWithProbeTimeout(fakeFfprobe, 0).extractFrames(videoFile, framesDir, 1))
+        .isInstanceOf(FfmpegProcessingException.class)
+        .hasMessageContaining("Timeout ao consultar duração");
+
+    // 0s de prazo: o waitFor volta na hora e o processo (sleep 30) é derrubado, não esperado.
+    assertThat(Duration.between(start, Instant.now())).isLessThan(Duration.ofSeconds(10));
+  }
+
+  @Test
+  void killsFfprobeAndRestoresInterruptFlagWhenThreadIsInterrupted() throws IOException {
+    Path fakeFfprobe = fakeBinary("""
+        #!/bin/sh
+        sleep 30
+        exit 0
+        """);
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> extractorWithProbeTimeout(fakeFfprobe, 5).extractFrames(videoFile, framesDir, 1))
+          .isInstanceOf(FfmpegProcessingException.class)
+          .hasMessageContaining("ffprobe interrompida");
+      assertThat(Thread.currentThread().isInterrupted()).isTrue();
+    } finally {
+      Thread.interrupted(); // limpa a flag para não vazar para outros testes
+    }
+  }
+
+  @Test
   void failsWhenBinaryDoesNotExist() {
     Path missing = tempDir.resolve("no-such-ffmpeg");
 
@@ -237,12 +273,18 @@ class FfmpegFrameExtractorTest {
 
   private FfmpegFrameExtractor extractor(Path binary, int timeoutMinutes) {
     // maxDurationSeconds=0 desliga o limite — estes testes não exercitam o ffprobe.
-    return new FfmpegFrameExtractor(new FfmpegProperties(binary.toString(), "ffprobe", 1, timeoutMinutes, 0));
+    return new FfmpegFrameExtractor(new FfmpegProperties(binary.toString(), "ffprobe", 1, timeoutMinutes, 0, 30));
   }
 
   private FfmpegFrameExtractor extractorWithDurationLimit(Path ffmpeg, Path ffprobe, int maxDurationSeconds) {
     return new FfmpegFrameExtractor(
-        new FfmpegProperties(ffmpeg.toString(), ffprobe.toString(), 1, 1, maxDurationSeconds));
+        new FfmpegProperties(ffmpeg.toString(), ffprobe.toString(), 1, 1, maxDurationSeconds, 30));
+  }
+
+  private FfmpegFrameExtractor extractorWithProbeTimeout(Path ffprobe, long probeTimeoutSeconds) {
+    return new FfmpegFrameExtractor(
+        new FfmpegProperties(tempDir.resolve("unused-ffmpeg").toString(), ffprobe.toString(), 1, 1, 60,
+            probeTimeoutSeconds));
   }
 
   private Path fakeBinary(String script) throws IOException {
