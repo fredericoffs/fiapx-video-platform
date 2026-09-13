@@ -2,6 +2,7 @@ package com.fiapx.videoapi.infrastructure.web;
 
 import com.fiapx.videoapi.domain.exception.EmailAlreadyRegisteredException;
 import com.fiapx.videoapi.domain.exception.InvalidCredentialsException;
+import com.fiapx.videoapi.domain.exception.InvalidCurrentPasswordException;
 import com.fiapx.videoapi.domain.exception.InvalidFilenameException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
 import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Decidi que todas as respostas aqui sejam {@code application/problem+json} (RFC 7807, via
@@ -51,6 +53,11 @@ public class GlobalExceptionHandler {
     return problem(HttpStatus.UNAUTHORIZED, "Credenciais inválidas", e.getMessage());
   }
 
+  @ExceptionHandler(InvalidCurrentPasswordException.class)
+  public ProblemDetail handleInvalidCurrentPassword(InvalidCurrentPasswordException e) {
+    return problem(HttpStatus.UNAUTHORIZED, "Senha atual inválida", e.getMessage());
+  }
+
   @ExceptionHandler(LoginRateLimitExceededException.class)
   public ProblemDetail handleLoginRateLimitExceeded(LoginRateLimitExceededException e) {
     return problem(HttpStatus.TOO_MANY_REQUESTS, "Muitas tentativas de login", e.getMessage());
@@ -64,6 +71,12 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(InvalidFilenameException.class)
   public ProblemDetail handleInvalidFilename(InvalidFilenameException e) {
     return problem(HttpStatus.BAD_REQUEST, "Nome de arquivo inválido", e.getMessage());
+  }
+
+  @ExceptionHandler(MaxUploadSizeExceededException.class)
+  public ProblemDetail handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+    return problem(HttpStatus.PAYLOAD_TOO_LARGE, "Arquivo excede o tamanho máximo permitido",
+        "Reduza o tamanho do vídeo e tente novamente (limite: spring.servlet.multipart.max-file-size)");
   }
 
   private ProblemDetail problem(HttpStatus status, String title, String detail) {

@@ -33,6 +33,8 @@ public class FfmpegFrameExtractor implements FrameExtractor {
 
 	@Override
 	public void extractFrames(Path videoFile, Path outputDir, int fps) {
+		ensureDurationWithinLimit(videoFile);
+
 		List<String> command = List.of(ffmpegProperties.binaryPath(), "-y", "-hide_banner", "-loglevel", "error", "-i",
 				videoFile.toString(), "-vf", "fps=" + fps, outputDir.resolve("frame_%04d.png").toString());
 
@@ -72,6 +74,69 @@ public class FfmpegFrameExtractor implements FrameExtractor {
 			killTree(process);
 			Thread.currentThread().interrupt();
 			throw new FfmpegProcessingException("Execução do ffmpeg interrompida para " + videoFile, e);
+		}
+	}
+
+	/**
+	 * fps=1 decodifica o vídeo inteiro — duração é o que mais pesa em CPU e no tamanho do zip
+	 * final, então consulto com ffprobe (rápido, não decodifica frame nenhum) antes de pagar o
+	 * custo da extração completa.
+	 */
+	private void ensureDurationWithinLimit(Path videoFile) {
+		int maxSeconds = ffmpegProperties.maxDurationSeconds();
+		if (maxSeconds <= 0) {
+			return;
+		}
+		double durationSeconds = probeDurationSeconds(videoFile);
+		if (durationSeconds > maxSeconds) {
+			throw new FfmpegProcessingException(String.format(
+					"Vídeo com %.0fs de duração excede o limite de %ds permitido nesta infraestrutura", durationSeconds,
+					maxSeconds));
+		}
+	}
+
+	private double probeDurationSeconds(Path videoFile) {
+		List<String> command = List.of(ffmpegProperties.ffprobeBinaryPath(), "-v", "error", "-show_entries",
+				"format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoFile.toString());
+
+		Process process;
+		try {
+			process = new ProcessBuilder(command).redirectErrorStream(true).start();
+		} catch (IOException e) {
+			throw new FfmpegProcessingException("Falha ao executar ffprobe para " + videoFile, e);
+		}
+
+		try {
+			// Ao contrário do run() do ffmpeg (saída redirecionada pra arquivo, pode ser grande e
+			// demorada), aqui é seguro esperar o processo primeiro e ler a saída depois: a saída do
+			// ffprobe com esses argumentos é só um número, nunca chega perto de encher o buffer do
+			// pipe do SO — não arrisca o processo travar num write() esperando alguém ler.
+			if (!process.waitFor(ffmpegProperties.probeTimeoutSeconds(), TimeUnit.SECONDS)) {
+				killTree(process);
+				throw new FfmpegProcessingException("Timeout ao consultar duração do vídeo " + videoFile);
+			}
+		} catch (InterruptedException e) {
+			killTree(process);
+			Thread.currentThread().interrupt();
+			throw new FfmpegProcessingException("Execução do ffprobe interrompida para " + videoFile, e);
+		}
+
+		String output;
+		try {
+			output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
+		} catch (IOException e) {
+			throw new FfmpegProcessingException("Falha ao ler saída do ffprobe para " + videoFile, e);
+		}
+
+		if (process.exitValue() != 0) {
+			throw new FfmpegProcessingException(
+					"ffprobe saiu com código " + process.exitValue() + " para " + videoFile + ": " + output);
+		}
+		try {
+			return Double.parseDouble(output);
+		} catch (NumberFormatException e) {
+			throw new FfmpegProcessingException("Não foi possível determinar a duração de " + videoFile + " (saída: \""
+					+ output + "\")");
 		}
 	}
 

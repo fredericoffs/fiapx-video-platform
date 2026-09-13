@@ -54,10 +54,12 @@ public class AdminController {
   })
   @GetMapping(value = "/users", produces = MediaType.APPLICATION_JSON_VALUE)
   public AdminUserListResponse listUsers(
+      @Parameter(description = "Filtro opcional — substring do e-mail, sem diferenciar maiúsculas/minúsculas")
+      @RequestParam(required = false) String email,
       @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
       @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
   ) {
-    PageResult<User> result = listAllUsersUseCase.handle(page, size);
+    PageResult<User> result = listAllUsersUseCase.handle(email, page, size);
     return AdminUserListResponse.from(result);
   }
 
@@ -89,10 +91,12 @@ public class AdminController {
   @GetMapping(value = "/videos", produces = MediaType.APPLICATION_JSON_VALUE)
   public AdminVideoListResponse listVideos(
       @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
+      @Parameter(description = "Filtro opcional — substring do nome do arquivo, sem diferenciar maiúsculas/minúsculas")
+      @RequestParam(required = false) String filename,
       @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
       @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
   ) {
-    PageResult<VideoWithOwner> result = listAllVideosUseCase.handle(status, page, size);
+    PageResult<VideoWithOwner> result = listAllVideosUseCase.handle(status, filename, page, size);
     return AdminVideoListResponse.from(result);
   }
 }

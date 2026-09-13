@@ -61,16 +61,18 @@ function toAdminVideo(dto: components['schemas']['AdminVideoResponse']): AdminVi
 
 export const adminKeys = {
   all: ['admin'] as const,
-  users: (page: number, size: number) => [...adminKeys.all, 'users', page, size] as const,
-  videos: (page: number, size: number) => [...adminKeys.all, 'videos', page, size] as const,
+  users: (page: number, size: number, email: string) =>
+    [...adminKeys.all, 'users', page, size, email] as const,
+  videos: (page: number, size: number, filename: string) =>
+    [...adminKeys.all, 'videos', page, size, filename] as const,
 }
 
-export function useAdminUsersQuery(page: number, size: PageSize) {
+export function useAdminUsersQuery(page: number, size: PageSize, email = '') {
   return useQuery({
-    queryKey: adminKeys.users(page, size),
+    queryKey: adminKeys.users(page, size, email),
     queryFn: async (): Promise<Page<AdminUser>> => {
       const { data, response } = await apiClient.GET('/admin/users', {
-        params: { query: { page, size } },
+        params: { query: email ? { page, size, email } : { page, size } },
       })
       if (!response.ok || !data) {
         throw new Error('Não foi possível carregar os usuários')
@@ -87,12 +89,12 @@ export function useAdminUsersQuery(page: number, size: PageSize) {
   })
 }
 
-export function useAdminVideosQuery(page: number, size: PageSize) {
+export function useAdminVideosQuery(page: number, size: PageSize, filename = '') {
   return useQuery({
-    queryKey: adminKeys.videos(page, size),
+    queryKey: adminKeys.videos(page, size, filename),
     queryFn: async (): Promise<Page<AdminVideo>> => {
       const { data, response } = await apiClient.GET('/admin/videos', {
-        params: { query: { page, size } },
+        params: { query: filename ? { page, size, filename } : { page, size } },
       })
       if (!response.ok || !data) {
         throw new Error('Não foi possível carregar os vídeos')

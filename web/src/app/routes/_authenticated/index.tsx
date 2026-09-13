@@ -1,11 +1,18 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useSessionStore } from '@/shared/lib/session-store'
 import { hasNonTerminalVideo, useVideosQuery } from '@/shared/api/videos'
 import { UploadProcessingScene } from '@/shared/ui/illustrations/upload-processing-scene'
 import { UploadDropzone } from '@/features/upload/components/upload-dropzone'
 import { VideoList } from '@/features/videos/components/video-list'
 
 export const Route = createFileRoute('/_authenticated/')({
+  beforeLoad: () => {
+    const session = useSessionStore.getState().session
+    if (session?.role === 'ADMIN') {
+      redirect({ to: '/admin', throw: true })
+    }
+  },
   component: DashboardPage,
 })
 

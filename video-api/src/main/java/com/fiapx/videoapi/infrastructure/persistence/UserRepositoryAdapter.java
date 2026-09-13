@@ -46,9 +46,11 @@ public class UserRepositoryAdapter implements UserRepository {
   }
 
   @Override
-  public PageResult<User> findAll(int page, int size) {
+  public PageResult<User> findAll(String emailFilter, int page, int size) {
     PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-    Page<UserEntity> result = springDataUserRepository.findAll(pageRequest);
+    Page<UserEntity> result = (emailFilter == null || emailFilter.isBlank())
+        ? springDataUserRepository.findAll(pageRequest)
+        : springDataUserRepository.findByEmailContainingIgnoreCase(emailFilter, pageRequest);
     List<User> items = result.getContent().stream().map(UserMapper::toDomain).toList();
     return new PageResult<>(items, page, size, result.getTotalElements());
   }

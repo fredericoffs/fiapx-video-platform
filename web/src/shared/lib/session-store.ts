@@ -6,12 +6,14 @@ export interface Session {
   token: string
   email: string
   role: Role
+  mustChangePassword: boolean
 }
 
 interface SessionState {
   session: Session | null
   setSession: (session: Session) => void
   clearSession: () => void
+  clearMustChangePassword: () => void
 }
 
 /**
@@ -28,5 +30,10 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
   clearSession: () => {
     set({ session: null })
+  },
+  clearMustChangePassword: () => {
+    set((state) =>
+      state.session ? { session: { ...state.session, mustChangePassword: false } } : state,
+    )
   },
 }))

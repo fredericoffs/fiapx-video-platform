@@ -5,7 +5,8 @@ import com.fiapx.videoapi.domain.model.Role;
 public record LoginResult(
     String accessToken,
     long expiresInSeconds,
-    Role role
+    Role role,
+    boolean mustChangePassword
 ) {
 
 }

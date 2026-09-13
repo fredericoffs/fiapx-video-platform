@@ -1,6 +1,10 @@
 import { useMutation } from '@tanstack/react-query'
 import { apiClient } from '@/shared/api/client'
-import type { LoginFormValues, RegisterFormValues } from '@/features/auth/lib/schemas'
+import type {
+  ChangePasswordFormValues,
+  LoginFormValues,
+  RegisterFormValues,
+} from '@/features/auth/lib/schemas'
 
 export class AuthApiError extends Error {
   status: number
@@ -28,7 +32,25 @@ export function useLoginMutation() {
         }
         throw new AuthApiError('Não foi possível entrar. Tente novamente.', response.status)
       }
-      return { accessToken: data.accessToken, role: data.role ?? 'USER' }
+      return {
+        accessToken: data.accessToken,
+        role: data.role ?? 'USER',
+        mustChangePassword: data.mustChangePassword ?? false,
+      }
+    },
+  })
+}
+
+export function useChangePasswordMutation() {
+  return useMutation({
+    mutationFn: async (input: ChangePasswordFormValues) => {
+      const { response } = await apiClient.PUT('/users/me/password', { body: input })
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new AuthApiError('Senha atual incorreta', response.status)
+        }
+        throw new AuthApiError('Não foi possível trocar a senha. Tente novamente.', response.status)
+      }
     },
   })
 }

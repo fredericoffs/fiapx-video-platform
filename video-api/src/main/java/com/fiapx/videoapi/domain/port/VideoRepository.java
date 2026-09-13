@@ -14,7 +14,7 @@ public interface VideoRepository {
 
   PageResult<Video> findByUserId(UUID userId, VideoStatus statusFilter, int page, int size);
 
-  PageResult<Video> findAll(VideoStatus statusFilter, int page, int size);
+  PageResult<Video> findAll(VideoStatus statusFilter, String filenameFilter, int page, int size);
 
   void deleteById(UUID id);
 }

@@ -26,7 +26,12 @@ export function RegisterForm() {
       onSuccess: () => {
         loginMutation.mutate(values, {
           onSuccess: (data) => {
-            setSession({ token: data.accessToken, email: values.email, role: data.role })
+            setSession({
+              token: data.accessToken,
+              email: values.email,
+              role: data.role,
+              mustChangePassword: data.mustChangePassword,
+            })
             toast.success('Conta criada com sucesso')
             void navigate({ to: '/' })
           },

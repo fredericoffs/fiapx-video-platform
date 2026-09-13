@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+  '/users/me/password': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Troca a senha do usuário autenticado
+     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword).
+     */
+    put: operations['changePassword']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/videos': {
     parameters: {
       query?: never
@@ -176,6 +196,19 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** @description Troca de senha do próprio usuário autenticado */
+    ChangePasswordRequest: {
+      /**
+       * @description Senha atual, pra confirmar que é o dono da conta
+       * @example Admin@123
+       */
+      currentPassword: string
+      /**
+       * @description 8 a 100 caracteres — armazenada com hash BCrypt, nunca em texto puro
+       * @example nova-senha-secreta-123
+       */
+      newPassword: string
+    }
     /** @description Confirmação de upload aceito para processamento */
     VideoUploadResponse: {
       /**
@@ -254,6 +287,11 @@ export interface components {
        * @enum {string}
        */
       role?: 'USER' | 'ADMIN'
+      /**
+       * @description true quando o usuário precisa trocar a senha antes de continuar — o frontend deve redirecionar direto pra tela de troca de senha, sem deixar navegar pro resto da aplicação
+       * @example false
+       */
+      mustChangePassword?: boolean
     }
     /** @description Página de resultados da listagem de vídeos do usuário autenticado */
     VideoListResponse: {
@@ -422,6 +460,42 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  changePassword: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangePasswordRequest']
+      }
+    }
+    responses: {
+      /** @description Senha alterada */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Nova senha fora do padrão (8 a 100 caracteres) */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Senha atual incorreta */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   list: {
     parameters: {
       query?: {
@@ -697,6 +771,8 @@ export interface operations {
       query?: {
         /** @description Filtro opcional por status */
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+        /** @description Filtro opcional — substring do nome do arquivo, sem diferenciar maiúsculas/minúsculas */
+        filename?: string
         /** @description Página, começando em 0 */
         page?: number
         /** @description Itens por página */
@@ -729,6 +805,8 @@ export interface operations {
   listUsers: {
     parameters: {
       query?: {
+        /** @description Filtro opcional — substring do e-mail, sem diferenciar maiúsculas/minúsculas */
+        email?: string
         /** @description Página, começando em 0 */
         page?: number
         /** @description Itens por página */

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ThemeToggle } from '@/app/theme-toggle'
 import { LogoutButton } from '@/app/logout-button'
 import { AdminLink } from '@/app/admin-link'
+import { ChangePasswordLink } from '@/app/change-password-link'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <AdminLink />
+          <ChangePasswordLink />
           <LogoutButton />
         </div>
       </header>

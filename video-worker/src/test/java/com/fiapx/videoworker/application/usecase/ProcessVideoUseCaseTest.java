@@ -38,7 +38,7 @@ class ProcessVideoUseCaseTest {
   private final Archiver archiver = mock(Archiver.class);
   private final StorageProperties storageProperties = new StorageProperties("http://localhost:9000", "key", "secret", "videos-raw",
       "videos-processed", "us-east-1", true);
-  private final FfmpegProperties ffmpegProperties = new FfmpegProperties("ffmpeg", 1, 15);
+  private final FfmpegProperties ffmpegProperties = new FfmpegProperties("ffmpeg", "ffprobe", 1, 15, 1800, 30);
   private final ProcessVideoUseCase useCase = new ProcessVideoUseCase(storageClient, frameExtractor, archiver, storageProperties, ffmpegProperties);
 
   @Test

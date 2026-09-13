@@ -14,4 +14,10 @@ public interface SpringDataVideoRepository extends JpaRepository<VideoEntity, UU
   Page<VideoEntity> findByUserIdAndStatus(UUID userId, VideoStatus status, Pageable pageable);
 
   Page<VideoEntity> findByStatus(VideoStatus status, Pageable pageable);
+
+  Page<VideoEntity> findByOriginalFilenameContainingIgnoreCase(String originalFilename, Pageable pageable);
+
+  Page<VideoEntity> findByStatusAndOriginalFilenameContainingIgnoreCase(
+      VideoStatus status, String originalFilename, Pageable pageable
+  );
 }

@@ -50,9 +50,13 @@ fiapx:
     path-style: ${STORAGE_PATH_STYLE:true}
   ffmpeg:
     binary-path: ${FFMPEG_PATH:ffmpeg}
+    ffprobe-binary-path: ${FFPROBE_PATH:ffprobe}
     fps: ${FFMPEG_FPS:1}
     # Prazo real do subprocesso; alinhar ao visibility timeout da fila de processamento.
     process-timeout-minutes: ${FFMPEG_TIMEOUT_MINUTES:15}
+    # 1800s = 30 min. <= 0 desliga o limite.
+    max-duration-seconds: ${FFMPEG_MAX_DURATION_SECONDS:1800}
+    probe-timeout-seconds: ${FFMPEG_PROBE_TIMEOUT_SECONDS:30}
   messaging:
     provider: ${MESSAGING_PROVIDER:rabbitmq}
     confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}

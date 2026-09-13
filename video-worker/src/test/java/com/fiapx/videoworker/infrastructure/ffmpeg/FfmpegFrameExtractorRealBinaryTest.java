@@ -40,7 +40,8 @@ class FfmpegFrameExtractorRealBinaryTest {
     assertThat(gen.waitFor(60, TimeUnit.SECONDS) && gen.exitValue() == 0).isTrue();
 
     Path frames = Files.createDirectory(tempDir.resolve("frames"));
-    new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", 1, 5)).extractFrames(video, frames, 1);
+    // maxDurationSeconds=60: bem acima dos 3s do vídeo, prova que o ffprobe real não barra o caminho feliz.
+    new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 60, 30)).extractFrames(video, frames, 1);
 
     try (Stream<Path> files = Files.list(frames)) {
       assertThat(files.filter(p -> p.toString().endsWith(".png")).count()).isBetween(2L, 4L);
@@ -52,9 +53,30 @@ class FfmpegFrameExtractorRealBinaryTest {
     Path video = Files.writeString(tempDir.resolve("broken.mp4"), "isto não é um vídeo");
     Path frames = Files.createDirectory(tempDir.resolve("frames"));
 
-    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", 1, 5))
+    // maxDurationSeconds=0: desliga o limite, senão o próprio ffprobe já rejeitaria a entrada
+    // corrompida antes de chegar no ffmpeg, que é o que este teste quer exercitar.
+    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 0, 30))
         .extractFrames(video, frames, 1))
         .isInstanceOf(FfmpegProcessingException.class)
         .hasMessageContaining("código");
+  }
+
+  @Test
+  void rejectsVideoLongerThanConfiguredLimit() throws Exception {
+    Path video = tempDir.resolve("input.mp4");
+    Process gen = new ProcessBuilder("ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
+        "-i", "testsrc=duration=3:size=64x64:rate=5", video.toString()).redirectErrorStream(true).start();
+    gen.getInputStream().readAllBytes();
+    assertThat(gen.waitFor(60, TimeUnit.SECONDS) && gen.exitValue() == 0).isTrue();
+
+    Path frames = Files.createDirectory(tempDir.resolve("frames"));
+
+    assertThatThrownBy(() -> new FfmpegFrameExtractor(new FfmpegProperties("ffmpeg", "ffprobe", 1, 5, 1, 30))
+        .extractFrames(video, frames, 1))
+        .isInstanceOf(FfmpegProcessingException.class)
+        .hasMessageContaining("excede o limite de 1s");
+    try (Stream<Path> files = Files.list(frames)) {
+      assertThat(files).isEmpty();
+    }
   }
 }
