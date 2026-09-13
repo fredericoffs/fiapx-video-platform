@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+  '/users/me/password': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Troca a senha do usuário autenticado
+     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword).
+     */
+    put: operations['changePassword']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/videos': {
     parameters: {
       query?: never
@@ -172,30 +192,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/users/me/password': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    /**
-     * Troca a senha do usuário autenticado
-     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword).
-     */
-    put: operations['changePassword']
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** @description Troca de senha do próprio usuário autenticado */
+    ChangePasswordRequest: {
+      /**
+       * @description Senha atual, pra confirmar que é o dono da conta
+       * @example Admin@123
+       */
+      currentPassword: string
+      /**
+       * @description 8 a 100 caracteres — armazenada com hash BCrypt, nunca em texto puro
+       * @example nova-senha-secreta-123
+       */
+      newPassword: string
+    }
     /** @description Confirmação de upload aceito para processamento */
     VideoUploadResponse: {
       /**
@@ -279,19 +292,6 @@ export interface components {
        * @example false
        */
       mustChangePassword?: boolean
-    }
-    /** @description Troca de senha do próprio usuário autenticado */
-    ChangePasswordRequest: {
-      /**
-       * @description Senha atual, pra confirmar que é o dono da conta
-       * @example Admin@123
-       */
-      currentPassword: string
-      /**
-       * @description 8 a 100 caracteres — armazenada com hash BCrypt, nunca em texto puro
-       * @example nova-senha-secreta-123
-       */
-      newPassword: string
     }
     /** @description Página de resultados da listagem de vídeos do usuário autenticado */
     VideoListResponse: {
@@ -460,6 +460,42 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  changePassword: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangePasswordRequest']
+      }
+    }
+    responses: {
+      /** @description Senha alterada */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Nova senha fora do padrão (8 a 100 caracteres) */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Senha atual incorreta */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   list: {
     parameters: {
       query?: {
@@ -827,42 +863,6 @@ export interface operations {
       }
       /** @description Usuário não encontrado */
       404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  changePassword: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ChangePasswordRequest']
-      }
-    }
-    responses: {
-      /** @description Senha alterada */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Nova senha fora do padrão (8 a 100 caracteres) */
-      400: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Senha atual incorreta */
-      401: {
         headers: {
           [name: string]: unknown
         }
