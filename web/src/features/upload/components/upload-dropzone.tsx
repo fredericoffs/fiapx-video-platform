@@ -3,7 +3,11 @@ import { toast } from 'sonner'
 import { UploadCloud } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { Progress } from '@/shared/ui/progress'
-import { ALLOWED_VIDEO_EXTENSIONS, videoFileSchema } from '@/features/upload/lib/schemas'
+import {
+  ALLOWED_VIDEO_EXTENSIONS,
+  MAX_VIDEO_FILE_SIZE_MB,
+  videoFileSchema,
+} from '@/features/upload/lib/schemas'
 import { useUploadMutation } from '@/features/upload/hooks/use-upload-mutation'
 
 export function UploadDropzone({
@@ -69,7 +73,7 @@ export function UploadDropzone({
           <span className="text-primary underline">escolha um arquivo</span>
         </p>
         <p className="text-xs text-muted-foreground">
-          Formatos aceitos: {ALLOWED_VIDEO_EXTENSIONS.join(', ')}
+          Formatos aceitos: {ALLOWED_VIDEO_EXTENSIONS.join(', ')} — até {MAX_VIDEO_FILE_SIZE_MB}MB
         </p>
         <input
           ref={inputRef}

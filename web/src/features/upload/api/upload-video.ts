@@ -19,6 +19,9 @@ function messageForStatus(status: number): string {
   if (status === 401) {
     return 'Sessão expirada — faça login de novo'
   }
+  if (status === 413) {
+    return 'Arquivo excede o tamanho máximo permitido'
+  }
   if (status === 429) {
     return 'Limite de uploads atingido — aguarde um pouco antes de tentar de novo'
   }
