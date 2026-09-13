@@ -48,6 +48,13 @@ spec:
                 name: video-gateway
                 port:
                   number: 8080
+          - path: /users
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:

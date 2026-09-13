@@ -23,7 +23,7 @@ public class RoutesConfig {
       CorrelationIdFilterFunction correlationIdFilterFunction
   ) {
     return route("video-api")
-        .route(path("/auth/**").or(path("/videos/**")).or(path("/admin/**")), http())
+        .route(path("/auth/**").or(path("/videos/**")).or(path("/admin/**")).or(path("/users/**")), http())
         .before(uri(properties.videoApiUri()))
         // Ordem dos .filter() importa: correlation-id nasce antes do rate limiting.
         .filter(correlationIdFilterFunction)

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -48,6 +49,7 @@ class GatewayRoutingIntegrationTest {
     stubVideoApi.createContext("/auth/login", exchange -> respond(exchange, "{\"stub\":\"auth\"}"));
     stubVideoApi.createContext("/videos", exchange -> respond(exchange, "{\"stub\":\"videos\"}"));
     stubVideoApi.createContext("/admin/users", exchange -> respond(exchange, "{\"stub\":\"admin\"}"));
+    stubVideoApi.createContext("/users/me/password", exchange -> respond(exchange, "{\"stub\":\"users\"}"));
     stubVideoApi.setExecutor(null);
     stubVideoApi.start();
 
@@ -90,6 +92,13 @@ class GatewayRoutingIntegrationTest {
     mockMvc.perform(get("/admin/users"))
         .andExpect(status().isOk())
         .andExpect(content().json("{\"stub\":\"admin\"}"));
+  }
+
+  @Test
+  void routesUsersRequestsToVideoApi() throws Exception {
+    mockMvc.perform(put("/users/me/password").content("{}"))
+        .andExpect(status().isOk())
+        .andExpect(content().json("{\"stub\":\"users\"}"));
   }
 
   @Test
