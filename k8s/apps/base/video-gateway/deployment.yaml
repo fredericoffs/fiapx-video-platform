@@ -41,9 +41,12 @@ spec:
               port: http
             periodSeconds: 10
           resources:
+            # 128Mi/256Mi OOMKilled ao vivo (2026-09-12) proxiando um upload de 400MB —
+            # é o único ponto do caminho que carrega tanto upload grande (POST /videos)
+            # quanto download grande (GET /videos/{id}/download, zip pode passar de 1GB).
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 512Mi
