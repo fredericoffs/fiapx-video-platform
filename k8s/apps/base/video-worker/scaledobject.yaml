@@ -1,5 +1,7 @@
-# 2 triggers: profundidade da fila video.processing (principal) + CPU (complementar).
-# Qualquer um acima do alvo dispara o scale-out.
+# Só profundidade da fila video.processing — nunca um gatilho de CPU aqui: ffmpeg é
+# CPU-bound por natureza, então um único vídeo já satura o limite de CPU do próprio pod
+# sem nenhum vídeo a mais na fila; um gatilho de CPU sobe réplicas ociosas competindo
+# pela mesma capacidade de nó que o vídeo em processamento já está usando.
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
@@ -30,9 +32,3 @@ spec:
         protocol: http
       authenticationRef:
         name: rabbitmq-trigger-auth
-    # metricType é campo irmão de type/metadata, não chave dentro de metadata
-    # (metadata.type é a forma antiga, removida nesta versão do KEDA).
-    - type: cpu
-      metricType: Utilization
-      metadata:
-        value: "70"

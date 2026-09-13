@@ -89,7 +89,3 @@ patches:
               queueLength: "5"
               awsRegion: us-east-1
               identityOwner: operator
-          - type: cpu
-            metricType: Utilization
-            metadata:
-              value: "70"
