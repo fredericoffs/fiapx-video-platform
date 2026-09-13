@@ -23,7 +23,12 @@ export function LoginForm() {
   const onSubmit = form.handleSubmit((values) => {
     loginMutation.mutate(values, {
       onSuccess: (data) => {
-        setSession({ token: data.accessToken, email: values.email, role: data.role })
+        setSession({
+          token: data.accessToken,
+          email: values.email,
+          role: data.role,
+          mustChangePassword: data.mustChangePassword,
+        })
         toast.success('Login realizado com sucesso')
         void navigate({ to: '/' })
       },
