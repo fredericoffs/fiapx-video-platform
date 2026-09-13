@@ -28,12 +28,12 @@ class ListAllVideosUseCaseTest {
   void delegatesPaginationAndStatusFilterToTheRepositoryAndResolvesOwnerEmail() {
     UUID userId = UUID.randomUUID();
     Video video = Video.newQueued(UUID.randomUUID(), userId, "movie.mp4", "raw/movie.mp4");
-    when(videoRepository.findAll(VideoStatus.FAILED, 0, 20))
+    when(videoRepository.findAll(VideoStatus.FAILED, null, 0, 20))
         .thenReturn(new PageResult<>(List.of(video), 0, 20, 1));
     when(userRepository.findById(userId))
         .thenReturn(Optional.of(new User(userId, "dono@example.com", "hash", Role.USER, Instant.now())));
 
-    PageResult<VideoWithOwner> result = useCase.handle(VideoStatus.FAILED, 0, 20);
+    PageResult<VideoWithOwner> result = useCase.handle(VideoStatus.FAILED, null, 0, 20);
 
     assertThat(result.items()).hasSize(1);
     VideoWithOwner item = result.items().get(0);
@@ -48,11 +48,23 @@ class ListAllVideosUseCaseTest {
   void ownerEmailIsNullWhenUserCannotBeResolved() {
     UUID userId = UUID.randomUUID();
     Video video = Video.newQueued(UUID.randomUUID(), userId, "movie.mp4", "raw/movie.mp4");
-    when(videoRepository.findAll(null, 0, 20)).thenReturn(new PageResult<>(List.of(video), 0, 20, 1));
+    when(videoRepository.findAll(null, null, 0, 20)).thenReturn(new PageResult<>(List.of(video), 0, 20, 1));
     when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-    PageResult<VideoWithOwner> result = useCase.handle(null, 0, 20);
+    PageResult<VideoWithOwner> result = useCase.handle(null, null, 0, 20);
 
     assertThat(result.items().get(0).ownerEmail()).isNull();
+  }
+
+  @Test
+  void delegatesFilenameFilterToTheRepository() {
+    UUID userId = UUID.randomUUID();
+    Video video = Video.newQueued(UUID.randomUUID(), userId, "ferias.mp4", "raw/ferias.mp4");
+    when(videoRepository.findAll(null, "ferias", 0, 20)).thenReturn(new PageResult<>(List.of(video), 0, 20, 1));
+    when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+    PageResult<VideoWithOwner> result = useCase.handle(null, "ferias", 0, 20);
+
+    assertThat(result.items()).hasSize(1);
   }
 }

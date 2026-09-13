@@ -48,11 +48,20 @@ public class VideoRepositoryAdapter implements VideoRepository {
   }
 
   @Override
-  public PageResult<Video> findAll(VideoStatus statusFilter, int page, int size) {
+  public PageResult<Video> findAll(VideoStatus statusFilter, String filenameFilter, int page, int size) {
     PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-    Page<VideoEntity> result = statusFilter == null
-        ? springDataVideoRepository.findAll(pageRequest)
-        : springDataVideoRepository.findByStatus(statusFilter, pageRequest);
+    boolean hasFilename = filenameFilter != null && !filenameFilter.isBlank();
+    Page<VideoEntity> result;
+    if (statusFilter != null && hasFilename) {
+      result = springDataVideoRepository.findByStatusAndOriginalFilenameContainingIgnoreCase(
+          statusFilter, filenameFilter, pageRequest);
+    } else if (statusFilter != null) {
+      result = springDataVideoRepository.findByStatus(statusFilter, pageRequest);
+    } else if (hasFilename) {
+      result = springDataVideoRepository.findByOriginalFilenameContainingIgnoreCase(filenameFilter, pageRequest);
+    } else {
+      result = springDataVideoRepository.findAll(pageRequest);
+    }
 
     List<Video> items = result.getContent().stream().map(VideoMapper::toDomain).toList();
     return new PageResult<>(items, page, size, result.getTotalElements());

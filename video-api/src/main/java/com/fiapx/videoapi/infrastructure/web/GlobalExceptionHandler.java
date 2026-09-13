@@ -2,6 +2,7 @@ package com.fiapx.videoapi.infrastructure.web;
 
 import com.fiapx.videoapi.domain.exception.EmailAlreadyRegisteredException;
 import com.fiapx.videoapi.domain.exception.InvalidCredentialsException;
+import com.fiapx.videoapi.domain.exception.InvalidCurrentPasswordException;
 import com.fiapx.videoapi.domain.exception.InvalidFilenameException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
 import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
@@ -49,6 +50,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(InvalidCredentialsException.class)
   public ProblemDetail handleInvalidCredentials(InvalidCredentialsException e) {
     return problem(HttpStatus.UNAUTHORIZED, "Credenciais inválidas", e.getMessage());
+  }
+
+  @ExceptionHandler(InvalidCurrentPasswordException.class)
+  public ProblemDetail handleInvalidCurrentPassword(InvalidCurrentPasswordException e) {
+    return problem(HttpStatus.UNAUTHORIZED, "Senha atual inválida", e.getMessage());
   }
 
   @ExceptionHandler(LoginRateLimitExceededException.class)

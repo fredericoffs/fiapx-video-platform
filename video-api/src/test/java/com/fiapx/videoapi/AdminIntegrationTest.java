@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -74,6 +75,55 @@ class AdminIntegrationTest {
     assertThat(uploadedVideo.get("ownerEmail").asString()).isEqualTo(email);
   }
 
+  @Test
+  void seededAdminMustChangePasswordOnFirstLoginThenFlagClears() throws Exception {
+    JsonNode firstLogin = loginResponse(ADMIN_EMAIL, ADMIN_PASSWORD);
+    assertThat(firstLogin.get("mustChangePassword").asBoolean()).isTrue();
+    String adminToken = firstLogin.get("accessToken").asString();
+    String newPassword = "NovaSenhaAdmin@123";
+
+    try {
+      String changeBody = objectMapper.writeValueAsString(new ChangePasswordPayload(ADMIN_PASSWORD, newPassword));
+      mockMvc
+          .perform(
+              put("/users/me/password")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                  .content(changeBody)
+          )
+          .andExpect(status().isNoContent());
+
+      JsonNode secondLogin = loginResponse(ADMIN_EMAIL, newPassword);
+      assertThat(secondLogin.get("mustChangePassword").asBoolean()).isFalse();
+    } finally {
+      String restoreToken = login(ADMIN_EMAIL, newPassword);
+      String restoreBody = objectMapper.writeValueAsString(new ChangePasswordPayload(newPassword, ADMIN_PASSWORD));
+      mockMvc
+          .perform(
+              put("/users/me/password")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer " + restoreToken)
+                  .content(restoreBody)
+          )
+          .andExpect(status().isNoContent());
+    }
+  }
+
+  @Test
+  void changePasswordRejectsWrongCurrentPassword() throws Exception {
+    String token = registerAndLogin(newEmail());
+    String body = objectMapper.writeValueAsString(new ChangePasswordPayload("senha-errada", "outra-senha-123"));
+
+    mockMvc
+        .perform(
+            put("/users/me/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .content(body)
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
   private JsonNode findVideoById(JsonNode items, UUID videoId) {
     for (JsonNode item : items) {
       if (UUID.fromString(item.get("id").asString()).equals(videoId)) {
@@ -81,6 +131,50 @@ class AdminIntegrationTest {
       }
     }
     return null;
+  }
+
+  @Test
+  void adminFiltersUsersByEmailSubstring() throws Exception {
+    String uniqueMarker = "marker-" + UUID.randomUUID();
+    String email = uniqueMarker + "@fiapx.com";
+    registerAndLogin(email);
+    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    MvcResult result = mockMvc
+        .perform(
+            get("/admin/users")
+                .param("email", uniqueMarker)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+        )
+        .andExpect(status().isOk())
+        .andReturn();
+    JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+
+    assertThat(json.get("totalElements").asLong()).isEqualTo(1);
+    assertThat(json.get("items").get(0).get("email").asString()).isEqualTo(email);
+  }
+
+  @Test
+  void adminFiltersVideosByFilenameSubstring() throws Exception {
+    String userToken = registerAndLogin(newEmail());
+    String uniqueMarker = "marker-" + UUID.randomUUID();
+    MockMultipartFile file = new MockMultipartFile("file", uniqueMarker + ".mp4", "video/mp4", "fake".getBytes());
+    mockMvc.perform(multipart("/videos").file(file).header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+        .andExpect(status().isCreated());
+    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    MvcResult result = mockMvc
+        .perform(
+            get("/admin/videos")
+                .param("filename", uniqueMarker)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+        )
+        .andExpect(status().isOk())
+        .andReturn();
+    JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+
+    assertThat(json.get("totalElements").asLong()).isEqualTo(1);
+    assertThat(json.get("items").get(0).get("originalFilename").asString()).isEqualTo(uniqueMarker + ".mp4");
   }
 
   @Test
@@ -111,13 +205,16 @@ class AdminIntegrationTest {
   }
 
   private String login(String email, String password) throws Exception {
+    return loginResponse(email, password).get("accessToken").asString();
+  }
+
+  private JsonNode loginResponse(String email, String password) throws Exception {
     String body = objectMapper.writeValueAsString(new RegisterPayload(email, password));
     MvcResult result = mockMvc
         .perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
         .andExpect(status().isOk())
         .andReturn();
-    JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
-    return json.get("accessToken").asString();
+    return objectMapper.readTree(result.getResponse().getContentAsString());
   }
 
   private UUID uploadVideo(String token) throws Exception {
@@ -138,6 +235,10 @@ class AdminIntegrationTest {
   }
 
   private record RegisterPayload(String email, String password) {
+
+  }
+
+  private record ChangePasswordPayload(String currentPassword, String newPassword) {
 
   }
 }

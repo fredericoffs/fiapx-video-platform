@@ -15,7 +15,7 @@ public interface UserRepository {
 
   boolean existsByEmail(String email);
 
-  PageResult<User> findAll(int page, int size);
+  PageResult<User> findAll(String emailFilter, int page, int size);
 
   void deleteById(UUID id);
 }

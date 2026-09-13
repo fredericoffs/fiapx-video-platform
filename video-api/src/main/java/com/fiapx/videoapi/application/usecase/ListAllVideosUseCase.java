@@ -21,8 +21,8 @@ public class ListAllVideosUseCase {
     this.userRepository = userRepository;
   }
 
-  public PageResult<VideoWithOwner> handle(VideoStatus statusFilter, int page, int size) {
-    PageResult<Video> result = videoRepository.findAll(statusFilter, page, size);
+  public PageResult<VideoWithOwner> handle(VideoStatus statusFilter, String filenameFilter, int page, int size) {
+    PageResult<Video> result = videoRepository.findAll(statusFilter, filenameFilter, page, size);
     List<VideoWithOwner> items = result.items().stream()
         .map(video -> new VideoWithOwner(video, resolveOwnerEmail(video)))
         .toList();

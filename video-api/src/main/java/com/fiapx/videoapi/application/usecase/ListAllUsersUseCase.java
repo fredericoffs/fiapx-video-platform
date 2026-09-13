@@ -14,7 +14,7 @@ public class ListAllUsersUseCase {
     this.userRepository = userRepository;
   }
 
-  public PageResult<User> handle(int page, int size) {
-    return userRepository.findAll(page, size);
+  public PageResult<User> handle(String emailFilter, int page, int size) {
+    return userRepository.findAll(emailFilter, page, size);
   }
 }
