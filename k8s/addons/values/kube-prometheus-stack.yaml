@@ -38,13 +38,15 @@ alertmanager:
 grafana:
   # limits.cpu baixo trava o boot da Grafana em CrashLoopBackOff (registra uma pilha
   # grande de apiservers internos no startup).
+  # limits.memory em 384Mi OOMKillava o pod ~20min após o boot sob uso normal (dashboards
+  # + consultas ao Prometheus); subiu junto com requests para manter a mesma folga 2x.
   resources:
     requests:
       cpu: 200m
-      memory: 192Mi
+      memory: 256Mi
     limits:
       cpu: 750m
-      memory: 384Mi
+      memory: 512Mi
   # O pod sobe com 2 sidecars (watcher de dashboards/datasources) que não herdam o
   # limite do container principal — precisam de resources próprios.
   sidecar:
