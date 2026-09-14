@@ -12,7 +12,8 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "520m"
     # Download do zip processado pode passar de 1GB; sem isso o nginx corta a conexão
     # depois de 60s sem tráfego (default) e o navegador recebe "Failed to fetch".
-    # Precisa acompanhar o idle timeout do Classic ELB (k8s/addons/install-ingress-nginx.sh).
+    # O NLB tem idle timeout fixo em 350s, não configurável (k8s/addons/install-ingress-nginx.sh) —
+    # esta annotation só cobre o lado do nginx.
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
