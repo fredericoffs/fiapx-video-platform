@@ -22,9 +22,9 @@ resource "aws_ecr_repository" "service" {
 
 # Mantém só as 10 imagens mais recentes por repositório.
 resource "aws_ecr_lifecycle_policy" "service" {
-  for_each = aws_ecr_repository.service
+  for_each = toset(local.services)
 
-  repository = each.value.name
+  repository = aws_ecr_repository.service[each.key].name
   policy = jsonencode({
     rules = [{
       rulePriority = 1
