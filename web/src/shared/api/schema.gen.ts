@@ -333,6 +333,12 @@ export interface components {
        */
       originalFilename?: string
       /**
+       * Format: int64
+       * @description Tamanho do arquivo enviado, em bytes — null para vídeos enfileirados antes desse campo existir
+       * @example 10485760
+       */
+      fileSizeBytes?: number | null
+      /**
        * @description QUEUED → PROCESSING → COMPLETED ou FAILED
        * @enum {string}
        */

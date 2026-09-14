@@ -33,6 +33,9 @@ public class VideoEntity {
   @Column(name = "storage_key", nullable = false)
   private String storageKey;
 
+  @Column(name = "file_size_bytes")
+  private Long fileSizeBytes;
+
   @Column(name = "zip_storage_key")
   private String zipStorageKey;
 

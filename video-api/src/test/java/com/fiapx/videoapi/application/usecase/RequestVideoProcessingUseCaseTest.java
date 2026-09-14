@@ -69,6 +69,7 @@ class RequestVideoProcessingUseCaseTest {
     Video savedVideo = videoCaptor.getValue();
     assertThat(savedVideo.getUserId()).isEqualTo(userId);
     assertThat(savedVideo.getOriginalFilename()).isEqualTo("movie.mp4");
+    assertThat(savedVideo.getFileSizeBytes()).isEqualTo(10L);
     assertThat(savedVideo.getStatus()).isEqualTo(VideoStatus.QUEUED);
     // Chave de storage com nome interno: o nome original do usuário nunca vira caminho.
     assertThat(savedVideo.getStorageKey()).isEqualTo("raw/" + savedVideo.getId() + "/source.mp4");

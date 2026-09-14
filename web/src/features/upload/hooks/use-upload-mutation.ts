@@ -22,6 +22,7 @@ export function useUploadMutation() {
         id: `optimistic-${randomId()}`,
         userId: '',
         originalFilename: file.name,
+        fileSizeBytes: file.size,
         status: 'QUEUED',
         errorMessage: null,
         createdAt: new Date().toISOString(),

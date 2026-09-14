@@ -8,6 +8,8 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { VideoProcessingIllustration } from '@/shared/ui/illustrations/video-processing-illustration'
 import { VideoStatusBadge } from '@/shared/ui/video-status-badge'
 import { downloadVideo } from '@/features/videos/api/download-video'
+import { friendlyProcessingError } from '@/features/videos/lib/friendly-processing-error'
+import { formatFileSize } from '@/shared/lib/format-file-size'
 
 type ViewMode = 'list' | 'cards'
 
@@ -95,6 +97,30 @@ export function VideoList() {
     </div>
   )
 
+  const metadata = (video: Video) => {
+    const size = formatFileSize(video.fileSizeBytes)
+    return (
+      <p className="text-xs text-muted-foreground">
+        {new Date(video.createdAt).toLocaleString('pt-BR')}
+        {size && ` · ${size}`}
+      </p>
+    )
+  }
+
+  const failureDetails = (video: Video) => {
+    if (video.status !== 'FAILED' || !video.errorMessage) {
+      return null
+    }
+    return (
+      <details className="text-xs text-destructive">
+        <summary className="cursor-pointer list-none">
+          {friendlyProcessingError(video.errorMessage)}
+        </summary>
+        <p className="mt-1 text-muted-foreground">{video.errorMessage}</p>
+      </details>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end gap-1">
@@ -128,12 +154,8 @@ export function VideoList() {
             <li key={video.id} className="flex items-center justify-between gap-3 border px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{video.originalFilename}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(video.createdAt).toLocaleString('pt-BR')}
-                </p>
-                {video.status === 'FAILED' && video.errorMessage && (
-                  <p className="text-xs text-destructive">{video.errorMessage}</p>
-                )}
+                {metadata(video)}
+                {failureDetails(video)}
               </div>
               {actions(video)}
             </li>
@@ -144,12 +166,8 @@ export function VideoList() {
           {videosQuery.data.map((video) => (
             <Card key={video.id} className="gap-3 p-4">
               <p className="truncate text-sm font-medium">{video.originalFilename}</p>
-              <p className="text-xs text-muted-foreground">
-                {new Date(video.createdAt).toLocaleString('pt-BR')}
-              </p>
-              {video.status === 'FAILED' && video.errorMessage && (
-                <p className="text-xs text-destructive">{video.errorMessage}</p>
-              )}
+              {metadata(video)}
+              {failureDetails(video)}
               <div className="mt-1">{actions(video)}</div>
             </Card>
           ))}

@@ -8,6 +8,7 @@ export interface Video {
   id: string
   userId: string
   originalFilename: string
+  fileSizeBytes: number | null
   status: VideoStatus
   errorMessage: string | null
   createdAt: string
@@ -22,6 +23,7 @@ export function toVideo(dto: components['schemas']['VideoStatusResponse']): Vide
     id: dto.id,
     userId: dto.userId ?? '',
     originalFilename: dto.originalFilename ?? '',
+    fileSizeBytes: dto.fileSizeBytes ?? null,
     status: dto.status ?? 'QUEUED',
     errorMessage: dto.errorMessage ?? null,
     createdAt: dto.createdAt ?? new Date().toISOString(),

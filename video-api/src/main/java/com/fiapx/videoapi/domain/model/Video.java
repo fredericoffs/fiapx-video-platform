@@ -9,6 +9,7 @@ public class Video {
   private final UUID userId;
   private final String originalFilename;
   private final String storageKey;
+  private final Long fileSizeBytes;
   private String zipStorageKey;
   private VideoStatus status;
   private String errorMessage;
@@ -21,6 +22,7 @@ public class Video {
       UUID userId,
       String originalFilename,
       String storageKey,
+      Long fileSizeBytes,
       String zipStorageKey,
       VideoStatus status,
       String errorMessage,
@@ -32,6 +34,7 @@ public class Video {
     this.userId = userId;
     this.originalFilename = originalFilename;
     this.storageKey = storageKey;
+    this.fileSizeBytes = fileSizeBytes;
     this.zipStorageKey = zipStorageKey;
     this.status = status;
     this.errorMessage = errorMessage;
@@ -40,9 +43,21 @@ public class Video {
     this.version = version;
   }
 
-  public static Video newQueued(UUID id, UUID userId, String originalFilename, String storageKey) {
+  /**
+   * fileSizeBytes é null pra vídeos enfileirados antes da coluna existir (V7) — nunca
+   * retroalimentado, só fica null pra sempre nesses registros antigos.
+   */
+  public static Video newQueued(
+      UUID id, UUID userId, String originalFilename, String storageKey, Long fileSizeBytes
+  ) {
     Instant now = Instant.now();
-    return new Video(id, userId, originalFilename, storageKey, null, VideoStatus.QUEUED, null, now, now, null);
+    return new Video(
+        id, userId, originalFilename, storageKey, fileSizeBytes, null, VideoStatus.QUEUED, null, now, now, null
+    );
+  }
+
+  public static Video newQueued(UUID id, UUID userId, String originalFilename, String storageKey) {
+    return newQueued(id, userId, originalFilename, storageKey, null);
   }
 
   public boolean belongsTo(UUID requesterId) {
@@ -93,6 +108,10 @@ public class Video {
 
   public String getStorageKey() {
     return storageKey;
+  }
+
+  public Long getFileSizeBytes() {
+    return fileSizeBytes;
   }
 
   public String getZipStorageKey() {
