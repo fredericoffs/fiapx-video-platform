@@ -6,7 +6,6 @@ import com.fiapx.notificationworker.domain.port.NotificationChannel;
 import com.fiapx.notificationworker.infrastructure.config.NotificationProperties;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.http.MediaType;
@@ -43,7 +42,10 @@ public class WebhookChannel implements NotificationChannel {
       restClient.post()
           .uri(url)
           .contentType(MediaType.APPLICATION_JSON)
-          .body(Map.of("videoId", videoId.toString(), "errorMessage", errorMessage))
+          // Registro (record), não Map.of: recipientEmail nunca deveria vir nulo em produção
+          // (SendFailureNotificationUseCase sempre propaga o do evento), mas Map.of lançaria
+          // NullPointerException se algum dia vier — um record serializa null sem quebrar.
+          .body(new WebhookPayload(videoId.toString(), errorMessage, recipientEmail))
           .retrieve()
           .toBodilessEntity();
     } catch (RestClientException e) {
@@ -58,5 +60,10 @@ public class WebhookChannel implements NotificationChannel {
   private CompletableFuture<Void> unavailable(UUID videoId, String errorMessage, String recipientEmail, Throwable t) {
     return CompletableFuture.failedFuture(
         new NotificationDeliveryException("Canal de webhook indisponível para o vídeo " + videoId, t));
+  }
+
+  // O destinatário precisa estar no payload pra quem recebe o webhook conseguir notificar o
+  // dono de verdade — antes desta correção o corpo só tinha videoId/errorMessage.
+  private record WebhookPayload(String videoId, String errorMessage, String recipientEmail) {
   }
 }
