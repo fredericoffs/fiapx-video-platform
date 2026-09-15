@@ -116,6 +116,13 @@ variable "jwt_secret" {
   default     = ""
 }
 
+variable "admin_password" {
+  description = "Senha do admin semeado (admin@fiapx.local). Vazia → gerada (random_password) e publicada no SSM; preenchida (TF_VAR_admin_password = PROD_ADMIN_PASSWORD) → usada como está. O hash no banco (migration V8) é só um placeholder inutilizável — a senha real só passa a valer depois que AdminPasswordSeeder aplicar este valor no primeiro boot do video-api."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "notification_webhook_url" {
   description = "URL do canal webhook da notificação (opcional; TF_VAR_notification_webhook_url = PROD_NOTIFICATION_WEBHOOK_URL). Vazia → parâmetro não é criado."
   type        = string

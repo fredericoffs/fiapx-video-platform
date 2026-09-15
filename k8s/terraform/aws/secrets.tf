@@ -13,10 +13,16 @@ resource "random_password" "jwt" {
   special = false
 }
 
+resource "random_password" "admin" {
+  length  = 20
+  special = false # evita escaping ao copiar a senha manualmente pro login
+}
+
 locals {
-  ssm_prefix  = "/${var.project}"
-  db_password = var.db_password != "" ? var.db_password : random_password.db.result
-  jwt_secret  = var.jwt_secret != "" ? var.jwt_secret : random_password.jwt.result
+  ssm_prefix     = "/${var.project}"
+  db_password    = var.db_password != "" ? var.db_password : random_password.db.result
+  jwt_secret     = var.jwt_secret != "" ? var.jwt_secret : random_password.jwt.result
+  admin_password = var.admin_password != "" ? var.admin_password : random_password.admin.result
 }
 
 resource "aws_ssm_parameter" "db_username" {
@@ -35,6 +41,12 @@ resource "aws_ssm_parameter" "jwt_secret" {
   name  = "${local.ssm_prefix}/jwt/secret"
   type  = "SecureString"
   value = local.jwt_secret
+}
+
+resource "aws_ssm_parameter" "admin_password" {
+  name  = "${local.ssm_prefix}/admin/password"
+  type  = "SecureString"
+  value = local.admin_password
 }
 
 # Opcional: só existe se a URL foi informada (canal webhook da notificação — não há SMTP na AWS).
