@@ -12,14 +12,10 @@ import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutbox
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataVideoRepository;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import tools.jackson.databind.ObjectMapper;
@@ -28,23 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
-class VideoStatusUpdateListenerIntegrationTest {
+class VideoStatusUpdateListenerIntegrationTest extends AbstractSqsIntegrationTest {
 
   static final SqsClient SQS = SqsTestSupport.client();
-
-  @DynamicPropertySource
-  static void sqs(DynamicPropertyRegistry registry) {
-    SqsTestSupport.createPlainQueues(SQS, List.of(
-        "fiapx-video-processing", "fiapx-video-processing-dlq", "fiapx-video-status-updates",
-        "fiapx-video-status-updates-dlq", "fiapx-video-notification", "fiapx-video-notification-dlq"));
-    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
-    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
-    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
-    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
-    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
-    registry.add("fiapx.storage.endpoint", () -> "");
-  }
 
   @Autowired
   private SpringDataVideoRepository videoRepository;

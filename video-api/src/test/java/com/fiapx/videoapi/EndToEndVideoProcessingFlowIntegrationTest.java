@@ -22,11 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -50,23 +47,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
-class EndToEndVideoProcessingFlowIntegrationTest {
+class EndToEndVideoProcessingFlowIntegrationTest extends AbstractSqsIntegrationTest {
 
   static final SqsClient SQS = SqsTestSupport.client();
-
-  @DynamicPropertySource
-  static void sqs(DynamicPropertyRegistry registry) {
-    SqsTestSupport.createPlainQueues(SQS, List.of(
-        "fiapx-video-processing", "fiapx-video-processing-dlq", "fiapx-video-status-updates",
-        "fiapx-video-status-updates-dlq", "fiapx-video-notification", "fiapx-video-notification-dlq"));
-    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
-    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
-    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
-    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
-    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
-    registry.add("fiapx.storage.endpoint", () -> "");
-  }
 
   @Autowired
   private MockMvc mockMvc;
