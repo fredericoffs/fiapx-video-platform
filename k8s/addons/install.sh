@@ -7,7 +7,16 @@ ADDONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >/dev/null
 helm repo add kedacore https://kedacore.github.io/charts >/dev/null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null
+helm repo add jetstack https://charts.jetstack.io >/dev/null
 helm repo update >/dev/null
+
+echo "==> cert-manager (TLS no Ingress — ver cert-manager-cluster-issuer.yaml)"
+kubectl get namespace cert-manager >/dev/null 2>&1 || kubectl create namespace cert-manager
+helm upgrade --install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --set crds.enabled=true \
+  --wait --timeout 3m
+kubectl apply -f "${ADDONS_DIR}/cert-manager-cluster-issuer.yaml"
 
 echo "==> metrics-server"
 helm upgrade --install metrics-server metrics-server/metrics-server \

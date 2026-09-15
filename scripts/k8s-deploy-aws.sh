@@ -167,7 +167,7 @@ kubectl -n "$NAMESPACE" patch configmap fiapx-config --type merge -p "{\"data\":
   \"REDIS_HOST\":\"${REDIS_HOST}\",
   \"STORAGE_BUCKET_RAW\":\"${BUCKET_RAW}\",
   \"STORAGE_BUCKET_PROCESSED\":\"${BUCKET_PROCESSED}\",
-  \"GATEWAY_CORS_ALLOWED_ORIGINS\":\"http://${LB_HOST}\"
+  \"GATEWAY_CORS_ALLOWED_ORIGINS\":\"https://${LB_HOST}\"
 }}"
 
 for f in "${RENDER_DIR}"/doc-*.yaml; do
@@ -185,7 +185,7 @@ kubectl apply -f "$VIDEO_API_DEPLOY_FILE"
 echo "==> [8/9] KEDA: URL real da fila SQS + URL pública no web"
 kubectl -n "$NAMESPACE" patch scaledobject video-worker --type json \
   -p "[{\"op\":\"replace\",\"path\":\"/spec/triggers/0/metadata/queueURL\",\"value\":\"${PROCESSING_QUEUE_URL}\"}]"
-kubectl -n "$NAMESPACE" set env deployment/web API_BASE_URL="http://${LB_HOST}"
+kubectl -n "$NAMESPACE" set env deployment/web API_BASE_URL="https://${LB_HOST}"
 
 echo "==> [9/9] aguardando rollout"
 kubectl -n "$NAMESPACE" rollout status deployment/video-gateway --timeout=300s
@@ -194,12 +194,12 @@ kubectl -n "$NAMESPACE" rollout status deployment/video-worker --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/notification-worker --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/web --timeout=300s
 
-echo "==> pronto. Endereço público: http://${LB_HOST}"
+echo "==> pronto. Endereço público: https://${LB_HOST}"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## Deploy no EKS concluído (perfil aws: RDS + ElastiCache + S3 + SQS)"
     echo
-    echo "- Aplicação: http://${LB_HOST}"
+    echo "- Aplicação: https://${LB_HOST}"
     echo "- Imagens: \`${ECR_REGISTRY}/fiapx/<serviço>:${IMAGE_TAG}\`"
     echo "- RDS: \`${DB_HOST}\` · Redis: \`${REDIS_HOST}\`"
     echo "- Fila de processamento: \`${PROCESSING_QUEUE_URL}\`"

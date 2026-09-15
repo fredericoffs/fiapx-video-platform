@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: fiapx
 resources:
   - configmap.yaml
+  - certificate.yaml
   - ingress.yaml
   - video-gateway
   - video-api
