@@ -80,11 +80,13 @@ ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 DB_USER="${DB_USER:-$(ssm_param "/${PROJECT}/db/username")}"
 DB_PASSWORD="${DB_PASSWORD:-$(ssm_param "/${PROJECT}/db/password")}"
 JWT_SECRET="${JWT_SECRET:-$(ssm_param "/${PROJECT}/jwt/secret")}"
+ADMIN_SEED_PASSWORD="${ADMIN_SEED_PASSWORD:-$(ssm_param "/${PROJECT}/admin/password")}"
 NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL:-$(ssm_param "/${PROJECT}/notification/webhook-url")}"
 [ -n "$DB_USER" ] || { echo "parâmetro SSM /${PROJECT}/db/username não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$DB_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/db/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$JWT_SECRET" ] || { echo "parâmetro SSM /${PROJECT}/jwt/secret não encontrado (terraform apply rodou?)" >&2; exit 1; }
-echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
+[ -n "$ADMIN_SEED_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/admin/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
+echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET/ADMIN_SEED_PASSWORD lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
 DB_HOST="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
   --query 'DBInstances[0].Endpoint.Address' --output text)"
 DB_STATUS="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
@@ -121,6 +123,7 @@ kubectl -n "$NAMESPACE" create secret generic fiapx-secrets \
   --from-literal=JWT_SECRET="${JWT_SECRET}" \
   --from-literal=DB_USER="${DB_USER}" \
   --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
+  --from-literal=ADMIN_SEED_PASSWORD="${ADMIN_SEED_PASSWORD}" \
   --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL}" \
   --dry-run=client -o yaml | kubectl apply -f -
 

@@ -45,6 +45,7 @@ jobs:
       # publica no SSM (/fiapx/...). O job deploy lê tudo do SSM.
       TF_VAR_db_password: ${{ secrets.PROD_DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.PROD_JWT_SECRET }}
+      TF_VAR_admin_password: ${{ secrets.PROD_ADMIN_PASSWORD }}
       TF_VAR_notification_webhook_url: ${{ secrets.PROD_NOTIFICATION_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v7
