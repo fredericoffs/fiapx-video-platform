@@ -75,7 +75,7 @@ flowchart LR
 | Enfileirar após upload    | `VideoUploadRequested` publicado no outbox            | Publisher agendado envia para `video.processing`                                                                                                                                                                                           |
 | Aplicar conclusão         | `ProcessingCompleted` recebido pelo `video-api`       | Atualiza `status=COMPLETED` no Postgres do `video-api` — **não** é o worker que escreve direto (ver [ADR-008](../architecture/hld-lld-adr-rfc.md#adr-008--comunicação-de-status-entre-video-worker-e-video-api-evento-não-escrita-direta)) |
 | Aplicar falha e notificar | `ProcessingFailed` recebido pelo `video-api`          | Atualiza `status=FAILED` + publica evento de falha em `video.notification`                                                                                                                                                                 |
-| Retry com backoff         | Falha transitória no worker (ex.: MinIO indisponível) | Retry exponencial (Resilience4j); só vira `ProcessingFailed` após esgotar tentativas                                                                                                                                                       |
+| Retry com backoff         | Falha transitória no worker (ex.: S3 indisponível) | Retry exponencial (Resilience4j); só vira `ProcessingFailed` após esgotar tentativas                                                                                                                                                       |
 | Dead-letter               | Mensagem falha após `maxReceiveCount`                 | Vai para a DLQ correspondente (`video.processing.dlq` / `video.notification.dlq`)                                                                                                                                                          |
 
 ## 7. Read Models
@@ -84,7 +84,7 @@ flowchart LR
 |--------------------------------|-----------------------------|------------------------------------------------------------|
 | Listagem de status por usuário | `GET /videos`               | Postgres do `video-api`, cache-aside via Redis             |
 | Detalhe de um vídeo            | `GET /videos/{id}`          | Postgres do `video-api`                                    |
-| Download do resultado          | `GET /videos/{id}/download` | URL pré-assinada do MinIO/S3, só quando `status=COMPLETED` |
+| Download do resultado          | `GET /videos/{id}/download` | Streaming do `.zip` pelo `video-api` (bucket S3 privado, sem URL pré-assinada), só quando `status=COMPLETED` |
 
 ## 8. Pontos de incerteza (hotspots — convenção do método: 🟪 rosa/roxo escuro)
 

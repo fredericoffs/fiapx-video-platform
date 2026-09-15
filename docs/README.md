@@ -5,14 +5,12 @@
 ## Enunciado
 
 - [`enunciado.md`](./enunciado.md) — enunciado original do desafio (Hackathon Fase 5), com os requisitos funcionais/técnicos e a lista de entregáveis.
-- [`Learner_Lab.md`](./Learner_Lab.md) — regras e limites do AWS Academy Learner Lab (regiões, `LabRole`/`LabEksClusterRole`, tipos de instância, budget), ambiente do deploy em nuvem (ver a emenda AWS no ADR-012).
+- [`Learner_Lab.md`](./Learner_Lab.md) — regras e limites do AWS Academy Learner Lab (regiões, `LabRole`/`LabEksClusterRole`, tipos de instância, budget), ambiente do deploy em nuvem (ver ADR-012).
 
 ## Arquitetura
 
-- [`architecture/hld-lld-adr-rfc.md`](./architecture/hld-lld-adr-rfc.md) — documento principal: RFC (motivação e proposta), HLD (visão de containers e topologia de implantação), LLD (modelo de dados com diagramas ER por schema, contratos de API, diagramas de sequência) e os 14 ADRs técnicos (broker, outbox, storage, autenticação, observabilidade, linguagem/runtime, comunicação entre serviços, API Gateway, Kubernetes, notificação multicanal, política de nuvem, consulta de status, serviços gerenciados por perfil).
-- [`architecture/rfc/RFC-001-rabbitmq-vs-kafka.md`](./architecture/rfc/RFC-001-rabbitmq-vs-kafka.md) — RFC curto: problema, proposta, comparação com Kafka, consequências e como validar (par do ADR-002).
+- [`architecture/hld-lld-adr-rfc.md`](./architecture/hld-lld-adr-rfc.md) — documento principal: RFC (motivação e proposta), HLD (visão de containers e topologia de implantação), LLD (modelo de dados com diagramas ER por schema, contratos de API, diagramas de sequência) e os 14 ADRs técnicos (broker, outbox, storage, autenticação, observabilidade, linguagem/runtime, comunicação entre serviços, API Gateway, Kubernetes, notificação multicanal, topologia de execução, consulta de status, serviços gerenciados).
 - [`architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md`](./architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md) — RFC curto: problema, proposta, comparação com Kong/Traefik, consequências e como validar (par do ADR-009).
-- [`architecture/rfc/RFC-003-sqs-vs-rabbitmq-no-perfil-aws.md`](./architecture/rfc/RFC-003-sqs-vs-rabbitmq-no-perfil-aws.md) — RFC curto: Amazon SQS no lugar do RabbitMQ self-hosted quando a plataforma roda na AWS; tabela de equivalência das garantias, alternativas e como validar (par da emenda do ADR-002 e do ADR-014).
 
 ## API
 

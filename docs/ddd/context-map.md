@@ -31,9 +31,9 @@ flowchart TB
     end
 
     BC1 -->|"Published Language:\nJWT (claim user_id)"| BC2
-    BC2 -->|"Published Language:\nevento VideoUploadRequested\n(RabbitMQ)"| BC3
-    BC3 -->|"Published Language:\neventos ProcessingCompleted/Failed\n(RabbitMQ)"| BC2
-    BC3 -->|"Published Language:\nevento ProcessingFailed\n(RabbitMQ)"| BC4
+    BC2 -->|"Published Language:\nevento VideoUploadRequested\n(Amazon SQS)"| BC3
+    BC3 -->|"Published Language:\neventos ProcessingCompleted/Failed\n(Amazon SQS)"| BC2
+    BC3 -->|"Published Language:\nevento ProcessingFailed\n(Amazon SQS)"| BC4
 
     style BC1 fill:#eef,stroke:#557
     style BC2 fill:#efe,stroke:#575
@@ -46,7 +46,7 @@ flowchart TB
 | De → Para | Padrão | Por quê |
 |---|---|---|
 | Identidade → Ingestão | **Conformist** (Ingestão aceita o formato de token que Identidade emite, sem traduzir) | Hospedo os dois no mesmo serviço (`video-api`) por decisão de escopo de hackathon — não há fronteira de rede real hoje, mas a fronteira *conceitual* de domínio existe e a mantenho no código (módulos/pacotes separados) |
-| Ingestão → Processamento | **Customer/Supplier**, comunicação via **Published Language** (eventos RabbitMQ, não chamada direta) | Ingestão é upstream: define o contrato do evento `VideoUploadRequested`. Processamento é downstream e consome esse contrato — nunca lê o Postgres de Ingestão diretamente |
+| Ingestão → Processamento | **Customer/Supplier**, comunicação via **Published Language** (eventos Amazon SQS, não chamada direta) | Ingestão é upstream: define o contrato do evento `VideoUploadRequested`. Processamento é downstream e consome esse contrato — nunca lê o Postgres de Ingestão diretamente |
 | Processamento → Ingestão | **Published Language** (eventos `ProcessingCompleted`/`ProcessingFailed`) | Inverte a direção do fluxo anterior: aqui é Processamento quem publica, Ingestão quem consome e aplica ao seu próprio estado — ver [ADR-008](../architecture/hld-lld-adr-rfc.md#adr-008--comunicação-de-status-entre-video-worker-e-video-api-evento-não-escrita-direta). Nenhum dos dois lados acessa o banco do outro em nenhuma direção |
 | Processamento → Notificação | **Published Language** (evento `ProcessingFailed`) | Notificação é puramente reativa a esse evento — não tem conhecimento de Vídeo, Job ou Usuário além do que vem no payload do evento |
 
