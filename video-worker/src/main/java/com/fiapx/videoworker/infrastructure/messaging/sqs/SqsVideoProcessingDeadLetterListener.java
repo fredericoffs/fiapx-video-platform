@@ -10,14 +10,12 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /** DLQ de processamento: o vídeo esgotou o redrive — gera FAILED de forma confiável, como no RabbitMQ. */
 @Component
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsVideoProcessingDeadLetterListener implements SqsMessageHandler {
 
   private static final Logger log = LoggerFactory.getLogger(SqsVideoProcessingDeadLetterListener.class);

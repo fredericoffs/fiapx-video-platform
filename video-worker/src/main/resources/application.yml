@@ -4,26 +4,6 @@ spring:
   threads:
     virtual:
       enabled: true
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
-    # Publisher confirms + returns: o resultado só é considerado publicado após o ack do broker
-    # (ver RabbitMessagePublisher); sem isso o consumo da fila de processamento terminaria
-    # com um resultado que ninguém recebeu.
-    publisher-confirm-type: correlated
-    publisher-returns: true
-    template:
-      mandatory: true
-    listener:
-      simple:
-        prefetch: ${RABBITMQ_PREFETCH:1}
-        retry:
-          enabled: true
-          initial-interval: 2000
-          multiplier: 2.0
-          max-retries: 3
 
 server:
   port: ${SERVER_PORT:8082}
@@ -40,14 +20,13 @@ management:
 # Fiz o video-worker stateless por decisão (ver docs/architecture/hld-lld-adr-rfc.md, ADR-008) — não coloco datasource aqui de propósito.
 fiapx:
   storage:
-    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
-    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
-    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    endpoint: ${STORAGE_ENDPOINT:}
+    access-key: ${STORAGE_ACCESS_KEY:}
+    secret-key: ${STORAGE_SECRET_KEY:}
     bucket-raw: ${STORAGE_BUCKET_RAW:videos-raw}
     bucket-processed: ${STORAGE_BUCKET_PROCESSED:videos-processed}
-    # Vazios no perfil aws: endpoint regional do S3 e credenciais da cadeia padrão do SDK.
     region: ${STORAGE_REGION:us-east-1}
-    path-style: ${STORAGE_PATH_STYLE:true}
+    path-style: ${STORAGE_PATH_STYLE:false}
   ffmpeg:
     binary-path: ${FFMPEG_PATH:ffmpeg}
     ffprobe-binary-path: ${FFPROBE_PATH:ffprobe}
@@ -57,21 +36,17 @@ fiapx:
     # 1800s = 30 min. <= 0 desliga o limite.
     max-duration-seconds: ${FFMPEG_MAX_DURATION_SECONDS:1800}
     probe-timeout-seconds: ${FFMPEG_PROBE_TIMEOUT_SECONDS:30}
-  messaging:
-    provider: ${MESSAGING_PROVIDER:rabbitmq}
-    confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}
+  sqs:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${SQS_ENDPOINT:}
   queues:
-    processing: ${QUEUE_PROCESSING:video.processing}
-    status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
-    status-updates-dlx: ${QUEUE_STATUS_UPDATES_DLX:video.status-updates.dlx}
-    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:video.status-updates.dlq}
-    processing-dlx: ${QUEUE_PROCESSING_DLX:video.processing.dlx}
-    processing-dlq: ${QUEUE_PROCESSING_DLQ:video.processing.dlq}
+    processing: ${QUEUE_PROCESSING:fiapx-video-processing}
+    processing-dlq: ${QUEUE_PROCESSING_DLQ:fiapx-video-processing-dlq}
+    status-updates: ${QUEUE_STATUS_UPDATES:fiapx-video-status-updates}
 
 logging:
-  # Uso o formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder)
-  # — confirmei rodando localmente que ele já inclui o MDC inteiro (incluindo correlationId)
-  # como campos JSON de nível superior, sem configuração extra.
+  # Formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder) —
+  # já inclui o MDC inteiro (incluindo correlationId) como campos JSON de nível superior.
   structured:
     format:
       console: logstash

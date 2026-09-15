@@ -4,13 +4,11 @@ import com.fiapx.videoworker.infrastructure.config.QueueProperties;
 import com.fiapx.videoworker.infrastructure.config.SqsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 @Configuration
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsConsumersConfig {
 
   // 1 mensagem por vez: equivalente ao prefetch=1 do RabbitMQ para um trabalho CPU-bound.

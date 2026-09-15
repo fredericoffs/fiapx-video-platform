@@ -17,11 +17,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -29,9 +26,8 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import tools.jackson.databind.ObjectMapper;
 
-/** Perfil aws de ponta a ponta: pedido chega por SQS, worker publica Started + resultado; redrive vira FAILED. */
+/** Fim a fim contra SQS real (LocalStack): pedido chega por SQS, worker publica Started + resultado; redrive vira FAILED. */
 @SpringBootTest
-@ActiveProfiles("aws")
 class AwsProfileIntegrationTest {
 
   static final SqsClient SQS = SqsTestSupport.client();
@@ -50,9 +46,6 @@ class AwsProfileIntegrationTest {
   }
 
   @Autowired
-  private ApplicationContext context;
-
-  @Autowired
   private MessagePublisher messagePublisher;
 
   @Autowired
@@ -68,9 +61,8 @@ class AwsProfileIntegrationTest {
   private ObjectMapper objectMapper;
 
   @Test
-  void contextUsesSqsAdaptersAndNoRabbitBeans() {
+  void contextUsesSqsAdapters() {
     assertThat(messagePublisher).isInstanceOf(SqsMessagePublisher.class);
-    assertThat(context.getBeanNamesForType(RabbitTemplate.class)).isEmpty();
   }
 
   @Test

@@ -11,13 +11,11 @@ import com.fiapx.videoworker.infrastructure.messaging.dto.ProcessingResultMessag
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.MDC;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsVideoProcessingListener implements SqsMessageHandler {
 
   private final ProcessVideoUseCase processVideoUseCase;
