@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/shared/api/client'
 import type { components } from '@/shared/api/schema.gen'
+import { useSessionStore } from '@/shared/lib/session-store'
 
 export type VideoStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
 
@@ -31,9 +32,11 @@ export function toVideo(dto: components['schemas']['VideoStatusResponse']): Vide
   }
 }
 
+// Escopado por usuário (e-mail da sessão): sem isso, o cache de uma conta apareceria pra
+// outra que logasse na mesma aba antes de os dados serem revalidados (ou numa falha de rede).
 export const videoKeys = {
   all: ['videos'] as const,
-  list: () => [...videoKeys.all, 'list'] as const,
+  list: (email: string | undefined) => [...videoKeys.all, 'list', email] as const,
 }
 
 const NON_TERMINAL_STATUSES: VideoStatus[] = ['QUEUED', 'PROCESSING']
@@ -43,8 +46,9 @@ export function hasNonTerminalVideo(videos: Video[] | undefined): boolean {
 }
 
 export function useVideosQuery() {
+  const email = useSessionStore((state) => state.session?.email)
   return useQuery({
-    queryKey: videoKeys.list(),
+    queryKey: videoKeys.list(email),
     queryFn: async () => {
       const { data, response } = await apiClient.GET('/videos')
       if (!response.ok || !data) {
@@ -52,12 +56,14 @@ export function useVideosQuery() {
       }
       return (data.items ?? []).map(toVideo).filter((video): video is Video => video !== null)
     },
+    enabled: email !== undefined,
     refetchInterval: (query) => (hasNonTerminalVideo(query.state.data) ? 3000 : false),
   })
 }
 
 export function useDeleteVideoMutation() {
   const queryClient = useQueryClient()
+  const email = useSessionStore((state) => state.session?.email)
   return useMutation({
     mutationFn: async (videoId: string) => {
       const { response } = await apiClient.DELETE('/videos/{id}', {
@@ -68,7 +74,7 @@ export function useDeleteVideoMutation() {
       }
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: videoKeys.list() })
+      void queryClient.invalidateQueries({ queryKey: videoKeys.list(email) })
     },
   })
 }
