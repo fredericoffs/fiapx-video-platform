@@ -4,13 +4,11 @@ import com.fiapx.notificationworker.infrastructure.config.QueueProperties;
 import com.fiapx.notificationworker.infrastructure.config.SqsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 @Configuration
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsConsumersConfig {
 
   @Bean

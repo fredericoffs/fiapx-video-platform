@@ -6,8 +6,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties("fiapx.queues")
 public record QueueProperties(
     String notification,
-    @DefaultValue("video.notification.dlx") String notificationDlx,
-    @DefaultValue("video.notification.dlq") String notificationDlq
+    @DefaultValue("fiapx-video-notification-dlq") String notificationDlq
 ) {
 
 }

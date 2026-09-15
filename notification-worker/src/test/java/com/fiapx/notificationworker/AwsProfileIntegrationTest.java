@@ -15,12 +15,9 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -31,9 +28,8 @@ import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
-/** Perfil aws de ponta a ponta: pedido de notificação chega por SQS, e-mail sai e a tentativa fica registrada. */
+/** Fim a fim contra SQS real (LocalStack): pedido de notificação chega por SQS, e-mail sai e a tentativa fica registrada. */
 @SpringBootTest
-@ActiveProfiles("aws")
 @Testcontainers
 @TestPropertySource(properties = {"spring.mail.host=127.0.0.1", "spring.mail.port=3025"})
 class AwsProfileIntegrationTest {
@@ -58,17 +54,13 @@ class AwsProfileIntegrationTest {
   }
 
   @Autowired
-  private ApplicationContext context;
-
-  @Autowired
   private QueueProperties queueProperties;
 
   @Autowired
   private SpringDataNotificationAttemptRepository springDataNotificationAttemptRepository;
 
   @Test
-  void contextHasNoRabbitBeans() {
-    assertThat(context.getBeanNamesForType(RabbitTemplate.class)).isEmpty();
+  void contextResolvesTheNotificationQueueName() {
     assertThat(queueProperties.notification()).isEqualTo("fiapx-video-notification");
   }
 

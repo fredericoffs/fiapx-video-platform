@@ -5,9 +5,9 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=notification_worker&sslmode=${DB_SSLMODE:disable}
-    username: ${DB_USER:fiapx}
-    password: ${DB_PASSWORD:fiapx}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=notification_worker&sslmode=${DB_SSLMODE:require}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -19,29 +19,17 @@ spring:
     schemas: notification_worker
     default-schema: notification_worker
     create-schemas: true
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
-    listener:
-      simple:
-        retry:
-          enabled: true
-          initial-interval: 2000
-          multiplier: 2.0
-          max-retries: 3
   mail:
-    host: ${SMTP_HOST:localhost}
-    port: ${SMTP_PORT:1025}
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
     username: ${SMTP_USER:}
     password: ${SMTP_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: ${SMTP_AUTH:false}
+          auth: ${SMTP_AUTH:true}
           starttls:
-            enable: ${SMTP_STARTTLS:false}
+            enable: ${SMTP_STARTTLS:true}
 
 server:
   port: ${SERVER_PORT:8083}
@@ -51,6 +39,11 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  health:
+    # Sem relay SMTP real garantido, uma falha de mail não pode derrubar a liveness — o
+    # canal de e-mail já tem fallback pra webhook (ver ADR-012, estratégia de canal).
+    mail:
+      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:false}
   metrics:
     tags:
       application: ${spring.application.name}
@@ -60,10 +53,12 @@ fiapx:
   notification:
     from-address: ${NOTIFICATION_FROM:no-reply@fiapx.local}
     webhook-fallback-url: ${NOTIFICATION_WEBHOOK_URL:}
+  sqs:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${SQS_ENDPOINT:}
   queues:
-    notification: ${QUEUE_NOTIFICATION:video.notification}
-    notification-dlx: ${QUEUE_NOTIFICATION_DLX:video.notification.dlx}
-    notification-dlq: ${QUEUE_NOTIFICATION_DLQ:video.notification.dlq}
+    notification: ${QUEUE_NOTIFICATION:fiapx-video-notification}
+    notification-dlq: ${QUEUE_NOTIFICATION_DLQ:fiapx-video-notification-dlq}
 
 # Uso Circuit Breaker + Bulkhead isolados por canal (tarefa 3 da Sprint 6) — thread-pool-bulkhead
 # (não bulkhead simples) porque cada canal precisa de um pool de threads próprio de verdade.
@@ -106,9 +101,8 @@ resilience4j:
         queue-capacity: 10
 
 logging:
-  # Uso o formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder)
-  # — confirmei rodando localmente que ele já inclui o MDC inteiro (incluindo correlationId)
-  # como campos JSON de nível superior, sem configuração extra.
+  # Formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder) —
+  # já inclui o MDC inteiro (incluindo correlationId) como campos JSON de nível superior.
   structured:
     format:
       console: logstash

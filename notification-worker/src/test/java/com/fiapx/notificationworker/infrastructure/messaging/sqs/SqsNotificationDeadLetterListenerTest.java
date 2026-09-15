@@ -1,8 +1,9 @@
-package com.fiapx.notificationworker.infrastructure.messaging;
+package com.fiapx.notificationworker.infrastructure.messaging.sqs;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,21 +15,21 @@ import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-class NotificationDeadLetterListenerTest {
+class SqsNotificationDeadLetterListenerTest {
 
-  private final NotificationDeadLetterListener listener = new NotificationDeadLetterListener(new ObjectMapper());
+  private final SqsNotificationDeadLetterListener listener = new SqsNotificationDeadLetterListener(new ObjectMapper());
   private ListAppender<ILoggingEvent> logAppender;
 
   @BeforeEach
   void attachLogAppender() {
     logAppender = new ListAppender<>();
     logAppender.start();
-    ((Logger) LoggerFactory.getLogger(NotificationDeadLetterListener.class)).addAppender(logAppender);
+    ((Logger) LoggerFactory.getLogger(SqsNotificationDeadLetterListener.class)).addAppender(logAppender);
   }
 
   @AfterEach
   void detachLogAppender() {
-    ((Logger) LoggerFactory.getLogger(NotificationDeadLetterListener.class)).detachAppender(logAppender);
+    ((Logger) LoggerFactory.getLogger(SqsNotificationDeadLetterListener.class)).detachAppender(logAppender);
   }
 
   @Test
@@ -37,7 +38,8 @@ class NotificationDeadLetterListenerTest {
     String rawJson = "{\"videoId\":\"" + videoId
         + "\",\"errorMessage\":\"e-mail e webhook indisponíveis\",\"recipientEmail\":\"dono@example.com\"}";
 
-    assertThatCode(() -> listener.onMessage(rawJson, "corr-id")).doesNotThrowAnyException();
+    assertThatCode(() -> listener.handle(rawJson, Map.of(SqsMessageHandler.CORRELATION_ID, "corr-id")))
+        .doesNotThrowAnyException();
   }
 
   @Test
@@ -46,10 +48,16 @@ class NotificationDeadLetterListenerTest {
     String rawJson = "{\"videoId\":\"" + videoId
         + "\",\"errorMessage\":\"e-mail e webhook indisponíveis\",\"recipientEmail\":\"dono@example.com\"}";
 
-    listener.onMessage(rawJson, "corr-id");
+    listener.handle(rawJson, Map.of(SqsMessageHandler.CORRELATION_ID, "corr-id"));
 
     assertThat(logAppender.list).hasSize(1);
     assertThat(logAppender.list.getFirst().getMDCPropertyMap()).containsEntry("correlationId", "corr-id");
     assertThat(MDC.get("correlationId")).isNull();
+  }
+
+  @Test
+  void discardsMalformedJsonWithoutThrowing() {
+    assertThatCode(() -> listener.handle("{isto nao e json",
+        Map.of(SqsMessageHandler.CORRELATION_ID, "corr-malformed"))).doesNotThrowAnyException();
   }
 }
