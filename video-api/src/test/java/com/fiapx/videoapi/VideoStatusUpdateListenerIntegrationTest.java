@@ -4,18 +4,24 @@ import com.fiapx.videoapi.application.event.ProcessingEventType;
 import com.fiapx.videoapi.application.event.ProcessingResultMessage;
 import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
+import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsMessageHandler;
+import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsTestSupport;
 import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
 import com.fiapx.videoapi.infrastructure.persistence.entity.VideoEntity;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutboxEventRepository;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataVideoRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,11 +31,23 @@ import static org.awaitility.Awaitility.await;
 @Import(TestcontainersConfiguration.class)
 class VideoStatusUpdateListenerIntegrationTest {
 
-  @Autowired
-  private SpringDataVideoRepository videoRepository;
+  static final SqsClient SQS = SqsTestSupport.client();
+
+  @DynamicPropertySource
+  static void sqs(DynamicPropertyRegistry registry) {
+    SqsTestSupport.createPlainQueues(SQS, List.of(
+        "fiapx-video-processing", "fiapx-video-processing-dlq", "fiapx-video-status-updates",
+        "fiapx-video-status-updates-dlq", "fiapx-video-notification", "fiapx-video-notification-dlq"));
+    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
+    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
+    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
+    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
+    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
+    registry.add("fiapx.storage.endpoint", () -> "");
+  }
 
   @Autowired
-  private RabbitTemplate rabbitTemplate;
+  private SpringDataVideoRepository videoRepository;
 
   @Autowired
   private ObjectMapper objectMapper;
@@ -53,7 +71,7 @@ class VideoStatusUpdateListenerIntegrationTest {
 
     ProcessingResultMessage message = new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED,
         entity.getId(), "processed/" + entity.getId() + ".zip", null);
-    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(), objectMapper.writeValueAsString(message));
+    sendStatusUpdate(objectMapper.writeValueAsString(message), null);
 
     await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
       VideoEntity updated = videoRepository.findById(entity.getId()).orElseThrow();
@@ -76,7 +94,7 @@ class VideoStatusUpdateListenerIntegrationTest {
     String firstZipKey = "processed/" + entity.getId() + "-first.zip";
     ProcessingResultMessage firstMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED,
         entity.getId(), firstZipKey, null);
-    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(), objectMapper.writeValueAsString(firstMessage));
+    sendStatusUpdate(objectMapper.writeValueAsString(firstMessage), null);
 
     await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
       VideoEntity updated = videoRepository.findById(entity.getId()).orElseThrow();
@@ -89,8 +107,7 @@ class VideoStatusUpdateListenerIntegrationTest {
     // e não apenas coincide por os dois payloads serem idênticos.
     ProcessingResultMessage duplicateMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED,
         entity.getId(), null, "erro-nao-deveria-ser-aplicado");
-    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(),
-        objectMapper.writeValueAsString(duplicateMessage));
+    sendStatusUpdate(objectMapper.writeValueAsString(duplicateMessage), null);
 
     // Uso uma espera fixa aqui: provo ausência de mudança, não presença — não há uma condição
     // positiva para o Awaitility aguardar.
@@ -115,11 +132,7 @@ class VideoStatusUpdateListenerIntegrationTest {
 
     ProcessingResultMessage failedMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_FAILED,
         entity.getId(), null, "ffmpeg falhou");
-    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(), objectMapper.writeValueAsString(failedMessage),
-        m -> {
-          m.getMessageProperties().setCorrelationId("status-listener-test-correlation-id");
-          return m;
-        });
+    sendStatusUpdate(objectMapper.writeValueAsString(failedMessage), "status-listener-test-correlation-id");
 
     await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
       VideoEntity updated = videoRepository.findById(entity.getId()).orElseThrow();
@@ -132,6 +145,17 @@ class VideoStatusUpdateListenerIntegrationTest {
           .findFirst()
           .orElseThrow();
       assertThat(event.getCorrelationId()).isEqualTo("status-listener-test-correlation-id");
+    });
+  }
+
+  private void sendStatusUpdate(String body, String correlationId) {
+    String url = SqsTestSupport.urlOf(SQS, queueProperties.statusUpdates());
+    SQS.sendMessage(b -> {
+      b.queueUrl(url).messageBody(body);
+      if (correlationId != null) {
+        b.messageAttributes(java.util.Map.of(SqsMessageHandler.CORRELATION_ID,
+            MessageAttributeValue.builder().dataType("String").stringValue(correlationId).build()));
+      }
     });
   }
 }

@@ -4,14 +4,12 @@ import com.fiapx.videoapi.infrastructure.config.QueueProperties;
 import com.fiapx.videoapi.infrastructure.config.SqsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 /** A DLQ de resultados fica sem consumer de propósito: mensagem retida até replay manual. */
 @Configuration
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsConsumersConfig {
 
   @Bean

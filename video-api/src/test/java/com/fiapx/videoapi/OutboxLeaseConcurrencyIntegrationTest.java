@@ -6,10 +6,12 @@ import com.fiapx.videoapi.application.job.OutboxPublisherJob;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
+import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsTestSupport;
 import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutboxEventRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -19,16 +21,33 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.Message;
 
-/** C05 contra Postgres + RabbitMQ reais: duas "APIs" publicando ao mesmo tempo não duplicam eventos. */
+/** C05 contra Postgres + SQS reais (LocalStack): duas "APIs" publicando ao mesmo tempo não duplicam eventos. */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class OutboxLeaseConcurrencyIntegrationTest {
+
+  static final SqsClient SQS = SqsTestSupport.client();
+
+  @DynamicPropertySource
+  static void sqs(DynamicPropertyRegistry registry) {
+    SqsTestSupport.createPlainQueues(SQS, List.of(
+        "fiapx-video-processing", "fiapx-video-processing-dlq", "fiapx-video-status-updates",
+        "fiapx-video-status-updates-dlq", "fiapx-video-notification", "fiapx-video-notification-dlq"));
+    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
+    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
+    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
+    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
+    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
+    registry.add("fiapx.storage.endpoint", () -> "");
+  }
 
   @Autowired
   private OutboxPublisherJob outboxPublisherJob;
@@ -38,9 +57,6 @@ class OutboxLeaseConcurrencyIntegrationTest {
 
   @Autowired
   private SpringDataOutboxEventRepository springDataOutboxEventRepository;
-
-  @Autowired
-  private RabbitTemplate rabbitTemplate;
 
   @Autowired
   private QueueProperties queueProperties;
@@ -115,19 +131,23 @@ class OutboxLeaseConcurrencyIntegrationTest {
   }
 
   private List<String> drainContaining(String queue, String needle) {
-    List<String> bodies = new java.util.ArrayList<>();
+    String url = SqsTestSupport.urlOf(SQS, queue);
+    List<String> bodies = new ArrayList<>();
     long deadline = System.currentTimeMillis() + 15_000;
     while (System.currentTimeMillis() < deadline) {
-      Message message = rabbitTemplate.receive(queue, 500);
-      if (message == null) {
+      List<Message> messages = SQS.receiveMessage(b -> b.queueUrl(url).maxNumberOfMessages(10).waitTimeSeconds(1))
+          .messages();
+      if (messages.isEmpty()) {
         if (bodies.size() >= 20) {
           break;
         }
         continue;
       }
-      String body = new String(message.getBody());
-      if (body.contains(needle)) {
-        bodies.add(body);
+      for (Message message : messages) {
+        SQS.deleteMessage(d -> d.queueUrl(url).receiptHandle(message.receiptHandle()));
+        if (message.body().contains(needle)) {
+          bodies.add(message.body());
+        }
       }
     }
     return bodies;

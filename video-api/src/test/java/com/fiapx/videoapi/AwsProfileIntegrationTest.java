@@ -15,12 +15,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -29,9 +26,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-/** Perfil aws de ponta a ponta: sem RabbitMQ no contexto, resultado do worker chega por SQS e atualiza o vídeo. */
+/** Fim a fim contra SQS real (LocalStack): resultado do worker chega por SQS e atualiza o vídeo. */
 @SpringBootTest
-@ActiveProfiles("aws")
 @Testcontainers
 class AwsProfileIntegrationTest {
 
@@ -59,9 +55,6 @@ class AwsProfileIntegrationTest {
   }
 
   @Autowired
-  private ApplicationContext context;
-
-  @Autowired
   private MessagePublisher messagePublisher;
 
   @Autowired
@@ -71,9 +64,8 @@ class AwsProfileIntegrationTest {
   private QueueProperties queueProperties;
 
   @Test
-  void contextUsesSqsAdaptersAndNoRabbitBeans() {
+  void contextUsesSqsAdapters() {
     assertThat(messagePublisher).isInstanceOf(SqsMessagePublisher.class);
-    assertThat(context.getBeanNamesForType(RabbitTemplate.class)).isEmpty();
     assertThat(queueProperties.statusUpdates()).isEqualTo("fiapx-video-status-updates");
   }
 

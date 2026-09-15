@@ -4,13 +4,11 @@ import com.fiapx.videoapi.application.event.ProcessingResultMessage;
 import com.fiapx.videoapi.application.usecase.ApplyProcessingResultUseCase;
 import java.util.Map;
 import org.slf4j.MDC;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsVideoStatusUpdateListener implements SqsMessageHandler {
 
   private final ApplyProcessingResultUseCase applyProcessingResultUseCase;

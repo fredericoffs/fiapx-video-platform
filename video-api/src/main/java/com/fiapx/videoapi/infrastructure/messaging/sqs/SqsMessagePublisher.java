@@ -5,7 +5,6 @@ import com.fiapx.videoapi.domain.model.OutboundMessage;
 import com.fiapx.videoapi.domain.port.MessagePublisher;
 import java.util.HashMap;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -14,7 +13,6 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 /** SendMessage é síncrono: a resposta com messageId é a confirmação; qualquer erro do SDK vira exceção. */
 @Component
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsMessagePublisher implements MessagePublisher {
 
   private final SqsClient sqsClient;
