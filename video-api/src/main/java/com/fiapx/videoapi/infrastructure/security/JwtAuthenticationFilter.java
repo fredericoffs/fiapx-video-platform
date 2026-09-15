@@ -22,6 +22,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
   private static final String BEARER_PREFIX = "Bearer ";
+  private static final String CHANGE_PASSWORD_PATH = "/users/me/password";
 
   private final JwtService jwtService;
 
@@ -41,6 +42,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       try {
         UUID userId = jwtService.parseUserId(token);
         Role role = jwtService.parseRole(token);
+        if (jwtService.parseMustChangePassword(token) && !isChangePasswordRequest(request)) {
+          response.sendError(HttpServletResponse.SC_FORBIDDEN,
+              "Troque a senha antes de usar qualquer outro recurso");
+          return;
+        }
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             userId, null, authoritiesFor(role)
         );
@@ -50,6 +56,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       }
     }
     filterChain.doFilter(request, response);
+  }
+
+  // Único recurso liberado enquanto o token carrega mustChangePassword=true — sem isso um
+  // token válido do admin semeado (ou de qualquer usuário marcado assim) opera o sistema
+  // inteiro antes de sair desse estado.
+  private boolean isChangePasswordRequest(HttpServletRequest request) {
+    return "PUT".equalsIgnoreCase(request.getMethod()) && CHANGE_PASSWORD_PATH.equals(request.getRequestURI());
   }
 
   private List<GrantedAuthority> authoritiesFor(Role role) {

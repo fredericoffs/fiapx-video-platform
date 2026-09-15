@@ -5,9 +5,11 @@ import java.util.UUID;
 
 public interface TokenIssuer {
 
-  String generateToken(UUID userId, Role role);
+  String generateToken(UUID userId, Role role, boolean mustChangePassword);
 
   UUID parseUserId(String token);
 
   Role parseRole(String token);
+
+  boolean parseMustChangePassword(String token);
 }

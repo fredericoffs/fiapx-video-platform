@@ -39,6 +39,12 @@ public class User {
     return new User(id, email, newPasswordHash, role, createdAt, false);
   }
 
+  /** Diferente de {@link #withPasswordChanged}: mantém mustChangePassword — é uma senha
+   * provisória injetada por provisionamento (AdminPasswordSeeder), não uma troca voluntária. */
+  public User withSeededPassword(String newPasswordHash) {
+    return new User(id, email, newPasswordHash, role, createdAt, true);
+  }
+
   public UUID getId() {
     return id;
   }

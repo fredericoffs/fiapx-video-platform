@@ -18,7 +18,7 @@ class JwtServiceTest {
   void generatedTokenRoundTripsToTheSameUserId() {
     UUID userId = UUID.randomUUID();
 
-    String token = jwtService.generateToken(userId, Role.USER);
+    String token = jwtService.generateToken(userId, Role.USER, false);
 
     assertThat(jwtService.parseUserId(token)).isEqualTo(userId);
   }
@@ -27,9 +27,23 @@ class JwtServiceTest {
   void generatedTokenRoundTripsToTheSameRole() {
     UUID userId = UUID.randomUUID();
 
-    String token = jwtService.generateToken(userId, Role.ADMIN);
+    String token = jwtService.generateToken(userId, Role.ADMIN, false);
 
     assertThat(jwtService.parseRole(token)).isEqualTo(Role.ADMIN);
+  }
+
+  @Test
+  void generatedTokenRoundTripsMustChangePasswordTrue() {
+    String token = jwtService.generateToken(UUID.randomUUID(), Role.ADMIN, true);
+
+    assertThat(jwtService.parseMustChangePassword(token)).isTrue();
+  }
+
+  @Test
+  void generatedTokenRoundTripsMustChangePasswordFalse() {
+    String token = jwtService.generateToken(UUID.randomUUID(), Role.USER, false);
+
+    assertThat(jwtService.parseMustChangePassword(token)).isFalse();
   }
 
   @Test
@@ -40,7 +54,7 @@ class JwtServiceTest {
   @Test
   void parsingExpiredTokenThrowsInvalidTokenException() {
     JwtService expiringService = new JwtService(new JwtProperties(jwtProperties.secret(), -1));
-    String token = expiringService.generateToken(UUID.randomUUID(), Role.USER);
+    String token = expiringService.generateToken(UUID.randomUUID(), Role.USER, false);
 
     assertThatThrownBy(() -> jwtService.parseUserId(token)).isInstanceOf(InvalidTokenException.class);
   }
@@ -48,7 +62,7 @@ class JwtServiceTest {
   @Test
   void tokenSignedWithDifferentSecretIsRejected() {
     JwtService otherService = new JwtService(new JwtProperties("another-secret-min-32-characters!!!", 15));
-    String token = otherService.generateToken(UUID.randomUUID(), Role.USER);
+    String token = otherService.generateToken(UUID.randomUUID(), Role.USER, false);
 
     assertThatThrownBy(() -> jwtService.parseUserId(token)).isInstanceOf(InvalidTokenException.class);
   }

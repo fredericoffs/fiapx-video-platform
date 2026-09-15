@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class JwtService implements TokenIssuer {
 
   private static final String ROLE_CLAIM = "role";
+  private static final String MUST_CHANGE_PASSWORD_CLAIM = "mustChangePassword";
 
   private final JwtProperties jwtProperties;
   private final SecretKey signingKey;
@@ -30,12 +31,13 @@ public class JwtService implements TokenIssuer {
   }
 
   @Override
-  public String generateToken(UUID userId, Role role) {
+  public String generateToken(UUID userId, Role role, boolean mustChangePassword) {
     Instant now = Instant.now();
     Instant expiresAt = now.plus(Duration.ofMinutes(jwtProperties.expirationMinutes()));
     return Jwts.builder()
         .subject(userId.toString())
         .claim(ROLE_CLAIM, role.name())
+        .claim(MUST_CHANGE_PASSWORD_CLAIM, mustChangePassword)
         .issuedAt(Date.from(now))
         .expiration(Date.from(expiresAt))
         .signWith(signingKey)
@@ -50,6 +52,11 @@ public class JwtService implements TokenIssuer {
   @Override
   public Role parseRole(String token) {
     return Role.valueOf(parseClaims(token).get(ROLE_CLAIM, String.class));
+  }
+
+  @Override
+  public boolean parseMustChangePassword(String token) {
+    return Boolean.TRUE.equals(parseClaims(token).get(MUST_CHANGE_PASSWORD_CLAIM, Boolean.class));
   }
 
   private Claims parseClaims(String token) {
