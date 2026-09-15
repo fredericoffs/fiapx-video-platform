@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Deploy no EKS, chamado por .github/workflows/cd-aws.yml depois que o cluster e os serviços
 # gerenciados já existem (Terraform, ver k8s/terraform/aws) e o kubeconfig já está
-# configurado (aws eks update-kubeconfig). Mesma ordenação do scripts/k8s-up.sh (migration
-# Job antes do Deployment do video-api), com imagens do ECR e sem infra self-hosted: os hosts
-# de RDS/ElastiCache, os buckets S3 e a URL da fila SQS (KEDA) são descobertos por nome via
-# aws CLI e injetados no ConfigMap em runtime, sem depender do state do Terraform. Os
-# segredos da aplicação (DB_USER, DB_PASSWORD, JWT_SECRET, NOTIFICATION_WEBHOOK_URL) vêm do
-# SSM Parameter Store (/fiapx/..., criados pelo Terraform); variáveis de ambiente com o
-# mesmo nome, se definidas, têm precedência (uso local).
+# configurado (aws eks update-kubeconfig). Migration Job antes do Deployment do video-api,
+# com imagens do ECR e sem infra self-hosted: os hosts de RDS/ElastiCache, os buckets S3 e a
+# URL da fila SQS (KEDA) são descobertos por nome via aws CLI e injetados no ConfigMap em
+# runtime, sem depender do state do Terraform. Os segredos da aplicação (DB_USER,
+# DB_PASSWORD, JWT_SECRET, NOTIFICATION_WEBHOOK_URL) vêm do SSM Parameter Store
+# (/fiapx/..., criados pelo Terraform); variáveis de ambiente com o mesmo nome, se
+# definidas, têm precedência.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAMESPACE="fiapx"
-OVERLAY_DIR="${ROOT_DIR}/k8s/apps/overlays/aws"
+BASE_DIR="${ROOT_DIR}/k8s/apps/base"
 RENDER_DIR="$(mktemp -d)"
 trap 'rm -rf "$RENDER_DIR"' EXIT
 
@@ -124,16 +124,16 @@ kubectl -n "$NAMESPACE" create secret generic fiapx-secrets \
   --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-echo "==> [6/9] apontando as imagens do overlay pro ECR (tag ${IMAGE_TAG})"
+echo "==> [6/9] apontando as imagens (k8s/apps/base) pro ECR (tag ${IMAGE_TAG})"
 (
-  cd "$OVERLAY_DIR"
+  cd "$BASE_DIR"
   for svc in video-gateway video-api video-worker notification-worker web; do
     kustomize edit set image "fiapx/${svc}:local=${ECR_REGISTRY}/fiapx/${svc}:${IMAGE_TAG}"
   done
 )
 
-echo "==> [7/9] aplicando o overlay (ConfigMap primeiro, com os hosts gerenciados)"
-kubectl kustomize --load-restrictor LoadRestrictionsNone "$OVERLAY_DIR" > "${RENDER_DIR}/rendered.yaml"
+echo "==> [7/9] aplicando os manifests (ConfigMap primeiro, com os hosts gerenciados)"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "$BASE_DIR" > "${RENDER_DIR}/rendered.yaml"
 
 awk -v outdir="$RENDER_DIR" '
   BEGIN { n = 0; file = sprintf("%s/doc-%03d.yaml", outdir, n) }
