@@ -1,4 +1,6 @@
-# Ver k8s/infra/rabbitmq/servicemonitor.yaml pro porquê do label "release".
+# Label "release: kube-prometheus-stack" precisa bater com o nome do Helm release: é o
+# serviceMonitorSelectorNilUsesHelmValues (default do chart) que faz o Prometheus Operator
+# descobrir este ServiceMonitor sem selector explícito.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

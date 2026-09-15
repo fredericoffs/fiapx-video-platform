@@ -132,9 +132,10 @@ resource "aws_eks_addon" "coredns" {
   depends_on = [aws_eks_node_group.this]
 }
 
-# Obrigatório pros PersistentVolumeClaims de k8s/infra (Postgres, Redis, RabbitMQ,
-# MinIO): em EKS >= 1.23 o provisionador in-tree de EBS não existe mais. Sem IRSA
-# (Learner Lab não permite criar roles), o driver herda as permissões do node role.
+# Obrigatório pros PersistentVolumeClaims do kube-prometheus-stack (único componente com
+# estado no cluster — nada de aplicação usa PVC, ver ADR-014): em EKS >= 1.23 o
+# provisionador in-tree de EBS não existe mais. Sem IRSA (Learner Lab não permite criar
+# roles), o driver herda as permissões do node role.
 resource "aws_eks_addon" "ebs_csi" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "aws-ebs-csi-driver"

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# ingress-nginx — só necessário em clusters reais expostos via Ingress
-# (overlays/aws — em EKS o Service LoadBalancer vira um load balancer da AWS).
-# O overlay local usa NodePort direto.
+# ingress-nginx expõe o cluster via Ingress (k8s/apps/base/ingress.yaml) — em EKS o
+# Service LoadBalancer do controller vira um load balancer da AWS (NLB).
 #
 # NLB, não Classic ELB: um Classic ELB recém-criado precisa de "pré-aquecimento"
 # gradual pra sustentar throughput alto (limitação documentada da AWS) — o
@@ -11,7 +10,7 @@
 # indo direto no video-api ou no nginx-ingress, só falha atravessando o
 # Classic ELB). NLB escala automaticamente, sem esse aquecimento — resolve de
 # vez. O idle timeout do NLB é fixo em 350s (não configurável, mas já cobre o
-# proxy-read/send-timeout de 300s do nginx — ver k8s/apps/overlays/aws/ingress.yaml)
+# proxy-read/send-timeout de 300s do nginx — ver k8s/apps/base/ingress.yaml)
 # então a annotation de idle timeout do Classic ELB não se aplica mais aqui.
 set -euo pipefail
 

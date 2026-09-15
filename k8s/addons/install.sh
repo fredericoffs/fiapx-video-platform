@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# metrics-server, KEDA, kube-prometheus-stack. --kubelet-insecure-tls é necessário em
-# kind (certificado self-signed do kubelet), inofensivo num cluster gerenciado.
+# metrics-server, KEDA, kube-prometheus-stack.
 set -euo pipefail
 
 ADDONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,6 +1,6 @@
-# Preciso do label "release: kube-prometheus-stack" pro operator descobrir esta regra —
-# mesmo motivo já documentado em k8s/infra/rabbitmq/servicemonitor.yaml
-# (ruleSelectorNilUsesHelmValues, default do chart).
+# Preciso do label "release: kube-prometheus-stack" pro operator descobrir esta regra
+# (ruleSelectorNilUsesHelmValues, default do chart) — mesmo motivo do label "release" nos
+# ServiceMonitor de k8s/apps/base/*/servicemonitor.yaml.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -14,11 +14,9 @@ spec:
         - alert: FiapxQueueDepthHigh
           # Limiar de 50 mensagens pendentes: acima disso, o video-worker não está
           # dando conta do ritmo de upload — sinal de que precisa escalar (KEDA) ou
-          # investigar um consumidor travado. rabbitmq_* vem do broker (local/kind);
-          # fiapx_queue_messages_visible vem dos próprios serviços (perfil aws, SQS).
+          # investigar um consumidor travado. fiapx_queue_messages_visible vem do
+          # SqsQueueDepthGauge de cada serviço (GetQueueAttributes a cada 30s).
           expr: |
-            max by (queue) (rabbitmq_queue_messages_ready{queue=~"video\\.(processing|notification|status-updates)"}) > 50
-            or
             max by (queue) (fiapx_queue_messages_visible{queue!~".*-dlq$"}) > 50
           for: 2m
           labels:
@@ -29,11 +27,8 @@ spec:
         - alert: FiapxDeadLetterQueueNotEmpty
           # Qualquer mensagem numa DLQ é trabalho perdido até alguém olhar: resultado que não
           # atualizou o status, vídeo que esgotou tentativas, notificação que falhou nos dois
-          # canais. Replay controlado: scripts/rabbitmq-replay-dlq.sh (local) ou
-          # `aws sqs start-message-move-task` (AWS).
+          # canais. Replay controlado: `aws sqs start-message-move-task`.
           expr: |
-            max by (queue) (rabbitmq_queue_messages_ready{queue=~"video\\..*\\.dlq"}) > 0
-            or
             max by (queue) (fiapx_queue_messages_visible{queue=~".*-dlq$"}) > 0
           for: 1m
           labels:

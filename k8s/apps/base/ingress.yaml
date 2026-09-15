@@ -1,4 +1,4 @@
-# Mesma separação de rotas do overlay local — via ingress-nginx (1 NLB só,
+# Exposição externa via ingress-nginx (1 NLB só,
 # ver k8s/addons/install-ingress-nginx.sh). Sem "host": ainda sem domínio, só o
 # hostname do NLB. Convenção: API admin sempre em /admin/<recurso> (vai pro gateway);
 # /admin exato é a página da SPA (cai em / → web). Prefixo mais longo vence no nginx.
