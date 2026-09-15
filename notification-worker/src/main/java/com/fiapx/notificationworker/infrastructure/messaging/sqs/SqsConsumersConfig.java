@@ -19,12 +19,11 @@ public class SqsConsumersConfig {
         sqsProperties.maxMessages(), listener);
   }
 
-  @Bean
-  public SqsQueueConsumer notificationDeadLetterConsumer(SqsClient sqsClient, SqsProperties sqsProperties,
-      SqsQueueUrlResolver resolver, QueueProperties queues, SqsNotificationDeadLetterListener listener) {
-    return new SqsQueueConsumer(sqsClient, sqsProperties, "notification-dlq",
-        resolver.urlOf(queues.notificationDlq()), null, sqsProperties.maxMessages(), listener);
-  }
+  // A DLQ de notificação fica sem consumer de propósito (mesmo padrão da DLQ de resultados
+  // no video-api): mensagem retida até replay manual (`aws sqs start-message-move-task`).
+  // Um consumer aqui que só loga e retorna faria o SqsQueueConsumer entender "sucesso" e
+  // apagar a mensagem — perdendo de vez o único registro de uma notificação que esgotou
+  // todos os canais.
 
   @Bean
   public SqsQueueDepthGauge sqsQueueDepthGauge(SqsClient sqsClient, SqsQueueUrlResolver resolver,
