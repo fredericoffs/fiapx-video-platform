@@ -55,6 +55,15 @@ management:
     # canal de e-mail já tem fallback pra webhook (ver ADR-012, estratégia de canal).
     mail:
       enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:false}
+  endpoint:
+    health:
+      # Item 16 da revisão crítica: separa /actuator/health/liveness (só o processo) de
+      # /actuator/health/readiness (inclui db) — ver comentário equivalente no video-api.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
   metrics:
     tags:
       application: ${spring.application.name}

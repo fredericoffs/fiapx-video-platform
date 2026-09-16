@@ -27,20 +27,22 @@ spec:
                 name: fiapx-config
             - secretRef:
                 name: fiapx-secrets
+          # startupProbe/readinessProbe usam o grupo readiness, livenessProbe usa o grupo
+          # liveness (só o processo) — item 16 da revisão crítica.
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: http
             periodSeconds: 10
           # ephemeral-storage (item 15 da revisão crítica): o diretório temporário de

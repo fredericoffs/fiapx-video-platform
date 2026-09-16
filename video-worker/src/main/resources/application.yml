@@ -13,6 +13,14 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  endpoint:
+    health:
+      # Item 16 da revisão crítica: separa /actuator/health/liveness (só o processo) de
+      # /actuator/health/readiness — ver comentário equivalente no video-api. Sem
+      # datasource/Redis aqui (ADR-008), os dois grupos ficam praticamente equivalentes hoje,
+      # mas ficam prontos pra qualquer indicador futuro sem precisar mexer nos probes de novo.
+      probes:
+        enabled: true
   metrics:
     tags:
       application: ${spring.application.name}

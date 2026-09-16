@@ -20,6 +20,14 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # Item 16 da revisão crítica: separa /actuator/health/liveness (só o processo) de
+      # /actuator/health/readiness (inclui redis, usado pelo rate limiter de borda) — ver
+      # comentário equivalente no video-api.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,redis
   metrics:
     tags:
       application: ${spring.application.name}

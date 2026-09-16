@@ -42,6 +42,16 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # Item 16 da revisão crítica: liveness/readiness apontavam pro mesmo /actuator/health
+      # agregado — uma indisponibilidade de dependência (RDS, Redis) virava reinício repetido
+      # do pod (liveness falhando) em vez de só sair da rotação de tráfego (readiness).
+      # /actuator/health/liveness reflete só o processo; /actuator/health/readiness inclui db
+      # e redis — combinado com os paths dos probes em k8s/apps/base/video-api/deployment.yaml.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,redis
   metrics:
     tags:
       application: ${spring.application.name}

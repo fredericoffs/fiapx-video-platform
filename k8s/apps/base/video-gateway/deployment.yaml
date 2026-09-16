@@ -24,20 +24,23 @@ spec:
           envFrom:
             - configMapRef:
                 name: fiapx-config
+          # startupProbe/readinessProbe usam o grupo readiness (inclui redis, usado pelo rate
+          # limiter de borda), livenessProbe usa o grupo liveness (só o processo) — item 16
+          # da revisão crítica.
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: http
             periodSeconds: 10
           resources:
