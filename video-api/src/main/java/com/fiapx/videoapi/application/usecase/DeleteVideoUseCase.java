@@ -1,5 +1,6 @@
 package com.fiapx.videoapi.application.usecase;
 
+import com.fiapx.videoapi.domain.exception.VideoBeingProcessedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
 import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.port.StorageClient;
@@ -29,6 +30,14 @@ public class DeleteVideoUseCase {
     Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
     if (!video.belongsTo(requesterId) && !isAdmin) {
       throw new VideoNotFoundException(videoId);
+    }
+    // QUEUED/PROCESSING: o worker (sem acesso ao banco, ADR-008) pode já ter baixado o
+    // original e terminar de subir o zip depois que apagamos os objetos e o registro — um
+    // órfão no bucket processado sem nada que o referencie. Bloquear a exclusão nesses dois
+    // estados fecha a corrida (o vídeo só pode ser excluído depois de chegar a um estado
+    // terminal, quando o worker já não tem mais nada pendente pra escrever sobre ele).
+    if (!video.isTerminal()) {
+      throw new VideoBeingProcessedException(videoId);
     }
 
     storageClient.delete(storageProperties.bucketRaw(), video.getStorageKey());

@@ -1,5 +1,7 @@
 package com.fiapx.videoapi;
 
+import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.port.VideoRepository;
 import java.util.UUID;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -47,6 +49,9 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @Autowired
+  private VideoRepository videoRepository;
 
   @Test
   void regularUserGetsForbiddenOnAdminEndpoints() throws Exception {
@@ -198,6 +203,13 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
     String userToken = registerAndLogin(email);
     UUID videoId = uploadVideo(userToken);
     String adminToken = adminToken();
+
+    // A exclusão em cascata só alcança vídeos em estado terminal (item 11 da revisão crítica —
+    // ver DeleteVideoUseCase): sem um worker real processando neste teste, o vídeo ficaria
+    // QUEUED pra sempre, então simulo o resultado chegando (como o video-worker faria via SQS).
+    Video video = videoRepository.findById(videoId).orElseThrow();
+    video.fail("simulado no teste");
+    videoRepository.save(video);
 
     UUID userId = extractUserId(userToken);
     mockMvc.perform(delete("/admin/users/" + userId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

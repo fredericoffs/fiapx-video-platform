@@ -1,5 +1,6 @@
 package com.fiapx.videoapi.application.usecase;
 
+import com.fiapx.videoapi.domain.exception.VideoBeingProcessedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
 import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.port.StorageClient;
@@ -35,9 +36,10 @@ class DeleteVideoUseCaseTest {
   }
 
   @Test
-  void ownerDeletesQueuedVideoAndOnlyTheRawFile() {
+  void ownerDeletesFailedVideoAndOnlyTheRawFile() {
     UUID userId = UUID.randomUUID();
     Video video = Video.newQueued(UUID.randomUUID(), userId, "movie.mp4", "raw/movie.mp4");
+    video.fail("ffmpeg saiu com código 1");
     when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
 
     useCase.handle(video.getId(), userId, false);
@@ -45,6 +47,33 @@ class DeleteVideoUseCaseTest {
     verify(storageClient, times(1)).delete(anyString(), any());
     verify(storageClient).delete("videos-raw", "raw/movie.mp4");
     verify(videoRepository).deleteById(video.getId());
+  }
+
+  @Test
+  void deletingAQueuedVideoIsBlocked() {
+    UUID userId = UUID.randomUUID();
+    Video video = Video.newQueued(UUID.randomUUID(), userId, "movie.mp4", "raw/movie.mp4");
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    assertThatThrownBy(() -> useCase.handle(video.getId(), userId, false))
+        .isInstanceOf(VideoBeingProcessedException.class);
+
+    verify(storageClient, never()).delete(anyString(), any());
+    verify(videoRepository, never()).deleteById(video.getId());
+  }
+
+  @Test
+  void deletingAProcessingVideoIsBlocked() {
+    UUID userId = UUID.randomUUID();
+    Video video = Video.newQueued(UUID.randomUUID(), userId, "movie.mp4", "raw/movie.mp4");
+    video.startProcessing();
+    when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
+
+    assertThatThrownBy(() -> useCase.handle(video.getId(), userId, false))
+        .isInstanceOf(VideoBeingProcessedException.class);
+
+    verify(storageClient, never()).delete(anyString(), any());
+    verify(videoRepository, never()).deleteById(video.getId());
   }
 
   @Test
@@ -76,6 +105,7 @@ class DeleteVideoUseCaseTest {
   @Test
   void adminDeletesAnyUsersVideo() {
     Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4");
+    video.fail("ffmpeg saiu com código 1");
     when(videoRepository.findById(video.getId())).thenReturn(Optional.of(video));
 
     useCase.handle(video.getId(), UUID.randomUUID(), true);

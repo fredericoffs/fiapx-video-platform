@@ -7,6 +7,7 @@ import com.fiapx.videoapi.domain.exception.InvalidFilenameException;
 import com.fiapx.videoapi.domain.exception.LoginRateLimitExceededException;
 import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
 import com.fiapx.videoapi.domain.exception.UserNotFoundException;
+import com.fiapx.videoapi.domain.exception.VideoBeingProcessedException;
 import com.fiapx.videoapi.domain.exception.VideoNotCompletedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(VideoNotCompletedException.class)
   public ProblemDetail handleVideoNotCompleted(VideoNotCompletedException e) {
     return problem(HttpStatus.CONFLICT, "Vídeo ainda não processado", e.getMessage());
+  }
+
+  @ExceptionHandler(VideoBeingProcessedException.class)
+  public ProblemDetail handleVideoBeingProcessed(VideoBeingProcessedException e) {
+    return problem(HttpStatus.CONFLICT, "Vídeo em processamento", e.getMessage());
   }
 
   @ExceptionHandler(EmailAlreadyRegisteredException.class)
