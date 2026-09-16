@@ -60,7 +60,7 @@ public class SendFailureNotificationUseCase {
       return true;
     } catch (RuntimeException e) {
       notificationAttemptRepository.save(NotificationAttempt.failed(message.videoId(), type, e.getMessage()));
-      log.warn("Falha ao notificar vídeo {} pelo canal {}: {}", message.videoId(), type, e.getMessage());
+      log.warn("Falha ao notificar vídeo {} pelo canal {}", message.videoId(), type, e);
       return false;
     }
   }

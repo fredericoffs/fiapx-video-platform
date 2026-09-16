@@ -19,9 +19,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
-/** Fim a fim contra SQS real (LocalStack): pedido de notificação chega por SQS, e-mail sai e a tentativa fica registrada. */
+/**
+ * Fim a fim contra SQS real (LocalStack): pedido de notificação chega por SQS, e-mail sai e
+ * a tentativa fica registrada. {@code smtp.auth=false}: o default de produção virou
+ * {@code true} (hardening — exige credenciais reais), mas o GreenMail aqui não configura
+ * nenhum usuário, então autenticar contra ele falha com "no password specified".
+ */
 @SpringBootTest
-@TestPropertySource(properties = {"spring.mail.host=127.0.0.1", "spring.mail.port=3025"})
+@TestPropertySource(properties = {
+    "spring.mail.host=127.0.0.1", "spring.mail.port=3025", "spring.mail.properties.mail.smtp.auth=false"
+})
 class AwsProfileIntegrationTest extends AbstractSqsIntegrationTest {
 
   @RegisterExtension
