@@ -47,6 +47,11 @@ jobs:
     defaults:
       run:
         working-directory: video-gateway
+    # Sem default em produção (CORS aberto por omissão seria inseguro) — o CI precisa
+    # de um valor próprio, só pra permitir o contexto Spring subir nos testes.
+    env:
+      VIDEO_API_URI: http://localhost:8081
+      GATEWAY_CORS_ALLOWED_ORIGINS: http://localhost:5173
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -112,6 +117,10 @@ jobs:
     defaults:
       run:
         working-directory: video-api
+    # Sem default em produção — o CI precisa de um valor próprio (≥32 chars pro HS256),
+    # só pra permitir o contexto Spring subir nos testes.
+    env:
+      JWT_SECRET: ci-test-only-secret-never-used-in-production-min-32-chars
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -143,6 +152,12 @@ jobs:
     defaults:
       run:
         working-directory: notification-worker
+    # Sem default em produção — o CI precisa de um valor próprio só pra permitir o
+    # contexto Spring subir nos testes (o canal EMAIL falha no envio real, como esperado
+    # sem um SMTP de verdade; os testes de circuit breaker/bulkhead do canal já apontam
+    # pra um host/porta próprios via @TestPropertySource, então não dependem deste valor).
+    env:
+      SMTP_HOST: localhost
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
