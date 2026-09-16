@@ -10,6 +10,8 @@ import com.fiapx.videoapi.domain.exception.UserNotFoundException;
 import com.fiapx.videoapi.domain.exception.VideoBeingProcessedException;
 import com.fiapx.videoapi.domain.exception.VideoNotCompletedException;
 import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
+import jakarta.validation.ConstraintViolationException;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -77,6 +79,19 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(InvalidFilenameException.class)
   public ProblemDetail handleInvalidFilename(InvalidFilenameException e) {
     return problem(HttpStatus.BAD_REQUEST, "Nome de arquivo inválido", e.getMessage());
+  }
+
+  // @Validated + @Min/@Max em @RequestParam (VideoController/AdminController — item 12 da
+  // revisão crítica) lançam essa exceção via MethodValidationInterceptor (AOP), não a
+  // HandlerMethodValidationException mais nova que o Spring já traduz sozinho pra
+  // ProblemDetail — sem este handler, page/size fora do intervalo vazava como 500 em vez
+  // de 400 (só apareceu rodando o teste de integração de verdade, com Docker).
+  @ExceptionHandler(ConstraintViolationException.class)
+  public ProblemDetail handleConstraintViolation(ConstraintViolationException e) {
+    String detail = e.getConstraintViolations().stream()
+        .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+        .collect(Collectors.joining("; "));
+    return problem(HttpStatus.BAD_REQUEST, "Parâmetro inválido", detail);
   }
 
   @ExceptionHandler(MaxUploadSizeExceededException.class)
