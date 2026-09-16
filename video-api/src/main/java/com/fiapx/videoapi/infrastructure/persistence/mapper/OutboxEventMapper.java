@@ -2,6 +2,7 @@ package com.fiapx.videoapi.infrastructure.persistence.mapper;
 
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
+import java.util.UUID;
 
 public final class OutboxEventMapper {
 
@@ -21,8 +22,9 @@ public final class OutboxEventMapper {
     return entity;
   }
 
-  public static OutboxEvent toDomain(OutboxEventEntity entity) {
-    return new OutboxEvent(
+  /** lockToken é o token gerado nesta reivindicação, não o entity.getLockedBy() pré-lease. */
+  public static OutboxEvent toDomain(OutboxEventEntity entity, UUID lockToken) {
+    OutboxEvent event = new OutboxEvent(
         entity.getId(),
         entity.getAggregateId(),
         entity.getEventType(),
@@ -32,5 +34,7 @@ public final class OutboxEventMapper {
         entity.getCreatedAt(),
         entity.getAttempts()
     );
+    event.assignLock(lockToken);
+    return event;
   }
 }

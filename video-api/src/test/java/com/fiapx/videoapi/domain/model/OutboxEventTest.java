@@ -34,4 +34,16 @@ class OutboxEventTest {
 
     assertThat(event.isPublished()).isTrue();
   }
+
+  @Test
+  void hasNoLockTokenUntilAssigned() {
+    OutboxEvent event = OutboxEvent.newEvent(UUID.randomUUID(), "VideoUploadRequested", "{}", "corr-id");
+
+    assertThat(event.getLockToken()).isNull();
+
+    UUID lockToken = UUID.randomUUID();
+    event.assignLock(lockToken);
+
+    assertThat(event.getLockToken()).isEqualTo(lockToken);
+  }
 }

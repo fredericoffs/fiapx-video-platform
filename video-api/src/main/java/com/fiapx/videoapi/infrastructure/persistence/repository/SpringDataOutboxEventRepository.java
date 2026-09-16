@@ -24,15 +24,23 @@ public interface SpringDataOutboxEventRepository extends JpaRepository<OutboxEve
 			""", nativeQuery = true)
 	List<OutboxEventEntity> lockUnpublished(@Param("limit") int limit);
 
+	// lockToken precisa bater com locked_by: uma conclusão de uma reivindicação já expirada e
+	// reciclada por outra réplica não pode confirmar nem liberar a reserva que não é mais dela.
 	@Modifying
-	@Query("UPDATE OutboxEventEntity e SET e.published = TRUE, e.lockedUntil = NULL WHERE e.id = :id")
-	int markPublished(@Param("id") UUID id);
+	@Query("""
+			UPDATE OutboxEventEntity e SET e.published = TRUE, e.lockedUntil = NULL, e.lockedBy = NULL
+			WHERE e.id = :id AND e.lockedBy = :lockToken
+			""")
+	int markPublished(@Param("id") UUID id, @Param("lockToken") UUID lockToken);
 
 	@Modifying
-	@Query("UPDATE OutboxEventEntity e SET e.lockedUntil = NULL, e.attempts = e.attempts + 1 WHERE e.id = :id")
-	int releaseAfterFailure(@Param("id") UUID id);
+	@Query("""
+			UPDATE OutboxEventEntity e SET e.lockedUntil = NULL, e.lockedBy = NULL, e.attempts = e.attempts + 1
+			WHERE e.id = :id AND e.lockedBy = :lockToken
+			""")
+	int releaseAfterFailure(@Param("id") UUID id, @Param("lockToken") UUID lockToken);
 
 	@Modifying
-	@Query("UPDATE OutboxEventEntity e SET e.lockedUntil = :until WHERE e.id IN :ids")
-	int lease(@Param("ids") List<UUID> ids, @Param("until") Instant until);
+	@Query("UPDATE OutboxEventEntity e SET e.lockedUntil = :until, e.lockedBy = :lockToken WHERE e.id IN :ids")
+	int lease(@Param("ids") List<UUID> ids, @Param("until") Instant until, @Param("lockToken") UUID lockToken);
 }

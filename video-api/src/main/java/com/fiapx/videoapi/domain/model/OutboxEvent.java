@@ -13,6 +13,7 @@ public class OutboxEvent {
   private boolean published;
   private final Instant createdAt;
   private final int attempts;
+  private UUID lockToken;
 
   public OutboxEvent(
       UUID id,
@@ -68,6 +69,15 @@ public class OutboxEvent {
 
   public void markPublished() {
     this.published = true;
+  }
+
+  /** Token gerado pela reivindicação (lease) que trouxe este evento; identifica quem detém a reserva atual. */
+  public void assignLock(UUID lockToken) {
+    this.lockToken = lockToken;
+  }
+
+  public UUID getLockToken() {
+    return lockToken;
   }
 
   public UUID getId() {

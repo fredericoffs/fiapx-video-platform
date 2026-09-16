@@ -52,11 +52,11 @@ public class OutboxPublisherJob {
         String targetQueue = resolveQueue(event.getEventType());
         messagePublisher.publish(targetQueue,
             OutboundMessage.of(event.getPayload(), event.getCorrelationId(), event.getId().toString()));
-        outboxEventRepository.markPublished(event.getId());
+        outboxEventRepository.markPublished(event.getId(), event.getLockToken());
       } catch (Exception e) {
         log.error("Falha ao publicar outbox event {} ({}), tentativa {}", event.getId(), event.getEventType(),
             event.getAttempts() + 1, e);
-        outboxEventRepository.releaseAfterFailure(event.getId());
+        outboxEventRepository.releaseAfterFailure(event.getId(), event.getLockToken());
       }
     }
   }
