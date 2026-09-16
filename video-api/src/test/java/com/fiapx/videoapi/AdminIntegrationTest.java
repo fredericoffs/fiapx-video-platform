@@ -8,6 +8,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
@@ -21,8 +22,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * V8 deixa o admin semeado com um hash placeholder inutilizável (ver comentário da
+ * migration) — só {@link com.fiapx.videoapi.application.usecase.SeedAdminPasswordUseCase},
+ * lendo {@code fiapx.admin.seed-password}, aplica uma senha utilizável. Defino esse valor
+ * aqui, igual ao {@code ADMIN_PASSWORD} usado nos logins abaixo, pra não depender de uma
+ * variável de ambiente externa (SSM em produção) só pra este teste subir.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
+@TestPropertySource(properties = "fiapx.admin.seed-password=Admin@123")
 class AdminIntegrationTest extends AbstractSqsIntegrationTest {
 
   private static final String PASSWORD = "senha-secreta-123";
