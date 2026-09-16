@@ -34,6 +34,21 @@ alertmanager:
       limits:
         cpu: 100m
         memory: 128Mi
+  # Item 19 da revisão crítica: as PrometheusRule (k8s/addons/queue-depth-alert.yaml) definem
+  # QUANDO alertar, mas sem receiver configurado o alerta nunca "chega a alguém" — fica só
+  # visível na UI do Alertmanager. webhook_configs vazio por padrão (nenhum destino real
+  # configurado ainda, comportamento idêntico a hoje); install.sh aceita
+  # ALERTMANAGER_WEBHOOK_URL e injeta via --set quando definido.
+  config:
+    route:
+      receiver: default
+      group_by: ["alertname", "queue"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 3h
+    receivers:
+      - name: default
+        webhook_configs: []
 
 grafana:
   # limits.cpu baixo trava o boot da Grafana em CrashLoopBackOff (registra uma pilha

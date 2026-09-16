@@ -32,10 +32,24 @@ helm upgrade --install keda kedacore/keda \
 
 echo "==> kube-prometheus-stack"
 kubectl get namespace monitoring >/dev/null 2>&1 || kubectl create namespace monitoring
-helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-  --namespace monitoring \
-  --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
-  --wait --timeout 5m
+# ALERTMANAGER_WEBHOOK_URL (opcional): sem ela, o receiver "default" fica sem
+# webhook_configs — os alertas existem (visíveis na UI do Alertmanager) mas não chegam a
+# lugar nenhum, o gap do item 19 da revisão crítica. Defina a variável antes de rodar este
+# script (ex.: um webhook de entrada do Slack) pra fechar essa lacuna. Comando duplicado (em
+# vez de um array de flags condicional) pra não depender de expansão de array vazio sob
+# "set -u", que quebra no bash 3.2 (o padrão no macOS).
+if [ -n "${ALERTMANAGER_WEBHOOK_URL:-}" ]; then
+  helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+    --namespace monitoring \
+    --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
+    --set-string "alertmanager.config.receivers[0].webhook_configs[0].url=${ALERTMANAGER_WEBHOOK_URL}" \
+    --wait --timeout 5m
+else
+  helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+    --namespace monitoring \
+    --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
+    --wait --timeout 5m
+fi
 
 echo "==> dashboards Grafana + alerta de profundidade de fila"
 kubectl apply -k "${ADDONS_DIR}"
