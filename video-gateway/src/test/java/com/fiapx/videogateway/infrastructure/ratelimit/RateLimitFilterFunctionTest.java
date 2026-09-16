@@ -35,6 +35,7 @@ class RateLimitFilterFunctionTest {
     request = mock(ServerRequest.class);
     next = mock(HandlerFunction.class);
     when(request.remoteAddress()).thenReturn(Optional.of(new InetSocketAddress("192.168.0.10", 54321)));
+    when(request.path()).thenReturn("/videos");
     headers = mock(ServerRequest.Headers.class);
     when(request.headers()).thenReturn(headers);
     when(headers.firstHeader(RateLimitFilterFunction.FORWARDED_FOR)).thenReturn(null);
@@ -45,30 +46,30 @@ class RateLimitFilterFunctionTest {
   @Test
   void usesFirstForwardedForAddressWhenBehindAProxy() throws Exception {
     when(headers.firstHeader(RateLimitFilterFunction.FORWARDED_FOR)).thenReturn("203.0.113.7, 10.30.2.1");
-    when(rateLimiter.tryConsume("203.0.113.7")).thenReturn(true);
+    when(rateLimiter.tryConsume("203.0.113.7:videos")).thenReturn(true);
     ServerResponse expectedResponse = ServerResponse.ok().build();
     when(next.handle(request)).thenReturn(expectedResponse);
 
     ServerResponse response = filterFunction.filter(request, next);
 
     assertThat(response).isSameAs(expectedResponse);
-    verify(rateLimiter, never()).tryConsume("192.168.0.10");
+    verify(rateLimiter, never()).tryConsume("192.168.0.10:videos");
   }
 
   @Test
   void ignoresBlankForwardedForHeader() throws Exception {
     when(headers.firstHeader(RateLimitFilterFunction.FORWARDED_FOR)).thenReturn(" , ");
-    when(rateLimiter.tryConsume("192.168.0.10")).thenReturn(true);
+    when(rateLimiter.tryConsume("192.168.0.10:videos")).thenReturn(true);
     when(next.handle(request)).thenReturn(ServerResponse.ok().build());
 
     filterFunction.filter(request, next);
 
-    verify(rateLimiter).tryConsume("192.168.0.10");
+    verify(rateLimiter).tryConsume("192.168.0.10:videos");
   }
 
   @Test
   void delegatesToNextHandlerWhenWithinLimit() throws Exception {
-    when(rateLimiter.tryConsume("192.168.0.10")).thenReturn(true);
+    when(rateLimiter.tryConsume("192.168.0.10:videos")).thenReturn(true);
     ServerResponse expectedResponse = ServerResponse.ok().build();
     when(next.handle(request)).thenReturn(expectedResponse);
 
@@ -79,7 +80,7 @@ class RateLimitFilterFunctionTest {
 
   @Test
   void returnsTooManyRequestsWhenLimitExceeded() throws Exception {
-    when(rateLimiter.tryConsume("192.168.0.10")).thenReturn(false);
+    when(rateLimiter.tryConsume("192.168.0.10:videos")).thenReturn(false);
 
     ServerResponse response = filterFunction.filter(request, next);
 
@@ -88,10 +89,30 @@ class RateLimitFilterFunctionTest {
     verify(next, never()).handle(request);
   }
 
+  // Item 13 da revisão crítica: o polling de /videos não pode esgotar a cota de /auth ou
+  // /admin do mesmo cliente — cada família de rota tem sua própria cota no rate limiter.
+  @Test
+  void scopesTheQuotaPerRouteFamilySoVideosPollingDoesNotStarveAuth() throws Exception {
+    when(rateLimiter.tryConsume("192.168.0.10:videos")).thenReturn(false);
+    when(rateLimiter.tryConsume("192.168.0.10:auth")).thenReturn(true);
+    when(next.handle(request)).thenReturn(ServerResponse.ok().build());
+
+    ServerResponse videosResponse = withPath("/videos");
+    ServerResponse authResponse = withPath("/auth/login");
+
+    assertThat(videosResponse.statusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    assertThat(authResponse.statusCode()).isEqualTo(HttpStatus.OK);
+  }
+
+  private ServerResponse withPath(String path) throws Exception {
+    when(request.path()).thenReturn(path);
+    return filterFunction.filter(request, next);
+  }
+
   @Test
   void fallsBackToUnknownClientKeyWhenRemoteAddressMissing() throws Exception {
     when(request.remoteAddress()).thenReturn(Optional.empty());
-    when(rateLimiter.tryConsume("unknown")).thenReturn(true);
+    when(rateLimiter.tryConsume("unknown:videos")).thenReturn(true);
     ServerResponse expectedResponse = ServerResponse.ok().build();
     when(next.handle(request)).thenReturn(expectedResponse);
 

@@ -28,8 +28,11 @@ public class RateLimitFilterFunction implements HandlerFilterFunction<ServerResp
 
 	@Override
 	public @NonNull ServerResponse filter(ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
-		String clientKey = resolveClientKey(request);
-		if (!rateLimiter.tryConsume(clientKey)) {
+		// Uma cota por (cliente, família de rota): sem isso, o polling de /videos (a cada
+		// poucos segundos, ver web) sozinho já consome a cota inteira de um IP, deixando
+		// /auth, /admin e /users sem orçamento nenhum pro resto da sessão daquele cliente.
+		String bucketKey = resolveClientKey(request) + ":" + routeFamily(request.path());
+		if (!rateLimiter.tryConsume(bucketKey)) {
 			long periodSeconds = properties.rateLimit().periodSeconds();
 			ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
 					HttpStatus.TOO_MANY_REQUESTS,
@@ -59,5 +62,27 @@ public class RateLimitFilterFunction implements HandlerFilterFunction<ServerResp
 			}
 		}
 		return request.remoteAddress().map(addr -> addr.getAddress().getHostAddress()).orElse("unknown");
+	}
+
+	static final String FAMILY_AUTH = "auth";
+	static final String FAMILY_VIDEOS = "videos";
+	static final String FAMILY_ADMIN = "admin";
+	static final String FAMILY_USERS = "users";
+	static final String FAMILY_OTHER = "other";
+
+	private static String routeFamily(String path) {
+		if (path.startsWith("/auth")) {
+			return FAMILY_AUTH;
+		}
+		if (path.startsWith("/videos")) {
+			return FAMILY_VIDEOS;
+		}
+		if (path.startsWith("/admin")) {
+			return FAMILY_ADMIN;
+		}
+		if (path.startsWith("/users")) {
+			return FAMILY_USERS;
+		}
+		return FAMILY_OTHER;
 	}
 }

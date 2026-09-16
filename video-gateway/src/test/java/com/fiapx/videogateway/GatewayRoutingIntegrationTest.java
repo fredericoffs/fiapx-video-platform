@@ -115,6 +115,18 @@ class GatewayRoutingIntegrationTest {
     mockMvc.perform(get("/videos")).andExpect(status().isTooManyRequests());
   }
 
+  // Item 13 da revisão crítica: esgotar a cota de /videos (polling da web) não pode deixar
+  // /auth sem orçamento nenhum pro mesmo cliente — cada família de rota tem sua própria cota.
+  @Test
+  void exhaustingVideosQuotaDoesNotBlockAuthForTheSameClient() throws Exception {
+    for (int i = 0; i < 3; i++) {
+      mockMvc.perform(get("/videos")).andExpect(status().isOk());
+    }
+    mockMvc.perform(get("/videos")).andExpect(status().isTooManyRequests());
+
+    mockMvc.perform(post("/auth/login").content("{}")).andExpect(status().isOk());
+  }
+
   private static void respond(HttpExchange exchange, String body) throws IOException {
     byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().add("Content-Type", "application/json");
