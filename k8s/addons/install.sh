@@ -10,10 +10,15 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm repo add jetstack https://charts.jetstack.io >/dev/null
 helm repo update >/dev/null
 
+# Versões fixadas (item 20 da revisão crítica): sem --version, cada execução puxa o chart
+# mais novo do momento — como este script roda de novo a cada sessão do Learner Lab (o lab
+# reseta entre sessões), a versão podia mudar de uma sessão pra outra sem nenhuma mudança de
+# código. Atualizar aqui é uma decisão deliberada, não um efeito colateral de "helm repo update".
 echo "==> cert-manager (TLS no Ingress — ver cert-manager-cluster-issuer.yaml)"
 kubectl get namespace cert-manager >/dev/null 2>&1 || kubectl create namespace cert-manager
 helm upgrade --install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
+  --version v1.21.2 \
   --set crds.enabled=true \
   --wait --timeout 3m
 kubectl apply -f "${ADDONS_DIR}/cert-manager-cluster-issuer.yaml"
@@ -21,6 +26,7 @@ kubectl apply -f "${ADDONS_DIR}/cert-manager-cluster-issuer.yaml"
 echo "==> metrics-server"
 helm upgrade --install metrics-server metrics-server/metrics-server \
   --namespace kube-system \
+  --version 3.14.0 \
   --set args='{--kubelet-insecure-tls}' \
   --wait --timeout 3m
 
@@ -28,6 +34,7 @@ echo "==> KEDA"
 kubectl get namespace keda >/dev/null 2>&1 || kubectl create namespace keda
 helm upgrade --install keda kedacore/keda \
   --namespace keda \
+  --version 2.20.2 \
   --wait --timeout 3m
 
 echo "==> kube-prometheus-stack"
@@ -41,12 +48,14 @@ kubectl get namespace monitoring >/dev/null 2>&1 || kubectl create namespace mon
 if [ -n "${ALERTMANAGER_WEBHOOK_URL:-}" ]; then
   helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
     --namespace monitoring \
+    --version 91.4.1 \
     --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
     --set-string "alertmanager.config.receivers[0].webhook_configs[0].url=${ALERTMANAGER_WEBHOOK_URL}" \
     --wait --timeout 5m
 else
   helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
     --namespace monitoring \
+    --version 91.4.1 \
     --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
     --wait --timeout 5m
 fi

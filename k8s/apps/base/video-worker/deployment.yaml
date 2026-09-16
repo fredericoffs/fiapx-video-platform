@@ -23,10 +23,10 @@ spec:
             - name: http
               containerPort: 8082
           envFrom:
+            # video-worker é stateless (ADR-008) — não usa JWT_SECRET, DB_USER/PASSWORD nem
+            # ADMIN_SEED_PASSWORD; sem secretRef de propósito (item 20 da revisão crítica).
             - configMapRef:
                 name: fiapx-config
-            - secretRef:
-                name: fiapx-secrets
           # startupProbe/readinessProbe usam o grupo readiness, livenessProbe usa o grupo
           # liveness (só o processo) — item 16 da revisão crítica.
           startupProbe:

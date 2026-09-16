@@ -117,15 +117,25 @@ wait_for_dns "$LB_HOST"
 echo "==> [4/9] add-ons de cluster (metrics-server, KEDA, kube-prometheus-stack)"
 "$ROOT_DIR/k8s/addons/install.sh"
 
-echo "==> [5/9] Secret fiapx-secrets"
+# Item 20 da revisão crítica: um Secret só, com todas as chaves, ia parar em todo pod via
+# envFrom — video-worker recebia DB_PASSWORD/JWT_SECRET que nunca usa, ADMIN_SEED_PASSWORD
+# idem, aumentando à toa o que vaza se um pod for comprometido. Um Secret por serviço, só com
+# as chaves que ele de fato consome.
+echo "==> [5/9] Secrets por serviço"
 kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
-kubectl -n "$NAMESPACE" create secret generic fiapx-secrets \
+kubectl -n "$NAMESPACE" create secret generic video-api-secrets \
   --from-literal=JWT_SECRET="${JWT_SECRET}" \
   --from-literal=DB_USER="${DB_USER}" \
   --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
   --from-literal=ADMIN_SEED_PASSWORD="${ADMIN_SEED_PASSWORD}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "$NAMESPACE" create secret generic notification-worker-secrets \
+  --from-literal=DB_USER="${DB_USER}" \
+  --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
   --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL}" \
   --dry-run=client -o yaml | kubectl apply -f -
+# video-worker é stateless (ADR-008) e video-gateway não faz auth (ADR-009) — nenhum dos
+# dois precisa de secret nenhum; seus Deployments não têm secretRef.
 
 echo "==> [6/9] apontando as imagens (k8s/apps/base) pro ECR (tag ${IMAGE_TAG})"
 (

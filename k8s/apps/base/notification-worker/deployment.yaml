@@ -25,8 +25,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: fiapx-config
+            # Secret próprio (item 20 da revisão crítica) — só as chaves que o
+            # notification-worker usa (DB_USER, DB_PASSWORD, NOTIFICATION_WEBHOOK_URL).
             - secretRef:
-                name: fiapx-secrets
+                name: notification-worker-secrets
           # Boot do Spring sob CPU limitada é lento — sem startupProbe o livenessProbe mata
           # o container antes de terminar de subir. startupProbe/readinessProbe usam o grupo
           # readiness (inclui db), livenessProbe usa o grupo liveness (só o processo) — item

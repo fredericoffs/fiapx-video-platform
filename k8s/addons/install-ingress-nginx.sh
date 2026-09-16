@@ -20,8 +20,12 @@ helm repo update >/dev/null
 kubectl get namespace ingress-nginx >/dev/null 2>&1 || kubectl create namespace ingress-nginx
 
 echo "==> ingress-nginx"
+# Versão fixada (item 20 da revisão crítica): sem --version, cada execução puxa o chart mais
+# novo do momento — como este script roda de novo a cada sessão do Learner Lab (o lab reseta
+# entre sessões), a versão podia mudar de uma sessão pra outra sem nenhuma mudança de código.
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress-nginx \
+  --version 4.15.1 \
   --set controller.resources.requests.cpu=100m \
   --set controller.resources.requests.memory=128Mi \
   --set controller.resources.limits.cpu=250m \

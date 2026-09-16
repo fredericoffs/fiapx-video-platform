@@ -24,8 +24,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: fiapx-config
+            # Secret próprio (item 20 da revisão crítica) — só as chaves que o video-api usa
+            # (JWT_SECRET, DB_USER, DB_PASSWORD, ADMIN_SEED_PASSWORD).
             - secretRef:
-                name: fiapx-secrets
+                name: video-api-secrets
           # Quem migra é o Job dedicado (migration-job.yaml) — o app só valida o schema.
           env:
             - name: SPRING_FLYWAY_ENABLED

@@ -117,7 +117,7 @@ Comunicando-se de forma síncrona (REST, cliente ↔ video-api) e assíncrona (f
 ## 4. HLD — High-Level Design
 
 ### Visão de containers
-
+![Diagramas Hackthon-HLD.drawio.svg](Diagramas%20Hackthon-HLD.drawio.svg)
 ```mermaid
 ---
 config:
@@ -570,6 +570,14 @@ Estratégia de custo: o `apply` acontece só numa janela curta (validação ou g
 | Decisão                   | Fiz `GET /videos` consultar direto o PostgreSQL do `video-api` (índice por usuário, escopo pelo JWT) — sem separar modelo de leitura e escrita nem cache intermediário                                                                                                                                                                                      |
 | Alternativas consideradas | CQRS + Event Sourcing para reconstruir o status a partir do histórico de eventos — rejeitei: volume e complexidade de consulta não justificam separar leitura e escrita; o polling do front é uma consulta indexada barata, e um cache Redis da listagem só adicionaria invalidação a cada mudança de status                                                  |
 | Consequências             | **Positivo**: menos um componente de infraestrutura (sem event store separado), consulta simples de raciocinar e depurar.<br/>**Negativo**: se o histórico completo de transições de status virar um requisito futuro (auditoria detalhada), precisaria ser desenhado à parte — hoje só o estado atual é persistido |
+
+**Emenda — dívida de manutenção registrada (item 20).** A revisão crítica de 2026-09-15 apontou cinco pontos de dívida; tratei cada um nesta sessão:
+
+- *Três implementações quase idênticas do consumidor SQS* (`SqsQueueConsumer` duplicado em `video-api`, `video-worker` e `notification-worker`, cada correção precisando ser aplicada nos três lugares — o `@DirtiesContext` de 2026-09-16 é um exemplo real). **Não extraí uma biblioteca compartilhada**: os 4 serviços são deliberadamente projetos Maven independentes, sem reactor multi-módulo, justamente pra cada um poder ser extraído pra um repositório próprio sem mudança de código — uma dependência compartilhada contradiria essa decisão de design. Registro consciente do trade-off, não um problema a corrigir.
+- *Versões não fixadas em imagens de teste e instalações*: `postgres:latest`/`redis:latest` nos `TestcontainersConfiguration` de `video-api`, `notification-worker` e `video-gateway` viraram `postgres:17-alpine`/`redis:7-alpine` (mesma major do RDS/ElastiCache de produção); os 5 charts Helm dos add-ons (`cert-manager`, `metrics-server`, `keda`, `kube-prometheus-stack`, `ingress-nginx`) ganharam `--version` fixo em `k8s/addons/install.sh`/`install-ingress-nginx.sh` — sem isso, cada execução (o script roda de novo a cada sessão do Learner Lab) puxava o que fosse mais novo no momento.
+- *Mesmo conjunto de secrets pra serviços com necessidades diferentes*: um único Secret `fiapx-secrets` com todas as chaves (JWT_SECRET, DB_USER/PASSWORD, ADMIN_SEED_PASSWORD, NOTIFICATION_WEBHOOK_URL) ia parar em `video-api`, `video-worker` e `notification-worker` via `envFrom` — `video-worker` (stateless, ADR-008) recebia credenciais de banco e o segredo JWT sem nunca usar nenhum dos dois. `scripts/k8s-deploy-aws.sh` passa a montar `video-api-secrets` e `notification-worker-secrets`, cada um só com as chaves que aquele serviço consome; `video-worker` e `video-gateway` não têm `secretRef` nenhum.
+- *Privilégios de banco mais amplos que o necessário por serviço*: `video-api` e `notification-worker` continuam compartilhando o mesmo usuário/senha do RDS (o master criado pelo Terraform), com acesso à instância inteira em vez de só ao próprio schema — separar isso exigiria criar roles Postgres de privilégio mínimo por schema (provider `postgresql` do Terraform ou um script de bootstrap), replumbing de `secrets.tf`/`k8s-deploy-aws.sh`, e validação ao vivo contra o RDS real que não dá pra fazer com segurança sem acesso a uma sessão do Learner Lab. Fica registrado como o próximo passo desta frente, não resolvido nesta sessão.
+- *Documentação/evidências misturando estado anterior com a refatoração atual*: não encontrei um exemplo concreto e específico pra corrigir nesta auditoria — fica como alerta geral pra quem revisar `docs/` a seguir, não uma lacuna identificada.
 
 ### ADR-014 — Serviços gerenciados AWS como única topologia
 
