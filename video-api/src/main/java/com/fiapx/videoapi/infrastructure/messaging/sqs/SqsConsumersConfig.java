@@ -12,12 +12,13 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 @Configuration
 public class SqsConsumersConfig {
 
+  // 1 mensagem por vez: o heartbeat do SqsQueueConsumer só estende a visibilidade da mensagem
+  // em processamento — um lote >1 deixaria as demais perdendo visibilidade em memória.
   @Bean
   public SqsQueueConsumer statusUpdatesConsumer(SqsClient sqsClient, SqsProperties sqsProperties,
       SqsQueueUrlResolver resolver, QueueProperties queues, SqsVideoStatusUpdateListener listener) {
     return new SqsQueueConsumer(sqsClient, sqsProperties, "status-updates",
-        resolver.urlOf(queues.statusUpdates()), resolver.urlOf(queues.statusUpdatesDlq()),
-        sqsProperties.maxMessages(), listener);
+        resolver.urlOf(queues.statusUpdates()), resolver.urlOf(queues.statusUpdatesDlq()), 1, listener);
   }
 
   @Bean

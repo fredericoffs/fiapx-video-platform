@@ -11,12 +11,13 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 @Configuration
 public class SqsConsumersConfig {
 
+  // 1 mensagem por vez: o heartbeat do SqsQueueConsumer só estende a visibilidade da mensagem
+  // em processamento — um lote >1 deixaria as demais perdendo visibilidade em memória.
   @Bean
   public SqsQueueConsumer notificationConsumer(SqsClient sqsClient, SqsProperties sqsProperties,
       SqsQueueUrlResolver resolver, QueueProperties queues, SqsNotificationRequestedListener listener) {
     return new SqsQueueConsumer(sqsClient, sqsProperties, "notification",
-        resolver.urlOf(queues.notification()), resolver.urlOf(queues.notificationDlq()),
-        sqsProperties.maxMessages(), listener);
+        resolver.urlOf(queues.notification()), resolver.urlOf(queues.notificationDlq()), 1, listener);
   }
 
   // A DLQ de notificação fica sem consumer de propósito (mesmo padrão da DLQ de resultados
