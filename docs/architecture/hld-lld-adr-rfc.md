@@ -516,6 +516,10 @@ No frontend, `apiClient` ganhou um middleware `onResponse`: um 401 em qualquer r
 | Consequências             | **Positivo**: demonstra escalabilidade real (HPA + KEDA) num cluster gerenciado de verdade, sem a complexidade operacional de um service mesh.<br/>**Negativo**: sem mTLS automático entre serviços — se isso for exigido depois, precisa ser adicionado explicitamente (ex.: NetworkPolicy)          |
 
 
+**Emenda — `ephemeral-storage` orçado no `video-worker` (item 15).** `ProcessVideoUseCase` mantém, ao mesmo tempo, o vídeo bruto baixado + todos os PNGs extraídos + o zip final no disco local do pod antes de limpar o diretório temporário — sem `resources.requests`/`limits.ephemeral-storage` no Deployment, um vídeo grande/longo podia consumir o disco do nó (30 GiB, `node_disk_size_gb`) sem limite, afetando outros pods ali (o `t3.large` do node group cabe vários `video-worker` por bin-packing de CPU/memória). Adicionei `ephemeral-storage: 1Gi` (request) / `8Gi` (limit) — dimensionado pelos limites já existentes (upload até 500MB, `FFMPEG_MAX_DURATION_SECONDS=1800` a `FFMPEG_FPS=1` → até 1800 frames), mas o tamanho de cada PNG depende da resolução do vídeo, sem teto hoje — é uma estimativa, não uma garantia testada ao vivo com o maior vídeo realista.
+
+**Emenda — download em streaming no frontend (item 15).** O download do zip processado buscava a resposta inteira como `Blob` antes de salvar — pro maior vídeo permitido, o pior caso de uso de memória do fluxo. Onde a File System Access API existe (Chromium), `downloadVideo` agora grava direto no disco via `response.body.pipeTo()` enquanto os bytes chegam, sem acumular o zip inteiro em memória. Firefox/Safari não implementam essa API e continuam no download via `Blob` de sempre — nenhuma regressão pra quem já funcionava assim.
+
 ### ADR-011 — Notificação multicanal como incremento, não como núcleo
 
 | Campo                     | Valor                                                                                                                                                                                                       |

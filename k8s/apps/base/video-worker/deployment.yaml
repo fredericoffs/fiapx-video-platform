@@ -43,10 +43,20 @@ spec:
               path: /actuator/health
               port: http
             periodSeconds: 10
+          # ephemeral-storage (item 15 da revisão crítica): o diretório temporário de
+          # ProcessVideoUseCase acumula, ao mesmo tempo, o vídeo bruto + todos os PNGs
+          # extraídos + o zip final antes de limpar. Sem limite, um vídeo grande/longo podia
+          # encher o disco do nó (30 GiB, node_disk_size_gb) e afetar outros pods ali. O teto
+          # aqui é dimensionado pelos limites já existentes (upload até 500MB,
+          # FFMPEG_MAX_DURATION_SECONDS=1800 a FFMPEG_FPS=1 → até 1800 frames), mas o tamanho
+          # de cada PNG depende da resolução do vídeo (sem teto hoje) — é uma estimativa, não
+          # uma garantia; vale confirmar com o maior vídeo realista antes de contar com ela.
           resources:
             requests:
               cpu: 500m
               memory: 256Mi
+              ephemeral-storage: 1Gi
             limits:
               cpu: 1500m
               memory: 768Mi
+              ephemeral-storage: 8Gi
