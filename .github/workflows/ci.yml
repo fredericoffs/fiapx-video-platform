@@ -24,6 +24,10 @@ jobs:
               - 'k8s/**'
               - 'scripts/**'
               - '.github/workflows/**'
+              # Sem isso, uma migration nova sem tocar em k8s/** nunca aciona a checagem
+              # abaixo (migrations do video-api listadas no configMapGenerator) — item 17 da
+              # revisão crítica.
+              - 'video-api/src/main/resources/db/migration/**'
             video-gateway:
               - 'video-gateway/**'
               - '.github/workflows/ci.yml'

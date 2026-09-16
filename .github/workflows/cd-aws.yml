@@ -29,9 +29,57 @@ env:
   CLUSTER_NAME: fiapx
 
 jobs:
+  # Item 18 da revisão crítica: push em main disparava ci.yml e cd-aws.yml em paralelo, sem
+  # nenhuma ordem entre eles — um commit que reprova o CI podia terminar de implantar antes
+  # (ou mesmo depois, sem nunca ser barrado) do CI reportar a falha. Só se aplica a push
+  # automático: o dispatch manual já é uma decisão explícita de implantar de qualquer jeito,
+  # equivalente ao "provision: skip" pra infra.
+  wait-for-ci:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+    steps:
+      - name: Espera o workflow CI concluir pra este commit e falha se não passou
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Aguardando conclusão do CI para ${{ github.sha }}..."
+          for _ in $(seq 1 90); do
+            run_json=$(gh run list --repo "${{ github.repository }}" --workflow=ci.yml \
+              --commit "${{ github.sha }}" --json status,conclusion --jq '.[0] // empty')
+            if [ -z "$run_json" ]; then
+              echo "Nenhuma execução de CI encontrada ainda pra este commit, tentando de novo em 20s..."
+              sleep 20
+              continue
+            fi
+            run_status=$(echo "$run_json" | jq -r '.status')
+            if [ "$run_status" != "completed" ]; then
+              echo "CI ainda em '$run_status', aguardando 20s..."
+              sleep 20
+              continue
+            fi
+            conclusion=$(echo "$run_json" | jq -r '.conclusion')
+            if [ "$conclusion" = "success" ]; then
+              echo "CI passou (conclusion=$conclusion)."
+              exit 0
+            fi
+            echo "CI concluiu como '$conclusion' — não implanto um commit sem CI verde."
+            exit 1
+          done
+          echo "Tempo esgotado esperando o CI concluir pra este commit."
+          exit 1
+
   provision:
+    needs: wait-for-ci
     # Em push na main inputs.provision vem vazio → roda; só o dispatch com "skip" pula.
-    if: inputs.provision != 'skip'
+    # wait-for-ci "skipped" é o próprio dispatch manual (condição acima); "success" é push
+    # com CI verde. Qualquer outro resultado (failure/cancelled) barra o deploy.
+    if: |
+      always() &&
+      (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped') &&
+      inputs.provision != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: AWS
@@ -66,9 +114,14 @@ jobs:
         run: ./scripts/aws-up.sh --region "$AWS_REGION" --apply-if-changed
 
   build-and-push:
-    needs: provision
-    # provision pode ter sido pulado (dispatch com skip); só não segue se falhou/cancelou.
-    if: ${{ !cancelled() && needs.provision.result != 'failure' }}
+    needs: [ wait-for-ci, provision ]
+    # provision pode ter sido pulado por dois motivos: "provision: skip" (intencional, segue
+    # normalmente) ou porque wait-for-ci barrou o job (CI vermelho/expirado) — nesse segundo
+    # caso não pode seguir, senão o gate do item 18 vira decoração.
+    if: |
+      always() &&
+      (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped') &&
+      !cancelled() && needs.provision.result != 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: AWS
