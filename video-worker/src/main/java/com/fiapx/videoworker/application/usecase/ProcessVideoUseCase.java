@@ -49,6 +49,16 @@ public class ProcessVideoUseCase {
   }
 
   public ProcessingResult handle(VideoUploadRequestedPayload payload) {
+    String zipKey = "processed/" + payload.videoId() + "/" + payload.videoId() + ".zip";
+    // Reentrega (redelivery do SQS após visibility timeout, ou reprocessamento manual): o
+    // ffmpeg já rodou até o fim numa tentativa anterior e o zip já está no destino final. Sem
+    // DB, a própria existência do objeto de saída é a evidência de "já processado" — evita
+    // rodar o ffmpeg de novo à toa numa mensagem duplicada.
+    if (storageClient.exists(storageProperties.bucketProcessed(), zipKey)) {
+      log.info("Vídeo {} já processado (zip existente em {}), pulando reentrega", payload.videoId(), zipKey);
+      return ProcessingResult.success(payload.videoId(), zipKey);
+    }
+
     Path tempDir = createTempDir(payload);
     try {
       // Nome interno controlado: o nome original do usuário nunca vira caminho em disco.
@@ -63,7 +73,6 @@ public class ProcessVideoUseCase {
       Path zipFile = tempDir.resolve(payload.videoId() + ".zip");
       archiver.zip(framesDir, zipFile);
 
-      String zipKey = "processed/" + payload.videoId() + "/" + payload.videoId() + ".zip";
       try (InputStream zipIn = Files.newInputStream(zipFile)) {
         storageClient.upload(storageProperties.bucketProcessed(), zipKey, zipIn, Files.size(zipFile),
             "application/zip");

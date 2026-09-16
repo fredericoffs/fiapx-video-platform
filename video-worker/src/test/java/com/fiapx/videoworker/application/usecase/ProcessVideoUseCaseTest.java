@@ -184,6 +184,22 @@ class ProcessVideoUseCaseTest {
   }
 
   @Test
+  void skipsReprocessingWhenZipAlreadyExistsAtTheOutputKey() {
+    UUID videoId = UUID.randomUUID();
+    VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/movie.mp4", "movie.mp4");
+    String zipKey = "processed/" + videoId + "/" + videoId + ".zip";
+    when(storageClient.exists("videos-processed", zipKey)).thenReturn(true);
+
+    ProcessingResult result = useCase.handle(payload);
+
+    assertThat(result.isSuccess()).isTrue();
+    assertThat(result.getZipStorageKey()).isEqualTo(zipKey);
+    verify(storageClient, never()).download(anyString(), anyString());
+    verify(frameExtractor, never()).extractFrames(any(), any(), anyInt());
+    verify(storageClient, never()).upload(anyString(), anyString(), any(), anyLong(), anyString());
+  }
+
+  @Test
   void wrapsIOExceptionFromStorageDownloadAsUncheckedIOException() {
     UUID videoId = UUID.randomUUID();
     VideoUploadRequestedPayload payload = new VideoUploadRequestedPayload(videoId, "raw/" + videoId + "/movie.mp4", "movie.mp4");

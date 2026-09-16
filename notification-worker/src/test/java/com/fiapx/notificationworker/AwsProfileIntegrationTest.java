@@ -56,7 +56,9 @@ class AwsProfileIntegrationTest extends AbstractSqsIntegrationTest {
 
     assertThat(greenMail.waitForIncomingEmail(20_000, 1)).isTrue();
     await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
-        assertThat(springDataNotificationAttemptRepository.existsByVideoIdAndChannelAndStatus(
-            videoId, NotificationChannelType.EMAIL, NotificationStatus.SENT)).isTrue());
+        assertThat(springDataNotificationAttemptRepository.findAll())
+            .anyMatch(attempt -> attempt.getVideoId().equals(videoId)
+                && attempt.getChannel() == NotificationChannelType.EMAIL
+                && attempt.getStatus() == NotificationStatus.SENT));
   }
 }

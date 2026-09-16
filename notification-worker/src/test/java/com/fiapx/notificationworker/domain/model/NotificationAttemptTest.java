@@ -8,27 +8,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationAttemptTest {
 
   @Test
-  void sentFactoryCreatesAttemptWithSentStatusAndNoError() {
+  void claimingFactoryCreatesAttemptWithSendingStatusAndNoError() {
     UUID videoId = UUID.randomUUID();
 
-    NotificationAttempt attempt = NotificationAttempt.sent(videoId, NotificationChannelType.EMAIL);
+    NotificationAttempt attempt = NotificationAttempt.claiming(videoId, NotificationChannelType.EMAIL);
 
     assertThat(attempt.getVideoId()).isEqualTo(videoId);
     assertThat(attempt.getChannel()).isEqualTo(NotificationChannelType.EMAIL);
-    assertThat(attempt.getStatus()).isEqualTo(NotificationStatus.SENT);
+    assertThat(attempt.getStatus()).isEqualTo(NotificationStatus.SENDING);
     assertThat(attempt.getErrorMessage()).isNull();
-  }
-
-  @Test
-  void failedFactoryCreatesAttemptWithFailedStatusAndErrorMessage() {
-    UUID videoId = UUID.randomUUID();
-
-    NotificationAttempt attempt =
-        NotificationAttempt.failed(videoId, NotificationChannelType.WEBHOOK, "conexão recusada");
-
-    assertThat(attempt.getVideoId()).isEqualTo(videoId);
-    assertThat(attempt.getChannel()).isEqualTo(NotificationChannelType.WEBHOOK);
-    assertThat(attempt.getStatus()).isEqualTo(NotificationStatus.FAILED);
-    assertThat(attempt.getErrorMessage()).isEqualTo("conexão recusada");
   }
 }

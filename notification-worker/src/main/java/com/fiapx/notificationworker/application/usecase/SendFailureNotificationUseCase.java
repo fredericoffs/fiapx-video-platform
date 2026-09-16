@@ -1,7 +1,6 @@
 package com.fiapx.notificationworker.application.usecase;
 
 import com.fiapx.notificationworker.application.dto.NotificationRequestedMessage;
-import com.fiapx.notificationworker.domain.exception.DuplicateNotificationException;
 import com.fiapx.notificationworker.domain.exception.NotificationDeliveryException;
 import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
@@ -9,6 +8,7 @@ import com.fiapx.notificationworker.domain.port.NotificationAttemptRepository;
 import com.fiapx.notificationworker.domain.port.NotificationChannel;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -47,30 +47,27 @@ public class SendFailureNotificationUseCase {
         "Falha ao notificar vídeo " + message.videoId() + " por todos os canais", null);
   }
 
+  // Reivindica ANTES de chamar o canal (não "consultar então enviar"): fecha a corrida em que
+  // duas execuções concorrentes (reentrega da fila, ou duas réplicas) passavam pela checagem e
+  // mandavam o e-mail/webhook duas vezes antes de qualquer uma registrar sucesso.
   private boolean tryChannel(NotificationChannelType type, NotificationRequestedMessage message) {
-    if (notificationAttemptRepository.existsSent(message.videoId(), type)) {
-      log.info("Notificação por {} já enviada para o vídeo {}, ignorando (idempotência)", type, message.videoId());
+    Optional<NotificationAttempt> claim = notificationAttemptRepository.tryClaim(message.videoId(), type);
+    if (claim.isEmpty()) {
+      log.info("Notificação por {} já enviada ou em andamento para o vídeo {}, ignorando (idempotência)", type,
+          message.videoId());
       return true;
     }
 
+    NotificationAttempt attempt = claim.get();
     NotificationChannel channel = channelsByType.get(type);
     try {
       channel.send(message.videoId(), message.errorMessage(), message.recipientEmail()).join();
-      registerSent(message, type);
+      notificationAttemptRepository.markSent(attempt.getId());
       return true;
     } catch (RuntimeException e) {
-      notificationAttemptRepository.save(NotificationAttempt.failed(message.videoId(), type, e.getMessage()));
+      notificationAttemptRepository.markFailed(attempt.getId(), e.getMessage());
       log.warn("Falha ao notificar vídeo {} pelo canal {}", message.videoId(), type, e);
       return false;
-    }
-  }
-
-  // Corrida entre réplicas/reentrega: o banco recusa o segundo SENT — já foi entregue, sucesso.
-  private void registerSent(NotificationRequestedMessage message, NotificationChannelType type) {
-    try {
-      notificationAttemptRepository.save(NotificationAttempt.sent(message.videoId(), type));
-    } catch (DuplicateNotificationException e) {
-      log.info("Envio por {} do vídeo {} já registrado por outra execução (idempotência)", type, message.videoId());
     }
   }
 }

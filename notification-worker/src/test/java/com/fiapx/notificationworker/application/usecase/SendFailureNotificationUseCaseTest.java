@@ -1,26 +1,23 @@
 package com.fiapx.notificationworker.application.usecase;
 
 import com.fiapx.notificationworker.application.dto.NotificationRequestedMessage;
-import com.fiapx.notificationworker.domain.exception.DuplicateNotificationException;
 import com.fiapx.notificationworker.domain.exception.NotificationDeliveryException;
 import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
-import com.fiapx.notificationworker.domain.model.NotificationStatus;
 import com.fiapx.notificationworker.domain.port.NotificationAttemptRepository;
 import com.fiapx.notificationworker.domain.port.NotificationChannel;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,59 +36,65 @@ class SendFailureNotificationUseCaseTest {
     return channel;
   }
 
+  private static NotificationAttempt claim(NotificationChannelType type) {
+    return NotificationAttempt.claiming(UUID.randomUUID(), type);
+  }
+
   @Test
-  void skipsAlreadySentEmailAndDoesNotTryWebhook() {
+  void skipsAlreadySentOrInFlightEmailAndDoesNotTryWebhook() {
     UUID videoId = UUID.randomUUID();
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(true);
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
+        .thenReturn(Optional.empty());
 
     useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
 
     verify(emailChannel, never()).send(any(), any(), any());
     verify(webhookChannel, never()).send(any(), any(), any());
-    verify(notificationAttemptRepository, never()).save(any());
+    verify(notificationAttemptRepository, never()).markSent(any());
   }
 
   @Test
-  void savesSentAttemptWhenEmailSucceeds() {
+  void marksAttemptSentWhenEmailSucceeds() {
     UUID videoId = UUID.randomUUID();
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(false);
+    NotificationAttempt attempt = claim(NotificationChannelType.EMAIL);
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
+        .thenReturn(Optional.of(attempt));
     when(emailChannel.send(videoId, "erro", "user@example.com"))
         .thenReturn(CompletableFuture.completedFuture(null));
 
     useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
 
-    ArgumentCaptor<NotificationAttempt> captor = ArgumentCaptor.forClass(NotificationAttempt.class);
-    verify(notificationAttemptRepository).save(captor.capture());
-    assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.SENT);
-    assertThat(captor.getValue().getChannel()).isEqualTo(NotificationChannelType.EMAIL);
+    verify(notificationAttemptRepository).markSent(attempt.getId());
     verify(webhookChannel, never()).send(any(), any(), any());
   }
 
   @Test
   void fallsBackToWebhookWhenEmailFails() {
     UUID videoId = UUID.randomUUID();
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(false);
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.WEBHOOK)).thenReturn(false);
+    NotificationAttempt emailAttempt = claim(NotificationChannelType.EMAIL);
+    NotificationAttempt webhookAttempt = claim(NotificationChannelType.WEBHOOK);
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
+        .thenReturn(Optional.of(emailAttempt));
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.WEBHOOK))
+        .thenReturn(Optional.of(webhookAttempt));
     when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("smtp indisponível"));
     when(webhookChannel.send(videoId, "erro", "user@example.com"))
         .thenReturn(CompletableFuture.completedFuture(null));
 
     useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
 
-    ArgumentCaptor<NotificationAttempt> captor = ArgumentCaptor.forClass(NotificationAttempt.class);
-    verify(notificationAttemptRepository, times(2)).save(captor.capture());
-    List<NotificationAttempt> saved = captor.getAllValues();
-    assertThat(saved.get(0).getChannel()).isEqualTo(NotificationChannelType.EMAIL);
-    assertThat(saved.get(0).getStatus()).isEqualTo(NotificationStatus.FAILED);
-    assertThat(saved.get(1).getChannel()).isEqualTo(NotificationChannelType.WEBHOOK);
-    assertThat(saved.get(1).getStatus()).isEqualTo(NotificationStatus.SENT);
+    verify(notificationAttemptRepository).markFailed(eq(emailAttempt.getId()), contains("smtp indisponível"));
+    verify(notificationAttemptRepository).markSent(webhookAttempt.getId());
   }
 
   @Test
   void doesNotRetryWebhookWhenAlreadySent() {
     UUID videoId = UUID.randomUUID();
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(false);
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.WEBHOOK)).thenReturn(true);
+    NotificationAttempt emailAttempt = claim(NotificationChannelType.EMAIL);
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
+        .thenReturn(Optional.of(emailAttempt));
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.WEBHOOK))
+        .thenReturn(Optional.empty());
     when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("smtp indisponível"));
 
     useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
@@ -102,8 +105,12 @@ class SendFailureNotificationUseCaseTest {
   @Test
   void rethrowsWhenBothChannelsFail() {
     UUID videoId = UUID.randomUUID();
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(false);
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.WEBHOOK)).thenReturn(false);
+    NotificationAttempt emailAttempt = claim(NotificationChannelType.EMAIL);
+    NotificationAttempt webhookAttempt = claim(NotificationChannelType.WEBHOOK);
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
+        .thenReturn(Optional.of(emailAttempt));
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.WEBHOOK))
+        .thenReturn(Optional.of(webhookAttempt));
     when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("smtp indisponível"));
     when(webhookChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("webhook indisponível"));
 
@@ -111,28 +118,13 @@ class SendFailureNotificationUseCaseTest {
         () -> useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com")))
         .isInstanceOf(NotificationDeliveryException.class);
 
-    ArgumentCaptor<NotificationAttempt> captor = ArgumentCaptor.forClass(NotificationAttempt.class);
-    verify(notificationAttemptRepository, times(2)).save(captor.capture());
-    assertThat(captor.getAllValues()).allSatisfy(a -> assertThat(a.getStatus()).isEqualTo(NotificationStatus.FAILED));
+    verify(notificationAttemptRepository).markFailed(eq(emailAttempt.getId()), contains("smtp indisponível"));
+    verify(notificationAttemptRepository).markFailed(eq(webhookAttempt.getId()), contains("webhook indisponível"));
   }
 
   private static CompletableFuture<Void> failedFuture(String message) {
     CompletableFuture<Void> future = new CompletableFuture<>();
     future.completeExceptionally(new RuntimeException(message));
     return future;
-  }
-
-  @Test
-  void treatsDuplicateSentRecordAsAlreadyDeliveredAndDoesNotFallBackToWebhook() {
-    UUID videoId = UUID.randomUUID();
-    when(notificationAttemptRepository.existsSent(videoId, NotificationChannelType.EMAIL)).thenReturn(false);
-    when(emailChannel.send(videoId, "erro", "user@example.com"))
-        .thenReturn(CompletableFuture.completedFuture(null));
-    doThrow(new DuplicateNotificationException(videoId, NotificationChannelType.EMAIL))
-        .when(notificationAttemptRepository).save(any());
-
-    useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
-
-    verify(webhookChannel, never()).send(any(), any(), any());
   }
 }
