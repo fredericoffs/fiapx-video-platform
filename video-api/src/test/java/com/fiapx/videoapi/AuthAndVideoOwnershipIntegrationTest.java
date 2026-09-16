@@ -104,6 +104,20 @@ class AuthAndVideoOwnershipIntegrationTest extends AbstractSqsIntegrationTest {
     assertThat(json.get("items").size()).isEqualTo(2);
   }
 
+  // Item 12 da revisão crítica: page/size sem limite no backend aceitava qualquer valor
+  // (inclusive negativo, o que quebrava com 500 em vez de 400).
+  @Test
+  void listVideosRejectsOutOfRangePageOrSize() throws Exception {
+    String token = registerAndLogin(newEmail());
+
+    mockMvc.perform(get("/videos").param("page", "-1").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isBadRequest());
+    mockMvc.perform(get("/videos").param("size", "0").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isBadRequest());
+    mockMvc.perform(get("/videos").param("size", "101").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isBadRequest());
+  }
+
   @Test
   void downloadReturnsZipOnlyWhenVideoIsCompleted() throws Exception {
     String token = registerAndLogin(newEmail());

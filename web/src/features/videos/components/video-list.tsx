@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Download, LayoutGrid, List, Loader2, Trash2 } from 'lucide-react'
-import { useDeleteVideoMutation, useVideosQuery, type Video } from '@/shared/api/videos'
+import {
+  flattenVideoPages,
+  RateLimitedError,
+  useDeleteVideoMutation,
+  useVideosQuery,
+  type Video,
+} from '@/shared/api/videos'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Skeleton } from '@/shared/ui/skeleton'
@@ -55,10 +61,16 @@ export function VideoList() {
   }
 
   if (videosQuery.isError) {
-    return <p className="text-sm text-destructive">Não foi possível carregar seus vídeos.</p>
+    const message =
+      videosQuery.error instanceof RateLimitedError
+        ? videosQuery.error.message
+        : 'Não foi possível carregar seus vídeos.'
+    return <p className="text-sm text-destructive">{message}</p>
   }
 
-  if (videosQuery.data.length === 0) {
+  const videos = flattenVideoPages(videosQuery.data)
+
+  if (videos.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <VideoProcessingIllustration className="w-48" />
@@ -150,7 +162,7 @@ export function VideoList() {
 
       {viewMode === 'list' ? (
         <ul className="flex flex-col gap-2">
-          {videosQuery.data.map((video) => (
+          {videos.map((video) => (
             <li key={video.id} className="flex items-center justify-between gap-3 border px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{video.originalFilename}</p>
@@ -163,7 +175,7 @@ export function VideoList() {
         </ul>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {videosQuery.data.map((video) => (
+          {videos.map((video) => (
             <Card key={video.id} className="gap-3 p-4">
               <p className="truncate text-sm font-medium">{video.originalFilename}</p>
               {metadata(video)}
@@ -172,6 +184,20 @@ export function VideoList() {
             </Card>
           ))}
         </div>
+      )}
+
+      {videosQuery.hasNextPage && (
+        <Button
+          variant="outline"
+          className="self-center"
+          disabled={videosQuery.isFetchingNextPage}
+          onClick={() => {
+            void videosQuery.fetchNextPage()
+          }}
+        >
+          {videosQuery.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null}
+          Carregar mais
+        </Button>
       )}
     </div>
   )
