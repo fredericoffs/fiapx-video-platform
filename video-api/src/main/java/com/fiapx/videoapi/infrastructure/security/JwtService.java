@@ -59,6 +59,11 @@ public class JwtService implements TokenIssuer {
     return Boolean.TRUE.equals(parseClaims(token).get(MUST_CHANGE_PASSWORD_CLAIM, Boolean.class));
   }
 
+  @Override
+  public Instant parseIssuedAt(String token) {
+    return parseClaims(token).getIssuedAt().toInstant();
+  }
+
   private Claims parseClaims(String token) {
     try {
       return Jwts.parser()

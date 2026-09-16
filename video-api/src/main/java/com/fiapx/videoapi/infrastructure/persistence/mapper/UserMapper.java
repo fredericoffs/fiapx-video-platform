@@ -16,6 +16,7 @@ public final class UserMapper {
     entity.setRole(user.getRole());
     entity.setCreatedAt(user.getCreatedAt());
     entity.setMustChangePassword(user.isMustChangePassword());
+    entity.setTokensValidAfter(user.getTokensValidAfter());
     return entity;
   }
 
@@ -26,7 +27,8 @@ public final class UserMapper {
         entity.getPasswordHash(),
         entity.getRole(),
         entity.getCreatedAt(),
-        entity.isMustChangePassword()
+        entity.isMustChangePassword(),
+        entity.getTokensValidAfter()
     );
   }
 }

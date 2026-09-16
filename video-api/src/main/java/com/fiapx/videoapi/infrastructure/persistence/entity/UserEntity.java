@@ -38,4 +38,7 @@ public class UserEntity {
 
   @Column(name = "must_change_password", nullable = false)
   private boolean mustChangePassword;
+
+  @Column(name = "tokens_valid_after", nullable = false)
+  private Instant tokensValidAfter;
 }

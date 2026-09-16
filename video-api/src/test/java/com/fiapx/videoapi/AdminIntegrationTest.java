@@ -111,7 +111,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
                   .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                   .content(changeBody)
           )
-          .andExpect(status().isNoContent());
+          .andExpect(status().isOk());
 
       JsonNode secondLogin = loginResponse(ADMIN_EMAIL, newPassword);
       assertThat(secondLogin.get("mustChangePassword").asBoolean()).isFalse();
@@ -125,7 +125,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
                   .header(HttpHeaders.AUTHORIZATION, "Bearer " + restoreToken)
                   .content(restoreBody)
           )
-          .andExpect(status().isNoContent());
+          .andExpect(status().isOk());
     }
   }
 
@@ -257,7 +257,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + login.get("accessToken").asString())
                 .content(changeBody)
         )
-        .andExpect(status().isNoContent());
+        .andExpect(status().isOk());
     return login(ADMIN_EMAIL, ADMIN_PASSWORD);
   }
 

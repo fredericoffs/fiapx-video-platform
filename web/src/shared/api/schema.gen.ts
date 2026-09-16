@@ -14,7 +14,7 @@ export interface paths {
     get?: never
     /**
      * Troca a senha do usuário autenticado
-     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword).
+     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword). Retorna um token novo: a troca de senha revoga qualquer token emitido antes dela (incluindo o que autenticou esta própria requisição), então o chamador precisa trocar pelo token da resposta pra continuar autenticado.
      */
     put: operations['changePassword']
     post?: never
@@ -479,12 +479,14 @@ export interface operations {
       }
     }
     responses: {
-      /** @description Senha alterada */
-      204: {
+      /** @description Senha alterada — token novo na resposta */
+      200: {
         headers: {
           [name: string]: unknown
         }
-        content?: never
+        content: {
+          'application/json': components['schemas']['LoginResponse']
+        }
       }
       /** @description Nova senha fora do padrão (8 a 100 caracteres) */
       400: {
