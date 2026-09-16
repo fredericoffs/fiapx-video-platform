@@ -6,6 +6,8 @@ import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
 import com.fiapx.notificationworker.domain.port.NotificationAttemptRepository;
 import com.fiapx.notificationworker.domain.port.NotificationChannel;
+import com.fiapx.notificationworker.infrastructure.config.NotificationProperties;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,8 +29,9 @@ class SendFailureNotificationUseCaseTest {
   private final NotificationChannel webhookChannel = channelMock(NotificationChannelType.WEBHOOK);
   private final NotificationAttemptRepository notificationAttemptRepository =
       mock(NotificationAttemptRepository.class);
-  private final SendFailureNotificationUseCase useCase =
-      new SendFailureNotificationUseCase(List.of(emailChannel, webhookChannel), notificationAttemptRepository);
+  private final SendFailureNotificationUseCase useCase = new SendFailureNotificationUseCase(
+      List.of(emailChannel, webhookChannel), notificationAttemptRepository,
+      new NotificationProperties("no-reply@fiapx.local", "http://webhook", Duration.ofSeconds(5)));
 
   private static NotificationChannel channelMock(NotificationChannelType type) {
     NotificationChannel channel = mock(NotificationChannel.class);
@@ -120,6 +123,30 @@ class SendFailureNotificationUseCaseTest {
 
     verify(notificationAttemptRepository).markFailed(eq(emailAttempt.getId()), contains("smtp indisponível"));
     verify(notificationAttemptRepository).markFailed(eq(webhookAttempt.getId()), contains("webhook indisponível"));
+  }
+
+  // Item 10 da revisão crítica: um destino que aceita a conexão e nunca responde não pode
+  // prender o dispatcher indefinidamente — .get(timeout) tem que valer mesmo quando o canal
+  // nunca completa (nem com sucesso, nem com falha).
+  @Test
+  void fallsBackToWebhookWhenEmailNeverCompletesWithinTheTimeout() {
+    UUID videoId = UUID.randomUUID();
+    NotificationAttempt emailAttempt = claim(NotificationChannelType.EMAIL);
+    NotificationAttempt webhookAttempt = claim(NotificationChannelType.WEBHOOK);
+    NotificationAttemptRepository repository = mock(NotificationAttemptRepository.class);
+    when(repository.tryClaim(videoId, NotificationChannelType.EMAIL)).thenReturn(Optional.of(emailAttempt));
+    when(repository.tryClaim(videoId, NotificationChannelType.WEBHOOK)).thenReturn(Optional.of(webhookAttempt));
+    when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(new CompletableFuture<>());
+    when(webhookChannel.send(videoId, "erro", "user@example.com"))
+        .thenReturn(CompletableFuture.completedFuture(null));
+    SendFailureNotificationUseCase useCaseWithShortTimeout = new SendFailureNotificationUseCase(
+        List.of(emailChannel, webhookChannel), repository,
+        new NotificationProperties("no-reply@fiapx.local", "http://webhook", Duration.ofMillis(50)));
+
+    useCaseWithShortTimeout.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
+
+    verify(repository).markFailed(eq(emailAttempt.getId()), contains("não respondeu"));
+    verify(repository).markSent(webhookAttempt.getId());
   }
 
   private static CompletableFuture<Void> failedFuture(String message) {

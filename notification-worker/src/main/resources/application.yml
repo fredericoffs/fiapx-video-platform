@@ -30,6 +30,17 @@ spring:
           auth: ${SMTP_AUTH:true}
           starttls:
             enable: ${SMTP_STARTTLS:true}
+          # Sem isso, o JavaMailSender não tem prazo pra conectar/ler/escrever no relay SMTP —
+          # um relay que aceita a conexão e não responde prenderia o EmailChannel indefinidamente.
+          connectiontimeout: ${SMTP_CONNECT_TIMEOUT_MS:5000}
+          timeout: ${SMTP_READ_TIMEOUT_MS:10000}
+          writetimeout: ${SMTP_WRITE_TIMEOUT_MS:10000}
+  # Aplicado ao RestClient.Builder autoconfigurado (WebhookChannel) — mesmo motivo do timeout
+  # de SMTP acima, mas pro canal de webhook.
+  http:
+    client:
+      connect-timeout: ${WEBHOOK_CONNECT_TIMEOUT_MS:5000}
+      read-timeout: ${WEBHOOK_READ_TIMEOUT_MS:10000}
 
 server:
   port: ${SERVER_PORT:8083}
@@ -53,6 +64,7 @@ fiapx:
   notification:
     from-address: ${NOTIFICATION_FROM:no-reply@fiapx.local}
     webhook-fallback-url: ${NOTIFICATION_WEBHOOK_URL:}
+    channel-timeout: ${NOTIFICATION_CHANNEL_TIMEOUT:20s}
   sqs:
     region: ${AWS_REGION:us-east-1}
     endpoint: ${SQS_ENDPOINT:}

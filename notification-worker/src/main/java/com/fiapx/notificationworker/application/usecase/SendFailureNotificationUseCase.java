@@ -6,9 +6,14 @@ import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
 import com.fiapx.notificationworker.domain.port.NotificationAttemptRepository;
 import com.fiapx.notificationworker.domain.port.NotificationChannel;
+import com.fiapx.notificationworker.infrastructure.config.NotificationProperties;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -27,13 +32,16 @@ public class SendFailureNotificationUseCase {
 
   private final Map<NotificationChannelType, NotificationChannel> channelsByType;
   private final NotificationAttemptRepository notificationAttemptRepository;
+  private final Duration channelTimeout;
 
   public SendFailureNotificationUseCase(
       List<NotificationChannel> channels,
-      NotificationAttemptRepository notificationAttemptRepository
+      NotificationAttemptRepository notificationAttemptRepository,
+      NotificationProperties notificationProperties
   ) {
     this.channelsByType = channels.stream().collect(Collectors.toMap(NotificationChannel::type, Function.identity()));
     this.notificationAttemptRepository = notificationAttemptRepository;
+    this.channelTimeout = notificationProperties.channelTimeout();
   }
 
   public void handle(NotificationRequestedMessage message) {
@@ -61,12 +69,27 @@ public class SendFailureNotificationUseCase {
     NotificationAttempt attempt = claim.get();
     NotificationChannel channel = channelsByType.get(type);
     try {
-      channel.send(message.videoId(), message.errorMessage(), message.recipientEmail()).join();
+      // .get(timeout) em vez de .join(): circuit breaker/bulkhead protegem o canal de
+      // sobrecarga, mas nenhum dos dois impõe um prazo de execução — sem isso, um destino que
+      // aceita a conexão e nunca responde prenderia este consumidor indefinidamente.
+      channel.send(message.videoId(), message.errorMessage(), message.recipientEmail())
+          .get(channelTimeout.toMillis(), TimeUnit.MILLISECONDS);
       notificationAttemptRepository.markSent(attempt.getId());
       return true;
-    } catch (RuntimeException e) {
-      notificationAttemptRepository.markFailed(attempt.getId(), e.getMessage());
-      log.warn("Falha ao notificar vídeo {} pelo canal {}", message.videoId(), type, e);
+    } catch (TimeoutException e) {
+      notificationAttemptRepository.markFailed(attempt.getId(),
+          "Canal " + type + " não respondeu em " + channelTimeout);
+      log.warn("Timeout de {} aguardando o canal {} pro vídeo {}", channelTimeout, type, message.videoId());
+      return false;
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause() != null ? e.getCause() : e;
+      notificationAttemptRepository.markFailed(attempt.getId(), cause.getMessage());
+      log.warn("Falha ao notificar vídeo {} pelo canal {}", message.videoId(), type, cause);
+      return false;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      notificationAttemptRepository.markFailed(attempt.getId(), "Interrompido aguardando o canal " + type);
+      log.warn("Interrompido aguardando o canal {} pro vídeo {}", type, message.videoId(), e);
       return false;
     }
   }
