@@ -3,6 +3,7 @@ package com.fiapx.videoapi;
 import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsTestSupport;
 import java.util.List;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -12,8 +13,19 @@ import org.springframework.test.context.DynamicPropertySource;
  * reais pra o {@code SqsConsumersConfig} resolver URL na criação dos beans — sem isso o
  * contexto nem sobe. Spring processa {@code @DynamicPropertySource} também em superclasses,
  * então basta estender esta classe em vez de repetir o bloco em cada teste.
+ *
+ * <p>{@code @DirtiesContext(AFTER_CLASS)}: todo subtipo compartilha as mesmas filas do
+ * LocalStack ({@link SqsTestSupport#LOCALSTACK}, um único container pra todo o módulo). Sem
+ * isso, o Spring mantém o contexto de uma classe (e o {@code SqsQueueConsumer} dela, que
+ * roda em background) vivo no cache de testes depois que ela termina — esse consumidor
+ * "esquecido" concorre pelas mensagens publicadas por outras classes nas mesmas filas e pode
+ * roubar/descartar silenciosamente uma que não é dele (achando, por exemplo, um vídeo que só
+ * existe no banco de teste de outra classe). Encerrar o contexto ao fim de cada classe evita
+ * ter mais de um consumidor vivo por fila ao mesmo tempo — o custo é reiniciar o Spring a
+ * cada classe (containers do Testcontainers continuam reaproveitados, só o contexto reinicia).
  */
 @Import(TestcontainersConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 abstract class AbstractSqsIntegrationTest {
 
   @DynamicPropertySource

@@ -1,7 +1,10 @@
 package com.fiapx.videoapi;
 
 import java.util.UUID;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -32,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "fiapx.admin.seed-password=Admin@123")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AdminIntegrationTest extends AbstractSqsIntegrationTest {
 
   private static final String PASSWORD = "senha-secreta-123";
@@ -62,7 +66,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
     String email = newEmail();
     String userToken = registerAndLogin(email);
     UUID videoId = uploadVideo(userToken);
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     MvcResult usersResult = mockMvc
         .perform(get("/admin/users").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -82,7 +86,11 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
     assertThat(uploadedVideo.get("ownerEmail").asString()).isEqualTo(email);
   }
 
+  // Precisa rodar antes de qualquer teste que chame adminToken() (que zera a flag pra
+  // conseguir operar) — sem isso a asserção de "primeiro login exige troca" fica dependente
+  // da ordem, que o JUnit não garante por padrão.
   @Test
+  @Order(1)
   void seededAdminMustChangePasswordOnFirstLoginThenFlagClears() throws Exception {
     JsonNode firstLogin = loginResponse(ADMIN_EMAIL, ADMIN_PASSWORD);
     assertThat(firstLogin.get("mustChangePassword").asBoolean()).isTrue();
@@ -145,7 +153,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
     String uniqueMarker = "marker-" + UUID.randomUUID();
     String email = uniqueMarker + "@fiapx.com";
     registerAndLogin(email);
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     MvcResult result = mockMvc
         .perform(
@@ -168,7 +176,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
     MockMultipartFile file = new MockMultipartFile("file", uniqueMarker + ".mp4", "video/mp4", "fake".getBytes());
     mockMvc.perform(multipart("/videos").file(file).header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
         .andExpect(status().isCreated());
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     MvcResult result = mockMvc
         .perform(
@@ -189,7 +197,7 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
     String email = newEmail();
     String userToken = registerAndLogin(email);
     UUID videoId = uploadVideo(userToken);
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     UUID userId = extractUserId(userToken);
     mockMvc.perform(delete("/admin/users/" + userId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -213,6 +221,32 @@ class AdminIntegrationTest extends AbstractSqsIntegrationTest {
 
   private String login(String email, String password) throws Exception {
     return loginResponse(email, password).get("accessToken").asString();
+  }
+
+  /**
+   * O admin semeado nasce com {@code mustChangePassword=true}, e o filtro bloqueia
+   * qualquer rota além de {@code PUT /users/me/password} enquanto isso for verdade. Os
+   * testes que só precisam operar como admin não podem depender da ordem de execução dos
+   * {@code @Test} (JUnit não garante ordem) para herdar a flag já limpa por
+   * {@link #seededAdminMustChangePasswordOnFirstLoginThenFlagClears}. Troco a senha pra
+   * ela mesma — não há regra que proíba isso — só pra zerar a flag de forma idempotente, e
+   * pego um token novo (o antigo ainda carrega o claim antigo).
+   */
+  private String adminToken() throws Exception {
+    JsonNode login = loginResponse(ADMIN_EMAIL, ADMIN_PASSWORD);
+    if (!login.get("mustChangePassword").asBoolean()) {
+      return login.get("accessToken").asString();
+    }
+    String changeBody = objectMapper.writeValueAsString(new ChangePasswordPayload(ADMIN_PASSWORD, ADMIN_PASSWORD));
+    mockMvc
+        .perform(
+            put("/users/me/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login.get("accessToken").asString())
+                .content(changeBody)
+        )
+        .andExpect(status().isNoContent());
+    return login(ADMIN_EMAIL, ADMIN_PASSWORD);
   }
 
   private JsonNode loginResponse(String email, String password) throws Exception {
