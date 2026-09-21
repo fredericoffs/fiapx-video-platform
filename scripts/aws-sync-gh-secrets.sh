@@ -31,7 +31,8 @@ Uso:
 
 Opcoes:
   --from-stdin           Le o bloco aws_access_key_id=... de stdin.
-  --save-profile         Com --from-stdin: grava tambem em ~/.aws/credentials (perfil default).
+  --save-profile         Com --from-stdin: grava tambem em ~/.aws/credentials (perfil default),
+                         mas so depois de validar as credenciais.
   --profile <nome>       Le as credenciais desse perfil do aws CLI.
   --repo owner/nome      Repositorio (padrao: o do diretorio atual).
   --environment <nome>   GitHub Environment (padrao: AWS).
@@ -62,17 +63,14 @@ ini_get() {
 
 if [[ "$FROM_STDIN" == "true" ]]; then
   BLOCK="$(cat)"
+  # Aceita o formato do ~/.aws/credentials (aws_access_key_id=...) e o de env vars
+  # (AWS_ACCESS_KEY_ID=... / export AWS_ACCESS_KEY_ID=...).
   AWS_ACCESS_KEY_ID="$(ini_get aws_access_key_id "$BLOCK")"
+  [[ -n "$AWS_ACCESS_KEY_ID" ]] || AWS_ACCESS_KEY_ID="$(ini_get '(export[[:space:]]+)?AWS_ACCESS_KEY_ID' "$BLOCK")"
   AWS_SECRET_ACCESS_KEY="$(ini_get aws_secret_access_key "$BLOCK")"
+  [[ -n "$AWS_SECRET_ACCESS_KEY" ]] || AWS_SECRET_ACCESS_KEY="$(ini_get '(export[[:space:]]+)?AWS_SECRET_ACCESS_KEY' "$BLOCK")"
   AWS_SESSION_TOKEN="$(ini_get aws_session_token "$BLOCK")"
-  if [[ "$SAVE_PROFILE" == "true" ]]; then
-    command -v aws >/dev/null 2>&1 || { echo "Erro: aws CLI nao encontrado pra --save-profile" >&2; exit 1; }
-    aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
-    aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
-    [[ -z "$AWS_SESSION_TOKEN" ]] || aws configure set aws_session_token "$AWS_SESSION_TOKEN"
-    aws configure set region "$AWS_REGION_DEFAULT"
-    echo "perfil default gravado em ~/.aws/credentials (regiao ${AWS_REGION_DEFAULT})"
-  fi
+  [[ -n "$AWS_SESSION_TOKEN" ]] || AWS_SESSION_TOKEN="$(ini_get '(export[[:space:]]+)?AWS_SESSION_TOKEN' "$BLOCK")"
 elif [[ -n "$PROFILE" ]]; then
   command -v aws >/dev/null 2>&1 || { echo "Erro: aws CLI nao encontrado" >&2; exit 1; }
   AWS_ACCESS_KEY_ID="$(aws configure get aws_access_key_id --profile "$PROFILE" || true)"
@@ -95,6 +93,17 @@ if command -v aws >/dev/null 2>&1; then
     echo "Erro: credenciais invalidas ou expiradas (chave desativada ou digitada errada?)" >&2
     exit 1
   fi
+fi
+
+# So grava o perfil local depois de validar: com credenciais vazias ou invalidas isso
+# sobrescreveria um perfil que ja funciona.
+if [[ "$SAVE_PROFILE" == "true" ]]; then
+  command -v aws >/dev/null 2>&1 || { echo "Erro: aws CLI nao encontrado pra --save-profile" >&2; exit 1; }
+  aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+  aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+  [[ -z "${AWS_SESSION_TOKEN:-}" ]] || aws configure set aws_session_token "$AWS_SESSION_TOKEN"
+  aws configure set region "$AWS_REGION_DEFAULT"
+  echo "perfil default gravado em ~/.aws/credentials (regiao ${AWS_REGION_DEFAULT})"
 fi
 
 repo_args=()
