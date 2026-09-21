@@ -18,8 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Usa um "ffmpeg" fake (script shell) para exercitar cada saída do adapter sem depender do
- * binário real: sucesso, código de erro, nenhum frame, timeout e binário inexistente.
+ * Usa um "ffmpeg" fake (script shell) para exercitar cada saída do adapter sem depender do binário real: sucesso, código de erro, nenhum frame,
+ * timeout e binário inexistente.
  */
 class FfmpegFrameExtractorTest {
 
@@ -108,7 +108,7 @@ class FfmpegFrameExtractorTest {
     Thread.currentThread().interrupt();
     try {
       assertThatThrownBy(() -> extractor(fake, 5).extractFrames(videoFile, framesDir, 1))
-          .isInstanceOf(FfmpegProcessingException.class)
+          .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("interrompida");
       assertThat(Thread.currentThread().isInterrupted()).isTrue();
     } finally {
@@ -239,7 +239,7 @@ class FfmpegFrameExtractorTest {
     Thread.currentThread().interrupt();
     try {
       assertThatThrownBy(() -> extractorWithProbeTimeout(fakeFfprobe, 5).extractFrames(videoFile, framesDir, 1))
-          .isInstanceOf(FfmpegProcessingException.class)
+          .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("ffprobe interrompida");
       assertThat(Thread.currentThread().isInterrupted()).isTrue();
     } finally {
