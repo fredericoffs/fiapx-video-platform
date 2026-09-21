@@ -29,9 +29,8 @@ public class NotificationAttempt {
   }
 
   /**
-   * Reivindica o envio antes do canal ser chamado: o índice único parcial (video_id, channel)
-   * WHERE status IN ('SENDING', 'SENT') garante que só uma execução consegue inserir essa linha
-   * por vez, fechando a corrida entre "consultar se já enviou" e "enviar de fato".
+   * Reivindica o envio antes do canal ser chamado: o índice único parcial (video_id, channel) WHERE status IN ('SENDING', 'SENT') garante que só uma
+   * execução consegue inserir essa linha por vez, fechando a corrida entre "consultar se já enviou" e "enviar de fato".
    */
   public static NotificationAttempt claiming(UUID videoId, NotificationChannelType channel) {
     return new NotificationAttempt(

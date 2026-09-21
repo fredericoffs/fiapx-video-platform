@@ -1,5 +1,7 @@
 package com.fiapx.notificationworker;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.fiapx.notificationworker.domain.model.NotificationAttempt;
 import com.fiapx.notificationworker.domain.model.NotificationChannelType;
 import com.fiapx.notificationworker.infrastructure.persistence.NotificationAttemptRepositoryAdapter;
@@ -11,19 +13,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 class NotificationAttemptRepositoryAdapterIntegrationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private NotificationAttemptRepositoryAdapter repository;
+  @Autowired
+  private JdbcTemplate jdbc;
 
   @Test
   void secondClaimForSameVideoAndChannelIsRejectedWhileTheFirstIsPending() {
@@ -74,22 +76,33 @@ class NotificationAttemptRepositoryAdapterIntegrationTest extends AbstractSqsInt
   void onlyOneOfManyConcurrentClaimsForTheSameVideoAndChannelWins() throws Exception {
     UUID videoId = UUID.randomUUID();
     int attempts = 10;
-    ExecutorService pool = Executors.newFixedThreadPool(attempts);
     CountDownLatch start = new CountDownLatch(1);
-    List<Callable<Optional<NotificationAttempt>>> tasks = IntStream.range(0, attempts)
-        .<Callable<Optional<NotificationAttempt>>>mapToObj(i -> () -> {
-          start.await();
-          return repository.tryClaim(videoId, NotificationChannelType.EMAIL);
-        })
-        .toList();
 
-    List<Future<Optional<NotificationAttempt>>> futures = tasks.stream().map(pool::submit).toList();
-    start.countDown();
-    pool.shutdown();
-    assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+    try (ExecutorService pool = Executors.newFixedThreadPool(attempts)) {
+      List<Callable<Optional<NotificationAttempt>>> tasks = IntStream.range(0, attempts)
+          .<Callable<Optional<NotificationAttempt>>>mapToObj(i -> () -> {
+            start.await();
+            return repository.tryClaim(videoId, NotificationChannelType.EMAIL);
+          }).toList();
 
-    long wins = futures.stream().map(this::result).filter(Optional::isPresent).count();
-    assertThat(wins).as("exatamente uma reivindicação concorrente pode vencer").isEqualTo(1);
+      List<Future<Optional<NotificationAttempt>>> futures = tasks.stream().map(pool::submit).toList();
+      start.countDown();
+
+      long wins = futures.stream().map(this::result).filter(Optional::isPresent).count();
+      assertThat(wins).as("exatamente uma reivindicação concorrente pode vencer").isEqualTo(1);
+    }
+  }
+
+  @Test
+  void abandonedClaimCanBeRetriedAndOldOwnerCannotCompleteNewClaim() {
+    UUID videoId = UUID.randomUUID();
+    var old = repository.tryClaim(videoId, NotificationChannelType.EMAIL).orElseThrow();
+    jdbc.update("UPDATE notification_worker.notification_attempts SET created_at = now() - interval '3 minutes' WHERE id = ?", old.getId());
+    var current = repository.tryClaim(videoId, NotificationChannelType.EMAIL).orElseThrow();
+    repository.markSent(old.getId());
+    assertThat(repository.isSent(videoId, NotificationChannelType.EMAIL)).isFalse();
+    repository.markSent(current.getId());
+    assertThat(repository.isSent(videoId, NotificationChannelType.EMAIL)).isTrue();
   }
 
   private Optional<NotificationAttempt> result(Future<Optional<NotificationAttempt>> future) {

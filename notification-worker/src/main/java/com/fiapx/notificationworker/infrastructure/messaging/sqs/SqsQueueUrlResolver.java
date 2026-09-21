@@ -6,7 +6,9 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
-/** As filas continuam configuradas por nome (QUEUE_*); a URL é resolvida uma vez e cacheada. */
+/**
+ * As filas continuam configuradas por nome (QUEUE_*); a URL é resolvida uma vez e cacheada.
+ */
 @Component
 public class SqsQueueUrlResolver {
 

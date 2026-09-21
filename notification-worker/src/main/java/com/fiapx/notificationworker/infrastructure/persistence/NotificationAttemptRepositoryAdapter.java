@@ -28,6 +28,7 @@ public class NotificationAttemptRepositoryAdapter implements NotificationAttempt
   // reentrega da fila ou duas réplicas disputando a mesma mensagem.
   @Override
   public Optional<NotificationAttempt> tryClaim(UUID videoId, NotificationChannelType channel) {
+    expireAbandoned(videoId, channel);
     NotificationAttempt attempt = NotificationAttempt.claiming(videoId, channel);
     try {
       springDataNotificationAttemptRepository.saveAndFlush(NotificationAttemptMapper.toEntity(attempt));
@@ -35,6 +36,15 @@ public class NotificationAttemptRepositoryAdapter implements NotificationAttempt
     } catch (DataIntegrityViolationException e) {
       return Optional.empty();
     }
+  }
+
+  private void expireAbandoned(UUID videoId, NotificationChannelType channel) {
+    springDataNotificationAttemptRepository.expireAbandoned(videoId, channel.name());
+  }
+
+  @Override
+  public boolean isSent(UUID videoId, NotificationChannelType channel) {
+    return springDataNotificationAttemptRepository.existsByVideoIdAndChannelAndStatus(videoId, channel, NotificationStatus.SENT);
   }
 
   @Override

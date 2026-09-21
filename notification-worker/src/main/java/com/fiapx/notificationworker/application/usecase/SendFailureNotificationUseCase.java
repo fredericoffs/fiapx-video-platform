@@ -21,9 +21,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Meu dispatcher: tento o canal primário (e-mail); se falhar (circuito aberto, bulkhead
- * cheio ou erro real de envio), caio pro canal secundário (webhook). Só relanço — pro
- * retry/DLQ do AMQP agir — se os dois canais falharem.
+ * Meu dispatcher: tento o canal primário (e-mail); se falhar (circuito aberto, bulkhead cheio ou erro real de envio), caio pro canal secundário
+ * (webhook). Só relanço — pro retry/DLQ do SQS agir — se os dois canais falharem.
  */
 @Service
 public class SendFailureNotificationUseCase {
@@ -61,26 +60,33 @@ public class SendFailureNotificationUseCase {
   private boolean tryChannel(NotificationChannelType type, NotificationRequestedMessage message) {
     Optional<NotificationAttempt> claim = notificationAttemptRepository.tryClaim(message.videoId(), type);
     if (claim.isEmpty()) {
-      log.info("Notificação por {} já enviada ou em andamento para o vídeo {}, ignorando (idempotência)", type,
-          message.videoId());
-      return true;
+      if (notificationAttemptRepository.isSent(message.videoId(), type)) {
+        return true;
+      }
+      throw new NotificationDeliveryException("Tentativa em andamento; aguardar reentrega", null);
     }
 
     NotificationAttempt attempt = claim.get();
     NotificationChannel channel = channelsByType.get(type);
+    java.util.concurrent.CompletableFuture<Void> delivery = null;
     try {
       // .get(timeout) em vez de .join(): circuit breaker/bulkhead protegem o canal de
       // sobrecarga, mas nenhum dos dois impõe um prazo de execução — sem isso, um destino que
       // aceita a conexão e nunca responde prenderia este consumidor indefinidamente.
-      channel.send(message.videoId(), message.errorMessage(), message.recipientEmail())
-          .get(channelTimeout.toMillis(), TimeUnit.MILLISECONDS);
+      delivery = channel.send(message.videoId(), message.errorMessage(), message.recipientEmail());
+      delivery.get(channelTimeout.toMillis(), TimeUnit.MILLISECONDS);
       notificationAttemptRepository.markSent(attempt.getId());
       return true;
     } catch (TimeoutException e) {
-      notificationAttemptRepository.markFailed(attempt.getId(),
-          "Canal " + type + " não respondeu em " + channelTimeout);
-      log.warn("Timeout de {} aguardando o canal {} pro vídeo {}", channelTimeout, type, message.videoId());
-      return false;
+      // Resultado desconhecido: não iniciar outro canal enquanto o primeiro pode entregar.
+      delivery.whenComplete((ignored, failure) -> {
+        if (failure == null) {
+          notificationAttemptRepository.markSent(attempt.getId());
+        } else {
+          notificationAttemptRepository.markFailed(attempt.getId(), failure.getMessage());
+        }
+      });
+      throw new NotificationDeliveryException("Prazo excedido; resultado do canal ainda desconhecido", e);
     } catch (ExecutionException e) {
       Throwable cause = e.getCause() != null ? e.getCause() : e;
       notificationAttemptRepository.markFailed(attempt.getId(), cause.getMessage());
@@ -88,8 +94,9 @@ public class SendFailureNotificationUseCase {
       return false;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      notificationAttemptRepository.markFailed(attempt.getId(), "Interrompido aguardando o canal " + type);
-      log.warn("Interrompido aguardando o canal {} pro vídeo {}", type, message.videoId(), e);
+      throw new NotificationDeliveryException("Interrompido; tentativa preservada para recuperação", e);
+    } catch (RuntimeException e) {
+      notificationAttemptRepository.markFailed(attempt.getId(), e.getMessage());
       return false;
     }
   }

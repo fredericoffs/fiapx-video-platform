@@ -1,5 +1,14 @@
 package com.fiapx.notificationworker.application.usecase;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.fiapx.notificationworker.application.dto.NotificationRequestedMessage;
 import com.fiapx.notificationworker.domain.exception.NotificationDeliveryException;
 import com.fiapx.notificationworker.domain.model.NotificationAttempt;
@@ -13,15 +22,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class SendFailureNotificationUseCaseTest {
 
@@ -44,11 +44,12 @@ class SendFailureNotificationUseCaseTest {
   }
 
   @Test
-  void skipsAlreadySentOrInFlightEmailAndDoesNotTryWebhook() {
+  void skipsAlreadySentEmailAndDoesNotTryWebhook() {
     UUID videoId = UUID.randomUUID();
     when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
         .thenReturn(Optional.empty());
 
+    when(notificationAttemptRepository.isSent(videoId, NotificationChannelType.EMAIL)).thenReturn(true);
     useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
 
     verify(emailChannel, never()).send(any(), any(), any());
@@ -99,6 +100,7 @@ class SendFailureNotificationUseCaseTest {
     when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.WEBHOOK))
         .thenReturn(Optional.empty());
     when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("smtp indisponível"));
+    when(notificationAttemptRepository.isSent(videoId, NotificationChannelType.WEBHOOK)).thenReturn(true);
 
     useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
 
@@ -143,10 +145,35 @@ class SendFailureNotificationUseCaseTest {
         List.of(emailChannel, webhookChannel), repository,
         new NotificationProperties("no-reply@fiapx.local", "http://webhook", Duration.ofMillis(50)));
 
-    useCaseWithShortTimeout.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
+    assertThatThrownBy(() -> useCaseWithShortTimeout.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com")))
+        .isInstanceOf(NotificationDeliveryException.class);
+    verify(repository, never()).markFailed(any(), any());
+    verify(webhookChannel, never()).send(any(), any(), any());
+  }
 
-    verify(repository).markFailed(eq(emailAttempt.getId()), contains("não respondeu"));
-    verify(repository).markSent(webhookAttempt.getId());
+  @Test
+  void pendingClaimIsNotAcknowledgedAsDelivered() {
+    var id = UUID.randomUUID();
+    when(notificationAttemptRepository.tryClaim(id, NotificationChannelType.EMAIL)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> useCase.handle(new NotificationRequestedMessage(id, "erro", "user@example.com")))
+        .isInstanceOf(NotificationDeliveryException.class);
+    verify(webhookChannel, never()).send(any(), any(), any());
+  }
+
+  @Test
+  void lateSuccessAfterTimeoutIsRecordedWithoutStartingFallback() {
+    var id = UUID.randomUUID();
+    var attempt = claim(NotificationChannelType.EMAIL);
+    var pending = new CompletableFuture<Void>();
+    when(notificationAttemptRepository.tryClaim(id, NotificationChannelType.EMAIL)).thenReturn(Optional.of(attempt));
+    when(emailChannel.send(any(), any(), any())).thenReturn(pending);
+    var shortTimeout = new SendFailureNotificationUseCase(List.of(emailChannel, webhookChannel), notificationAttemptRepository,
+        new NotificationProperties("from@example.com", "http://webhook", Duration.ofMillis(10)));
+    assertThatThrownBy(() -> shortTimeout.handle(new NotificationRequestedMessage(id, "erro", "user@example.com")))
+        .isInstanceOf(NotificationDeliveryException.class);
+    pending.complete(null);
+    verify(notificationAttemptRepository).markSent(attempt.getId());
+    verify(webhookChannel, never()).send(any(), any(), any());
   }
 
   private static CompletableFuture<Void> failedFuture(String message) {

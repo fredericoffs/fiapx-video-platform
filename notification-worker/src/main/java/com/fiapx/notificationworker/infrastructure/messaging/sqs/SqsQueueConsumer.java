@@ -21,10 +21,9 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 /**
- * Consumo de uma fila SQS por long polling numa virtual thread. Enquanto o handler roda, um
- * heartbeat estende a visibilidade da mensagem; a mensagem só é apagada depois do handler
- * retornar. Exceção comum: não apaga — o SQS reentrega e, após maxReceiveCount, move para a
- * DLQ (redrive). Corpo malformado vai direto para a DLQ, sem ocupar tentativas.
+ * Consumo de uma fila SQS por long polling numa virtual thread. Enquanto o handler roda, um heartbeat estende a visibilidade da mensagem; a mensagem
+ * só é apagada depois do handler retornar. Exceção comum: não apaga — o SQS reentrega e, após maxReceiveCount, move para a DLQ (redrive). Corpo
+ * malformado vai direto para a DLQ, sem ocupar tentativas.
  */
 public class SqsQueueConsumer implements SmartLifecycle {
 
@@ -51,6 +50,24 @@ public class SqsQueueConsumer implements SmartLifecycle {
     this.deadLetterQueueUrl = deadLetterQueueUrl;
     this.maxMessages = maxMessages;
     this.handler = handler;
+  }
+
+  static Map<String, String> attributesOf(Message message) {
+    Map<String, String> attributes = new HashMap<>();
+    for (Map.Entry<String, MessageAttributeValue> entry : message.messageAttributes().entrySet()) {
+      if (entry.getValue().stringValue() != null) {
+        attributes.put(entry.getKey(), entry.getValue().stringValue());
+      }
+    }
+    return attributes;
+  }
+
+  private static void sleepQuietly(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   @Override
@@ -94,7 +111,9 @@ public class SqsQueueConsumer implements SmartLifecycle {
     }
   }
 
-  /** Um ciclo de receive + processamento; público para os testes exercitarem sem a thread. */
+  /**
+   * Um ciclo de receive + processamento; público para os testes exercitarem sem a thread.
+   */
   public void pollOnce() {
     List<Message> messages = sqsClient.receiveMessage(ReceiveMessageRequest.builder()
         .queueUrl(queueUrl)
@@ -153,23 +172,5 @@ public class SqsQueueConsumer implements SmartLifecycle {
           .build());
     }
     delete(message);
-  }
-
-  static Map<String, String> attributesOf(Message message) {
-    Map<String, String> attributes = new HashMap<>();
-    for (Map.Entry<String, MessageAttributeValue> entry : message.messageAttributes().entrySet()) {
-      if (entry.getValue().stringValue() != null) {
-        attributes.put(entry.getKey(), entry.getValue().stringValue());
-      }
-    }
-    return attributes;
-  }
-
-  private static void sleepQuietly(long millis) {
-    try {
-      Thread.sleep(millis);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
   }
 }

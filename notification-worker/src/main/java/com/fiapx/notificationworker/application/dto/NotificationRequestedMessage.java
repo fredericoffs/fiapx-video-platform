@@ -2,7 +2,9 @@ package com.fiapx.notificationworker.application.dto;
 
 import java.util.UUID;
 
-/** eventId/contractVersion podem vir nulos de produtores antigos. */
+/**
+ * eventId/contractVersion podem vir nulos de produtores antigos.
+ */
 public record NotificationRequestedMessage(
     UUID videoId,
     String errorMessage,

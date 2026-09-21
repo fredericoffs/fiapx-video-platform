@@ -15,11 +15,6 @@ import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 @Configuration
 public class SqsClientConfig {
 
-  @Bean
-  public SqsClient sqsClient(SqsProperties properties) {
-    return configure(SqsClient.builder(), properties).build();
-  }
-
   static SqsClientBuilder configure(SqsClientBuilder builder, SqsProperties properties) {
     builder.region(Region.of(properties.region())).credentialsProvider(credentialsProvider(properties));
     if (properties.hasEndpointOverride()) {
@@ -34,5 +29,10 @@ public class SqsClientConfig {
           AwsBasicCredentials.create(properties.accessKey(), properties.secretKey()));
     }
     return DefaultCredentialsProvider.builder().build();
+  }
+
+  @Bean
+  public SqsClient sqsClient(SqsProperties properties) {
+    return configure(SqsClient.builder(), properties).build();
   }
 }

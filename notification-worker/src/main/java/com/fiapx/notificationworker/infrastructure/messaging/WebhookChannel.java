@@ -65,5 +65,6 @@ public class WebhookChannel implements NotificationChannel {
   // O destinatário precisa estar no payload pra quem recebe o webhook conseguir notificar o
   // dono de verdade — antes desta correção o corpo só tinha videoId/errorMessage.
   private record WebhookPayload(String videoId, String errorMessage, String recipientEmail) {
+
   }
 }
