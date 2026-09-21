@@ -19,8 +19,8 @@ Opcoes:
                       houver mudancas. Sem mudancas, termina com sucesso sem aplicar.
   -h, --help          Exibe esta ajuda.
 
-Credenciais: AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY no ambiente (usuario IAM;
-AWS_SESSION_TOKEN so se forem credenciais temporarias). Variaveis do Terraform via
+Credenciais: perfil do aws configure ou AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY no
+ambiente (usuario IAM; AWS_SESSION_TOKEN so se forem credenciais temporarias). Variaveis do Terraform via
 TF_VAR_* (opcional — os defaults de k8s/terraform/aws/variables.tf ja servem).
 EOF
 }
@@ -48,12 +48,11 @@ done
 require_cmd terraform
 require_cmd aws
 
-for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
-  if [[ -z "${!var:-}" ]]; then
-    echo "Erro: $var nao definida (chave do usuario IAM: aws configure ou env vars)." >&2
-    exit 1
-  fi
-done
+# Aceita env vars ou o perfil do aws configure: o que importa e a credencial resolver.
+if ! aws sts get-caller-identity >/dev/null 2>&1; then
+  echo "Erro: credenciais AWS ausentes ou invalidas (aws configure, ou AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)." >&2
+  exit 1
+fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="$ROOT_DIR/k8s/terraform/aws"
