@@ -1,8 +1,8 @@
 import {
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQueryClient,
-  type InfiniteData,
 } from '@tanstack/react-query'
 import { apiClient } from '@/shared/api/client'
 import type { components } from '@/shared/api/schema.gen'
@@ -64,7 +64,12 @@ export function flattenVideoPages(data: InfiniteData<VideoPage> | undefined): Vi
 export const PAGE_SIZE = 20
 // >20/min (a cota de /videos no gateway, escopada por rota — ver RateLimitFilterFunction)
 // sobraria zero folga pra "carregar mais" ou um refresh manual competirem com o polling.
-const POLL_INTERVAL_MS = 4000
+const POLL_INTERVAL_MS = 10000
+
+export function pollingIntervalForPages(pages: number): number {
+  return POLL_INTERVAL_MS * Math.max(1, pages)
+}
+
 const DEFAULT_RETRY_AFTER_MS = 5000
 
 /** 429 do gateway (rate limit por rota): o backoff usa o Retry-After do servidor, não um valor fixo. */
@@ -120,7 +125,9 @@ export function useVideosQuery() {
       if (query.state.error instanceof RateLimitedError) {
         return query.state.error.retryAfterMs
       }
-      return hasNonTerminalVideo(flattenVideoPages(query.state.data)) ? POLL_INTERVAL_MS : false
+      return hasNonTerminalVideo(flattenVideoPages(query.state.data))
+        ? pollingIntervalForPages(query.state.data?.pages.length ?? 1)
+        : false
     },
   })
 }

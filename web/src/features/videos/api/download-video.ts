@@ -1,3 +1,4 @@
+import { expireSession } from '@/shared/lib/expire-session'
 import { baseUrl } from '@/shared/api/client'
 import { useSessionStore } from '@/shared/lib/session-store'
 
@@ -23,31 +24,34 @@ export async function downloadVideo(videoId: string, originalFilename: string): 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
+  // O diálogo precisa abrir no gesto do clique, antes de qualquer espera de rede.
+  let handle: SaveFileHandle | undefined
+  if (typeof window.showSaveFilePicker === 'function') {
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName: `${originalFilename}.zip` })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      throw error
+    }
+  }
   const response = await fetch(`${baseUrl}/videos/${videoId}/download`, { headers })
-
+  if (response.status === 401) expireSession(token)
   if (!response.ok || !response.body) {
+    await response.body?.cancel()
     throw new Error('Não foi possível baixar o vídeo')
   }
-
   const filename = filenameFromDisposition(
     response.headers.get('Content-Disposition'),
     `${originalFilename}.zip`,
   )
-
-  if (typeof window.showSaveFilePicker === 'function') {
-    let handle: SaveFileHandle
+  if (handle) {
     try {
-      handle = await window.showSaveFilePicker({ suggestedName: filename })
+      const writable = await handle.createWritable()
+      await response.body.pipeTo(writable)
     } catch (error) {
-      // Usuário cancelou o diálogo "salvar como" — respeito a decisão, não caio pro
-      // download via Blob por baixo dos panos (seria uma segunda surpresa).
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return
-      }
+      if (!response.body.locked) await response.body.cancel().catch(() => undefined)
       throw error
     }
-    const writable = await handle.createWritable()
-    await response.body.pipeTo(writable)
     return
   }
 

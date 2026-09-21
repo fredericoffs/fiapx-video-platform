@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { useSessionStore } from '@/shared/lib/session-store'
 import { apiClient } from '@/shared/api/client'
 import type {
   ChangePasswordFormValues,
@@ -47,7 +48,12 @@ export function useChangePasswordMutation() {
       const { data, response } = await apiClient.PUT('/users/me/password', { body: input })
       if (!response.ok || !data?.accessToken) {
         if (response.status === 401) {
-          throw new AuthApiError('Senha atual incorreta', response.status)
+          throw new AuthApiError(
+            useSessionStore.getState().session
+              ? 'Senha atual incorreta'
+              : 'Sua sessão expirou. Faça login novamente.',
+            response.status,
+          )
         }
         throw new AuthApiError('Não foi possível trocar a senha. Tente novamente.', response.status)
       }

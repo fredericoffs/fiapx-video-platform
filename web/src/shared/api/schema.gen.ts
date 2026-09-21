@@ -209,6 +209,36 @@ export interface components {
        */
       newPassword: string
     }
+    /** @description Token de acesso emitido após login bem-sucedido */
+    LoginResponse: {
+      /**
+       * @description JWT HS256 assinado
+       * @example eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI...
+       */
+      accessToken?: string
+      /**
+       * @description Sempre "Bearer"
+       * @example Bearer
+       */
+      tokenType?: string
+      /**
+       * Format: int64
+       * @description Validade do token em segundos
+       * @example 1800
+       */
+      expiresIn?: number
+      /**
+       * @description Papel do usuário autenticado
+       * @example USER
+       * @enum {string}
+       */
+      role?: 'USER' | 'ADMIN'
+      /**
+       * @description true quando o usuário precisa trocar a senha antes de continuar — o frontend deve redirecionar direto pra tela de troca de senha, sem deixar navegar pro resto da aplicação
+       * @example false
+       */
+      mustChangePassword?: boolean
+    }
     /** @description Confirmação de upload aceito para processamento */
     VideoUploadResponse: {
       /**
@@ -262,36 +292,6 @@ export interface components {
        * @example senha-secreta-123
        */
       password: string
-    }
-    /** @description Token de acesso emitido após login bem-sucedido */
-    LoginResponse: {
-      /**
-       * @description JWT HS256 assinado
-       * @example eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI...
-       */
-      accessToken?: string
-      /**
-       * @description Sempre "Bearer"
-       * @example Bearer
-       */
-      tokenType?: string
-      /**
-       * Format: int64
-       * @description Validade do token em segundos
-       * @example 1800
-       */
-      expiresIn?: number
-      /**
-       * @description Papel do usuário autenticado
-       * @example USER
-       * @enum {string}
-       */
-      role?: 'USER' | 'ADMIN'
-      /**
-       * @description true quando o usuário precisa trocar a senha antes de continuar — o frontend deve redirecionar direto pra tela de troca de senha, sem deixar navegar pro resto da aplicação
-       * @example false
-       */
-      mustChangePassword?: boolean
     }
     /** @description Página de resultados da listagem de vídeos do usuário autenticado */
     VideoListResponse: {
@@ -511,7 +511,7 @@ export interface operations {
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
         /** @description Página, começando em 0 */
         page?: number
-        /** @description Itens por página */
+        /** @description Itens por página (máx. 100) */
         size?: number
       }
       header?: never
@@ -783,7 +783,7 @@ export interface operations {
         filename?: string
         /** @description Página, começando em 0 */
         page?: number
-        /** @description Itens por página */
+        /** @description Itens por página (máx. 100) */
         size?: number
       }
       header?: never
@@ -817,7 +817,7 @@ export interface operations {
         email?: string
         /** @description Página, começando em 0 */
         page?: number
-        /** @description Itens por página */
+        /** @description Itens por página (máx. 100) */
         size?: number
       }
       header?: never

@@ -61,7 +61,7 @@ describe('apiClient', () => {
 
   it('não mexe na sessão quando /users/me/password responde 401 (senha atual errada)', async () => {
     const { apiClient, useSessionStore } = await freshApiClient(
-      vi.fn().mockResolvedValue(jsonResponse(401)),
+      vi.fn().mockResolvedValue(jsonResponse(401, { title: 'Senha atual inválida' })),
     )
 
     await apiClient.PUT('/users/me/password', {
@@ -69,6 +69,35 @@ describe('apiClient', () => {
     })
 
     expect(useSessionStore.getState().session).not.toBeNull()
+  })
+
+  it('expira a sessão quando o token falha durante a troca de senha', async () => {
+    const { apiClient, useSessionStore } = await freshApiClient(
+      vi.fn().mockResolvedValue(jsonResponse(401)),
+    )
+    await apiClient.PUT('/users/me/password', {
+      body: { currentPassword: 'atual', newPassword: 'nova-senha-123' },
+    })
+    expect(useSessionStore.getState().session).toBeNull()
+  })
+
+  it('não encerra uma sessão nova por uma resposta atrasada da sessão antiga', async () => {
+    let complete!: (response: Response) => void
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete = resolve
+        }),
+    )
+    const { apiClient, useSessionStore } = await freshApiClient(fetchMock)
+    const request = apiClient.GET('/videos')
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled()
+    })
+    useSessionStore.setState({ session: { ...loggedInSession(), token: 'new-token' } })
+    complete(jsonResponse(401))
+    await request
+    expect(useSessionStore.getState().session?.token).toBe('new-token')
   })
 
   it('não faz nada quando a resposta não é 401', async () => {

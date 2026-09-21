@@ -41,7 +41,10 @@ describe('downloadVideo', () => {
 
     await downloadVideo('video-1', 'movie.mp4')
 
-    expect(showSaveFilePicker).toHaveBeenCalledWith({ suggestedName: 'frames.zip' })
+    expect(showSaveFilePicker.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(fetch).mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(showSaveFilePicker).toHaveBeenCalledWith({ suggestedName: 'movie.mp4.zip' })
     expect(createWritable).toHaveBeenCalled()
     expect(written).toHaveLength(1)
   })
@@ -56,6 +59,7 @@ describe('downloadVideo', () => {
     await downloadVideo('video-1', 'movie.mp4')
 
     expect(createElementSpy).not.toHaveBeenCalledWith('a')
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('cai pro download via Blob quando o navegador não suporta a File System Access API', async () => {
