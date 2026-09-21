@@ -85,7 +85,7 @@ errors_total=0
 
 echo "Validando custo zero na AWS (regiao $AWS_REGION, projeto $PROJECT)..."
 if ! aws sts get-caller-identity --region "$AWS_REGION" >/dev/null 2>&1; then
-  echo "Erro: nao foi possivel validar credenciais AWS (sessao do Learner Lab expirou?)." >&2
+  echo "Erro: nao foi possivel validar credenciais AWS (credenciais invalidas ou expiradas?)." >&2
   exit 2
 fi
 

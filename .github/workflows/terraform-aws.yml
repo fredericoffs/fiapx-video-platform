@@ -1,9 +1,9 @@
 name: Terraform - AWS EKS
 
-# Provisiona (ou destrói) VPC + EKS + ECR + RDS + ElastiCache + SQS + S3 no Learner Lab, à mão.
+# Provisiona (ou destrói) VPC + EKS + ECR + RDS + ElastiCache + SQS + S3 na conta AWS, à mão.
 # O cd-aws.yml já faz plan/apply automaticamente antes do deploy; este workflow serve pra
-# revisar um plan, forçar um apply isolado ou destruir só o Terraform. Credenciais
-# temporárias do lab ficam no GitHub Environment "AWS" e precisam ser renovadas a cada sessão.
+# revisar um plan, forçar um apply isolado ou destruir só o Terraform. As credenciais
+# (chave de um usuário IAM) ficam no GitHub Environment "AWS": AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY.
 on:
   workflow_dispatch:
     inputs:
@@ -28,10 +28,6 @@ jobs:
     environment: AWS
     env:
       AWS_REGION: us-east-1
-      # Opcionais: ARNs explícitos das roles; sem eles o Terraform acha as roles do
-      # Learner Lab por regex (*-LabEksClusterRole-*, *-LabEksNodeRole-*).
-      TF_VAR_cluster_role_arn: ${{ vars.EKS_CLUSTER_ROLE_ARN || '' }}
-      TF_VAR_node_role_arn: ${{ vars.EKS_NODE_ROLE_ARN || '' }}
       # Opcionais: preenchidos usam o valor do GitHub; vazios são gerados e publicados no SSM.
       TF_VAR_db_password: ${{ secrets.PROD_DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.PROD_JWT_SECRET }}
@@ -49,7 +45,6 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: terraform plan

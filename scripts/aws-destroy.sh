@@ -251,6 +251,26 @@ delete_ssm_parameters() {
   done
 }
 
+delete_iam_roles() {
+  # Roles do cluster e dos nos (iam.tf): so saem depois do node group/cluster. Precisam ter as
+  # policies desanexadas e as inline apagadas antes do delete-role.
+  local role policy
+  for role in "${PROJECT}-eks-cluster" "${PROJECT}-eks-node"; do
+    if ! aws iam get-role --role-name "$role" >/dev/null 2>&1; then
+      print_status "[OK]" "IAM role" "${role} nao existe"
+      continue
+    fi
+    for policy in $(aws iam list-attached-role-policies --role-name "$role" --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null); do
+      aws iam detach-role-policy --role-name "$role" --policy-arn "$policy" >/dev/null 2>&1 || true
+    done
+    for policy in $(aws iam list-role-policies --role-name "$role" --query 'PolicyNames' --output text 2>/dev/null); do
+      aws iam delete-role-policy --role-name "$role" --policy-name "$policy" >/dev/null 2>&1 || true
+    done
+    aws iam delete-role --role-name "$role" >/dev/null 2>&1 || true
+    print_status "[INFO]" "IAM role delete" "$role"
+  done
+}
+
 delete_video_buckets() {
   local buckets bucket
   buckets="$(aws_text s3api list-buckets --query "Buckets[?starts_with(Name, '${PROJECT}-videos-')].Name")"
@@ -417,7 +437,7 @@ delete_tf_state_bucket() {
 aws_cli_cleanup() {
   require_cmd aws
   if ! aws sts get-caller-identity --region "$AWS_REGION" >/dev/null 2>&1; then
-    echo "Erro: nao foi possivel validar credenciais AWS (sessao do Learner Lab expirou?)." >&2
+    echo "Erro: nao foi possivel validar credenciais AWS (credenciais invalidas ou expiradas?)." >&2
     exit 2
   fi
 
@@ -430,6 +450,7 @@ aws_cli_cleanup() {
   delete_sqs_queues
   delete_video_buckets
   delete_ssm_parameters
+  delete_iam_roles
   delete_vpc_and_deps
   if [[ "$DESTROY_TF_STATE" == "true" ]]; then
     require_cmd jq
