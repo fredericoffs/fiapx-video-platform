@@ -36,12 +36,14 @@ jobs:
               - '.github/workflows/ci.yml'
             video-api:
               - 'video-api/**'
+              - 'web/**'
               - '.github/workflows/ci.yml'
             notification-worker:
               - 'notification-worker/**'
               - '.github/workflows/ci.yml'
             web:
               - 'web/**'
+              - 'video-api/**'
               - '.github/workflows/ci.yml'
 
   build-test-video-gateway:
@@ -149,6 +151,13 @@ jobs:
           path: video-api/target/site/jacoco/
           retention-days: 7
 
+      - name: Upload OpenAPI contract
+        uses: actions/upload-artifact@v7
+        with:
+          name: video-api-openapi
+          path: video-api/target/openapi.json
+          if-no-files-found: error
+
   build-test-notification-worker:
     needs: changes
     if: contains(fromJSON(needs.changes.outputs.changes), 'notification-worker')
@@ -187,7 +196,7 @@ jobs:
           retention-days: 7
 
   build-test-web:
-    needs: changes
+    needs: [changes, build-test-video-api]
     if: contains(fromJSON(needs.changes.outputs.changes), 'web')
     runs-on: ubuntu-latest
     steps:
@@ -200,6 +209,18 @@ jobs:
       - name: Install dependencies
         working-directory: web
         run: npm ci
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: video-api-openapi
+          path: web/.openapi-review
+      - name: Verify generated OpenAPI types
+        working-directory: web
+        run: |
+          ./node_modules/.bin/openapi-typescript .openapi-review/openapi.json -o .openapi-review/schema.gen.ts
+          ./node_modules/.bin/prettier --write .openapi-review/schema.gen.ts
+          diff -u src/shared/api/schema.gen.ts .openapi-review/schema.gen.ts
+          rm -rf .openapi-review
 
       - name: Typecheck
         working-directory: web

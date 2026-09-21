@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cd-aws
+  group: fiapx-aws-lifecycle
   cancel-in-progress: false
 
 env:
@@ -29,13 +29,8 @@ env:
   CLUSTER_NAME: fiapx
 
 jobs:
-  # Item 18 da revisão crítica: push em main disparava ci.yml e cd-aws.yml em paralelo, sem
-  # nenhuma ordem entre eles — um commit que reprova o CI podia terminar de implantar antes
-  # (ou mesmo depois, sem nunca ser barrado) do CI reportar a falha. Só se aplica a push
-  # automático: o dispatch manual já é uma decisão explícita de implantar de qualquer jeito,
-  # equivalente ao "provision: skip" pra infra.
+  # Tanto push quanto dispatch exigem CI aprovado para o mesmo commit.
   wait-for-ci:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -73,19 +68,14 @@ jobs:
 
   provision:
     needs: wait-for-ci
-    # Em push na main inputs.provision vem vazio → roda; só o dispatch com "skip" pula.
-    # wait-for-ci "skipped" é o próprio dispatch manual (condição acima); "success" é push
-    # com CI verde. Qualquer outro resultado (failure/cancelled) barra o deploy.
+    # Skip dispensa apenas provisionamento; nunca dispensa a validação do commit.
     if: |
       always() &&
-      (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped') &&
+      needs.wait-for-ci.result == 'success' &&
       inputs.provision != 'skip'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: AWS
-    concurrency:
-      group: terraform-aws
-      cancel-in-progress: false
     env:
       # Opcionais: se o secret existir no GitHub o Terraform usa esse valor; vazio → gera e
       # publica no SSM (/fiapx/...). O job deploy lê tudo do SSM.
@@ -117,7 +107,7 @@ jobs:
     # caso não pode seguir, senão o gate do item 18 vira decoração.
     if: |
       always() &&
-      (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped') &&
+      needs.wait-for-ci.result == 'success' &&
       !cancelled() && needs.provision.result != 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -185,5 +175,10 @@ jobs:
         env:
           ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
           IMAGE_TAG: ${{ github.sha }}
+          ALERTMANAGER_WEBHOOK_URL: ${{ secrets.PROD_ALERTMANAGER_WEBHOOK_URL }}
+          SMTP_HOST: ${{ vars.PROD_SMTP_HOST }}
+          SMTP_USER: ${{ secrets.PROD_SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.PROD_SMTP_PASSWORD }}
+          NOTIFICATION_FROM: ${{ vars.PROD_NOTIFICATION_FROM }}
           # DB_USER/DB_PASSWORD/JWT_SECRET/NOTIFICATION_WEBHOOK_URL vêm do SSM (/fiapx/...).
         run: ./scripts/k8s-deploy-aws.sh

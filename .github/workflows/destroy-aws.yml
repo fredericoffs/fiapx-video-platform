@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: terraform-aws
+  group: fiapx-aws-lifecycle
   cancel-in-progress: false
 
 jobs:

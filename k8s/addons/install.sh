@@ -50,6 +50,7 @@ if [ -n "${ALERTMANAGER_WEBHOOK_URL:-}" ]; then
     --namespace monitoring \
     --version 91.4.1 \
     --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
+    --set-string "alertmanager.config.receivers[0].name=default" \
     --set-string "alertmanager.config.receivers[0].webhook_configs[0].url=${ALERTMANAGER_WEBHOOK_URL}" \
     --wait --timeout 5m
 else

@@ -86,7 +86,13 @@ NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL:-$(ssm_param "/${PROJECT}/n
 [ -n "$DB_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/db/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$JWT_SECRET" ] || { echo "parâmetro SSM /${PROJECT}/jwt/secret não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$ADMIN_SEED_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/admin/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
-echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET/ADMIN_SEED_PASSWORD lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
+if [ -z "$NOTIFICATION_WEBHOOK_URL" ] && { [ -z "${SMTP_HOST:-}" ] || [ "${SMTP_HOST:-}" = "smtp.invalid" ]; }; then
+  echo "configure NOTIFICATION_WEBHOOK_URL ou SMTP_HOST real antes de publicar" >&2
+  exit 1
+fi
+: "${ALERTMANAGER_WEBHOOK_URL:?configure um receptor compatível com o webhook do Alertmanager}"
+export ALERTMANAGER_WEBHOOK_URL
+ echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET/ADMIN_SEED_PASSWORD lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
 DB_HOST="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
   --query 'DBInstances[0].Endpoint.Address' --output text)"
 DB_STATUS="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
@@ -132,21 +138,30 @@ kubectl -n "$NAMESPACE" create secret generic video-api-secrets \
 kubectl -n "$NAMESPACE" create secret generic notification-worker-secrets \
   --from-literal=DB_USER="${DB_USER}" \
   --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
+  --from-literal=SMTP_USER="${SMTP_USER:-}" \
+  --from-literal=SMTP_PASSWORD="${SMTP_PASSWORD:-}" \
   --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL}" \
   --dry-run=client -o yaml | kubectl apply -f -
 # video-worker é stateless (ADR-008) e video-gateway não faz auth (ADR-009) — nenhum dos
 # dois precisa de secret nenhum; seus Deployments não têm secretRef.
 
 echo "==> [6/9] apontando as imagens (k8s/apps/base) pro ECR (tag ${IMAGE_TAG})"
-(
-  cd "$BASE_DIR"
+# Overlay temporário: executar o deploy não modifica os manifests do checkout.
+mkdir -p "${RENDER_DIR}/overlay"
+{
+  echo 'apiVersion: kustomize.config.k8s.io/v1beta1'
+  echo 'kind: Kustomization'
+  echo 'resources:'
+  echo "  - ${BASE_DIR}"
+  echo 'images:'
   for svc in video-gateway video-api video-worker notification-worker web; do
-    kustomize edit set image "fiapx/${svc}:local=${ECR_REGISTRY}/fiapx/${svc}:${IMAGE_TAG}"
+    echo "  - name: fiapx/${svc}"
+    echo "    newName: ${ECR_REGISTRY}/fiapx/${svc}"
+    echo "    newTag: \"${IMAGE_TAG}\""
   done
-)
-
-echo "==> [7/9] aplicando os manifests (ConfigMap primeiro, com os hosts gerenciados)"
-kubectl kustomize --load-restrictor LoadRestrictionsNone "$BASE_DIR" > "${RENDER_DIR}/rendered.yaml"
+} > "${RENDER_DIR}/overlay/kustomization.yaml"
+echo "==> [7/9] renderizando e aplicando os manifests"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "${RENDER_DIR}/overlay" > "${RENDER_DIR}/rendered.yaml"
 
 awk -v outdir="$RENDER_DIR" '
   BEGIN { n = 0; file = sprintf("%s/doc-%03d.yaml", outdir, n) }
@@ -184,8 +199,20 @@ for f in "${RENDER_DIR}"/doc-*.yaml; do
   [ "$f" = "$VIDEO_API_DEPLOY_FILE" ] && continue
   [ "$f" = "$CONFIGMAP_FILE" ] && continue
   [ "$f" = "$JOB_FILE" ] && continue
+  if grep -q '^kind: Certificate$' "$f"; then
+    kubectl patch --local -f "$f" --type merge -p "{\"spec\":{\"dnsNames\":[\"${LB_HOST}\"]}}" -o yaml > "${f}.tmp"
+    mv "${f}.tmp" "$f"
+  elif grep -q '^kind: Ingress$' "$f"; then
+    kubectl patch --local -f "$f" --type json -p "[{\"op\":\"add\",\"path\":\"/spec/rules/0/host\",\"value\":\"${LB_HOST}\"},{\"op\":\"add\",\"path\":\"/spec/tls/0/hosts\",\"value\":[\"${LB_HOST}\"]}]" -o yaml > "${f}.tmp"
+    mv "${f}.tmp" "$f"
+  fi
   kubectl apply -f "$f"
 done
+kubectl -n "$NAMESPACE" wait --for=condition=Ready --timeout=180s certificate/fiapx-tls
+if [ -n "${SMTP_HOST:-}" ]; then
+  kubectl -n "$NAMESPACE" set env deployment/notification-worker SMTP_HOST="$SMTP_HOST" \
+    NOTIFICATION_FROM="${NOTIFICATION_FROM:-no-reply@fiapx.local}"
+fi
 kubectl -n "$NAMESPACE" delete job video-api-migrate --ignore-not-found
 kubectl apply -f "$JOB_FILE"
 kubectl -n "$NAMESPACE" wait --for=condition=complete --timeout=300s job/video-api-migrate
