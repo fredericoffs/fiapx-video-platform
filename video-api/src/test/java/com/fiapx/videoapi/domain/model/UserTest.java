@@ -1,11 +1,11 @@
 package com.fiapx.videoapi.domain.model;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class UserTest {
 
@@ -44,7 +44,7 @@ class UserTest {
 
     Instant issuedAtSameSecondTruncated = afterChange.getTokensValidAfter().truncatedTo(ChronoUnit.SECONDS);
 
-    assertThat(afterChange.hasValidToken(issuedAtSameSecondTruncated)).isTrue();
+    assertThat(afterChange.hasValidToken(issuedAtSameSecondTruncated)).isFalse();
   }
 
   @Test
@@ -69,4 +69,14 @@ class UserTest {
     assertThat(seeded.getTokensValidAfter()).isEqualTo(tokensValidAfter);
     assertThat(seeded.isMustChangePassword()).isTrue();
   }
+
+  @Test
+  void tokenIssuedEarlierInSameSecondIsRevoked() {
+    Instant cutoff = Instant.parse("2026-09-17T12:00:00.500Z");
+    User user = new User(UUID.randomUUID(), "test@example.com", "hash", Role.USER,
+        cutoff.minusSeconds(10), false, cutoff);
+    assertThat(user.hasValidToken(cutoff.minusMillis(1))).isFalse();
+    assertThat(user.hasValidToken(cutoff.plusMillis(1))).isTrue();
+  }
+
 }

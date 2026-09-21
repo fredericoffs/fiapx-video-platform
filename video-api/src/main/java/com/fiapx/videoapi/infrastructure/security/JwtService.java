@@ -38,6 +38,7 @@ public class JwtService implements TokenIssuer {
         .subject(userId.toString())
         .claim(ROLE_CLAIM, role.name())
         .claim(MUST_CHANGE_PASSWORD_CLAIM, mustChangePassword)
+        .claim("issuedAtPrecise", now.toString())
         .issuedAt(Date.from(now))
         .expiration(Date.from(expiresAt))
         .signWith(signingKey)
@@ -61,7 +62,9 @@ public class JwtService implements TokenIssuer {
 
   @Override
   public Instant parseIssuedAt(String token) {
-    return parseClaims(token).getIssuedAt().toInstant();
+    Claims claims = parseClaims(token);
+    String precise = claims.get("issuedAtPrecise", String.class);
+    return precise == null ? claims.getIssuedAt().toInstant() : Instant.parse(precise);
   }
 
   private Claims parseClaims(String token) {

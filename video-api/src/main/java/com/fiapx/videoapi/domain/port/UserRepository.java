@@ -13,6 +13,10 @@ public interface UserRepository {
 
   Optional<User> findById(UUID id);
 
+  default Optional<User> findByIdForUpdate(UUID id) {
+    return findById(id);
+  }
+
   boolean existsByEmail(String email);
 
   PageResult<User> findAll(String emailFilter, int page, int size);

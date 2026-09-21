@@ -1,16 +1,5 @@
 package com.fiapx.videoapi.application.usecase;
 
-import com.fiapx.videoapi.domain.exception.VideoBeingProcessedException;
-import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
-import com.fiapx.videoapi.domain.model.Video;
-import com.fiapx.videoapi.domain.port.StorageClient;
-import com.fiapx.videoapi.domain.port.VideoRepository;
-import com.fiapx.videoapi.infrastructure.config.StorageProperties;
-import java.util.Optional;
-import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -20,16 +9,27 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fiapx.videoapi.domain.exception.VideoBeingProcessedException;
+import com.fiapx.videoapi.domain.exception.VideoNotFoundException;
+import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.port.StorageCleanup;
+import com.fiapx.videoapi.domain.port.VideoRepository;
+import com.fiapx.videoapi.infrastructure.config.StorageProperties;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 class DeleteVideoUseCaseTest {
 
   private VideoRepository videoRepository;
-  private StorageClient storageClient;
+  private StorageCleanup storageClient;
   private DeleteVideoUseCase useCase;
 
   @BeforeEach
   void setUp() {
     videoRepository = mock(VideoRepository.class);
-    storageClient = mock(StorageClient.class);
+    storageClient = mock(StorageCleanup.class);
     StorageProperties storageProperties = new StorageProperties("http://localhost:9000", "key", "secret",
         "videos-raw", "videos-processed", "us-east-1", true);
     useCase = new DeleteVideoUseCase(videoRepository, storageClient, storageProperties);

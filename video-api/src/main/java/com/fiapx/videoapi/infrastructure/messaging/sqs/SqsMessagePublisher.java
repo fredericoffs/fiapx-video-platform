@@ -11,7 +11,9 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
-/** SendMessage é síncrono: a resposta com messageId é a confirmação; qualquer erro do SDK vira exceção. */
+/**
+ * SendMessage é síncrono: a resposta com messageId é a confirmação; qualquer erro do SDK vira exceção.
+ */
 @Component
 public class SqsMessagePublisher implements MessagePublisher {
 
@@ -21,6 +23,10 @@ public class SqsMessagePublisher implements MessagePublisher {
   public SqsMessagePublisher(SqsClient sqsClient, SqsQueueUrlResolver resolver) {
     this.sqsClient = sqsClient;
     this.resolver = resolver;
+  }
+
+  private static MessageAttributeValue stringAttribute(String value) {
+    return MessageAttributeValue.builder().dataType("String").stringValue(value).build();
   }
 
   @Override
@@ -34,6 +40,7 @@ public class SqsMessagePublisher implements MessagePublisher {
     }
     try {
       sqsClient.sendMessage(SendMessageRequest.builder()
+          .overrideConfiguration(c -> c.apiCallTimeout(java.time.Duration.ofSeconds(10)))
           .queueUrl(resolver.urlOf(queueName))
           .messageBody(message.payloadJson())
           .messageAttributes(attributes)
@@ -41,9 +48,5 @@ public class SqsMessagePublisher implements MessagePublisher {
     } catch (SdkException e) {
       throw new MessagePublishException("Falha ao publicar na fila SQS " + queueName + ": " + e.getMessage(), e);
     }
-  }
-
-  private static MessageAttributeValue stringAttribute(String value) {
-    return MessageAttributeValue.builder().dataType("String").stringValue(value).build();
   }
 }

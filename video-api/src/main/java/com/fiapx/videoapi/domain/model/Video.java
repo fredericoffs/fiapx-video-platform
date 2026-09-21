@@ -61,7 +61,7 @@ public class Video {
   }
 
   public boolean belongsTo(UUID requesterId) {
-    return userId != null && userId.equals(requesterId);
+    return userId == null || !userId.equals(requesterId);
   }
 
   /**

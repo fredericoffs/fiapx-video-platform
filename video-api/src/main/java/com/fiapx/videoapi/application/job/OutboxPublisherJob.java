@@ -16,17 +16,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Relay da outbox: reserva um lote (lease, SKIP LOCKED — várias réplicas podem rodar ao
- * mesmo tempo sem duplicar), publica fora de transação e só marca publicado após a
- * confirmação do broker. Falha libera a reserva e conta a tentativa; o evento volta no
- * próximo ciclo (entrega at-least-once — o consumidor precisa ser idempotente).
+ * Relay da outbox: reserva um evento por vez (lease, SKIP LOCKED), publica fora de transação e só marca publicado após a confirmação do broker. Falha
+ * libera a reserva e conta a tentativa; o evento volta no próximo ciclo (entrega at-least-once — o consumidor precisa ser idempotente).
  */
 @Component
 public class OutboxPublisherJob {
 
-  private static final Logger log = LoggerFactory.getLogger(OutboxPublisherJob.class);
   static final Duration LEASE = Duration.ofSeconds(30);
-
+  private static final Logger log = LoggerFactory.getLogger(OutboxPublisherJob.class);
   private final OutboxEventRepository outboxEventRepository;
   private final MessagePublisher messagePublisher;
   private final OutboxProperties outboxProperties;
@@ -46,17 +43,21 @@ public class OutboxPublisherJob {
 
   @Scheduled(fixedDelayString = "${fiapx.outbox.publish-interval-ms:3000}")
   public void publishPending() {
-    List<OutboxEvent> claimed = outboxEventRepository.claimUnpublished(outboxProperties.batchSize(), LEASE);
-    for (OutboxEvent event : claimed) {
+    for (int i = 0; i < outboxProperties.batchSize(); i++) {
+      List<OutboxEvent> claimed = outboxEventRepository.claimUnpublished(1, LEASE);
+      if (claimed.isEmpty()) {
+        return;
+      }
+      OutboxEvent event = claimed.getFirst();
       try {
         String targetQueue = resolveQueue(event.getEventType());
         messagePublisher.publish(targetQueue,
             OutboundMessage.of(event.getPayload(), event.getCorrelationId(), event.getId().toString()));
         outboxEventRepository.markPublished(event.getId(), event.getLockToken());
       } catch (Exception e) {
-        log.error("Falha ao publicar outbox event {} ({}), tentativa {}", event.getId(), event.getEventType(),
-            event.getAttempts() + 1, e);
+        log.error("Falha ao publicar outbox event {} ({}), tentativa {}", event.getId(), event.getEventType(), event.getAttempts() + 1, e);
         outboxEventRepository.releaseAfterFailure(event.getId(), event.getLockToken());
+        return;
       }
     }
   }

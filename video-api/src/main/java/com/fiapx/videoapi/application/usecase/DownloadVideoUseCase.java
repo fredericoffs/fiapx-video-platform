@@ -33,7 +33,7 @@ public class DownloadVideoUseCase {
 
   public VideoDownload handle(UUID videoId, UUID requesterId) {
     Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
-    if (!video.belongsTo(requesterId)) {
+    if (video.belongsTo(requesterId)) {
       throw new VideoNotFoundException(videoId);
     }
     if (video.getStatus() != VideoStatus.COMPLETED) {
