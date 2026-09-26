@@ -1,5 +1,3 @@
-# SPRING_FLYWAY_ENABLED não é setado aqui de propósito — overlays sobrescrevem para
-# "false": quem migra em Kubernetes é o Job dedicado (migration-job.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,24 +24,35 @@ spec:
           envFrom:
             - configMapRef:
                 name: fiapx-config
+            # Secret próprio (item 20 da revisão crítica) — só as chaves que o video-api usa
+            # (JWT_SECRET, DB_USER, DB_PASSWORD, ADMIN_SEED_PASSWORD).
             - secretRef:
-                name: fiapx-secrets
-          # Boot do Spring sob CPU limitada do kind é lento — sem startupProbe o
-          # livenessProbe mata o container antes de terminar de subir.
+                name: video-api-secrets
+          # Quem migra é o Job dedicado (migration-job.yaml) — o app só valida o schema.
+          env:
+            - name: SPRING_FLYWAY_ENABLED
+              value: "false"
+          # Boot do Spring sob CPU limitada é lento — sem startupProbe o livenessProbe mata
+          # o container antes de terminar de subir. startupProbe e readinessProbe apontam pro
+          # grupo readiness (inclui db/redis, ver application.yml) — uma migration lenta ou o
+          # RDS ainda não aceitando conexão legitimamente estende o startup. livenessProbe usa
+          # o grupo liveness (só o processo) — item 16 da revisão crítica: sem essa separação,
+          # uma indisponibilidade do RDS/Redis virava reinício repetido do pod em vez de só
+          # sair da rotação de tráfego.
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: http
             periodSeconds: 10
           resources:

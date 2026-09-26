@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,13 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code Thread.sleep}/timing de wall-clock.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
 @TestPropertySource(properties = {
     "resilience4j.thread-pool-bulkhead.instances.email-channel.max-thread-pool-size=1",
     "resilience4j.thread-pool-bulkhead.instances.email-channel.core-thread-pool-size=1",
     "resilience4j.thread-pool-bulkhead.instances.email-channel.queue-capacity=0"
 })
-class BulkheadIsolationTest {
+class BulkheadIsolationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private ThreadPoolBulkheadRegistry threadPoolBulkheadRegistry;

@@ -1,24 +1,5 @@
 package com.fiapx.videoapi.application.usecase;
 
-import com.fiapx.videoapi.application.dto.VideoUploadCommand;
-import com.fiapx.videoapi.application.dto.VideoUploadResult;
-import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
-import com.fiapx.videoapi.domain.model.OutboxEvent;
-import com.fiapx.videoapi.domain.model.Video;
-import com.fiapx.videoapi.domain.model.VideoStatus;
-import com.fiapx.videoapi.domain.port.OutboxEventRepository;
-import com.fiapx.videoapi.domain.port.StorageClient;
-import com.fiapx.videoapi.domain.port.VideoRepository;
-import com.fiapx.videoapi.infrastructure.config.StorageProperties;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,6 +10,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.fiapx.videoapi.application.dto.VideoUploadCommand;
+import com.fiapx.videoapi.application.dto.VideoUploadResult;
+import com.fiapx.videoapi.domain.exception.UnsupportedVideoFormatException;
+import com.fiapx.videoapi.domain.model.OutboxEvent;
+import com.fiapx.videoapi.domain.model.User;
+import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.model.VideoStatus;
+import com.fiapx.videoapi.domain.port.OutboxEventRepository;
+import com.fiapx.videoapi.domain.port.StorageClient;
+import com.fiapx.videoapi.domain.port.UserRepository;
+import com.fiapx.videoapi.domain.port.VideoRepository;
+import com.fiapx.videoapi.infrastructure.config.StorageProperties;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 class RequestVideoProcessingUseCaseTest {
 
@@ -48,8 +51,10 @@ class RequestVideoProcessingUseCaseTest {
 
     when(videoRepository.save(any(Video.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
+    var users = mock(UserRepository.class);
+    when(users.findByIdForUpdate(any())).thenAnswer(i -> Optional.of(User.newUser(i.getArgument(0), "user@example.com", "hash")));
     useCase = new RequestVideoProcessingUseCase(videoRepository, outboxEventRepository, storageClient,
-        storageProperties, objectMapper);
+        storageProperties, objectMapper, users);
   }
 
   @Test
@@ -69,6 +74,7 @@ class RequestVideoProcessingUseCaseTest {
     Video savedVideo = videoCaptor.getValue();
     assertThat(savedVideo.getUserId()).isEqualTo(userId);
     assertThat(savedVideo.getOriginalFilename()).isEqualTo("movie.mp4");
+    assertThat(savedVideo.getFileSizeBytes()).isEqualTo(10L);
     assertThat(savedVideo.getStatus()).isEqualTo(VideoStatus.QUEUED);
     // Chave de storage com nome interno: o nome original do usuário nunca vira caminho.
     assertThat(savedVideo.getStorageKey()).isEqualTo("raw/" + savedVideo.getId() + "/source.mp4");

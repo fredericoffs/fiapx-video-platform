@@ -52,6 +52,7 @@ public class SqsQueueDepthGauge implements SmartLifecycle {
         while (running.get()) {
           refresh();
           try {
+            //todo: talvez seja melhor usar um ScheduledExecutorService, mas não é crítico.
             Thread.sleep(properties.depthPollMillis());
           } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

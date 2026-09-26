@@ -34,20 +34,21 @@ public class OutboxEventRepositoryAdapter implements com.fiapx.videoapi.domain.p
     if (claimed.isEmpty()) {
       return List.of();
     }
+    UUID lockToken = UUID.randomUUID();
     List<UUID> ids = claimed.stream().map(OutboxEventEntity::getId).toList();
-    springDataOutboxEventRepository.lease(ids, Instant.now().plus(lease));
-    return claimed.stream().map(OutboxEventMapper::toDomain).toList();
+    springDataOutboxEventRepository.lease(ids, Instant.now().plus(lease), lockToken);
+    return claimed.stream().map(entity -> OutboxEventMapper.toDomain(entity, lockToken)).toList();
   }
 
   @Override
   @Transactional
-  public void markPublished(UUID eventId) {
-    springDataOutboxEventRepository.markPublished(eventId);
+  public void markPublished(UUID eventId, UUID lockToken) {
+    springDataOutboxEventRepository.markPublished(eventId, lockToken);
   }
 
   @Override
   @Transactional
-  public void releaseAfterFailure(UUID eventId) {
-    springDataOutboxEventRepository.releaseAfterFailure(eventId);
+  public void releaseAfterFailure(UUID eventId, UUID lockToken) {
+    springDataOutboxEventRepository.releaseAfterFailure(eventId, lockToken);
   }
 }

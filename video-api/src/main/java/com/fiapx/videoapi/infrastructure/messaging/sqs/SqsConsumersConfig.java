@@ -4,22 +4,21 @@ import com.fiapx.videoapi.infrastructure.config.QueueProperties;
 import com.fiapx.videoapi.infrastructure.config.SqsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 /** A DLQ de resultados fica sem consumer de propósito: mensagem retida até replay manual. */
 @Configuration
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsConsumersConfig {
 
+  // 1 mensagem por vez: o heartbeat do SqsQueueConsumer só estende a visibilidade da mensagem
+  // em processamento — um lote >1 deixaria as demais perdendo visibilidade em memória.
   @Bean
   public SqsQueueConsumer statusUpdatesConsumer(SqsClient sqsClient, SqsProperties sqsProperties,
       SqsQueueUrlResolver resolver, QueueProperties queues, SqsVideoStatusUpdateListener listener) {
     return new SqsQueueConsumer(sqsClient, sqsProperties, "status-updates",
-        resolver.urlOf(queues.statusUpdates()), resolver.urlOf(queues.statusUpdatesDlq()),
-        sqsProperties.maxMessages(), listener);
+        resolver.urlOf(queues.statusUpdates()), resolver.urlOf(queues.statusUpdatesDlq()), 1, listener);
   }
 
   @Bean

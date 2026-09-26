@@ -10,6 +10,7 @@ import com.fiapx.videoapi.application.usecase.LoginUseCase;
 import com.fiapx.videoapi.application.usecase.RegisterUserUseCase;
 import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
+import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsTestSupport;
 import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
 import com.fiapx.videoapi.infrastructure.persistence.entity.VideoEntity;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutboxEventRepository;
@@ -18,16 +19,15 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.Message;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -39,16 +39,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Percorro aqui a cadeia completa descrita na Sprint 3 (item 3) em um único cenário:
- * upload HTTP → linha na outbox → OutboxPublisherJob publica em video.processing →
- * consumo simulado de video.status-updates (papel do video-worker) → status aplicado.
- * Os testes existentes (VideoUploadIntegrationTest, OutboxPublisherJobIntegrationTest,
- * VideoStatusUpdateListenerIntegrationTest) cobrem cada etapa isoladamente, mas nenhum
- * encadeava as quatro em um só fluxo — por isso escrevi este.
+ * upload HTTP → linha na outbox → OutboxPublisherJob publica em fiapx-video-processing →
+ * consumo simulado de fiapx-video-status-updates (papel do video-worker) → status aplicado.
+ * Os testes existentes (VideoUploadIntegrationTest, OutboxPublisherJobIntegrationTest)
+ * cobrem cada etapa isoladamente, mas nenhum encadeava as três em um só fluxo — por isso
+ * escrevi este.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
-class EndToEndVideoProcessingFlowIntegrationTest {
+class EndToEndVideoProcessingFlowIntegrationTest extends AbstractSqsIntegrationTest {
+
+  static final SqsClient SQS = SqsTestSupport.client();
 
   @Autowired
   private MockMvc mockMvc;
@@ -61,9 +62,6 @@ class EndToEndVideoProcessingFlowIntegrationTest {
 
   @Autowired
   private OutboxPublisherJob outboxPublisherJob;
-
-  @Autowired
-  private RabbitTemplate rabbitTemplate;
 
   @Autowired
   private QueueProperties queueProperties;
@@ -110,7 +108,8 @@ class EndToEndVideoProcessingFlowIntegrationTest {
     String zipStorageKey = "processed/" + videoId + ".zip";
     ProcessingResultMessage resultMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED,
         videoId, zipStorageKey, null);
-    rabbitTemplate.convertAndSend(queueProperties.statusUpdates(), objectMapper.writeValueAsString(resultMessage));
+    String statusUpdatesUrl = SqsTestSupport.urlOf(SQS, queueProperties.statusUpdates());
+    SQS.sendMessage(b -> b.queueUrl(statusUpdatesUrl).messageBody(objectMapper.writeValueAsString(resultMessage)));
 
     await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
       VideoEntity updated = videoRepository.findById(videoId).orElseThrow();
@@ -127,11 +126,14 @@ class EndToEndVideoProcessingFlowIntegrationTest {
   }
 
   private Message receiveContaining(String queue, String needle) {
+    String url = SqsTestSupport.urlOf(SQS, queue);
     long deadline = System.currentTimeMillis() + 10_000;
     while (System.currentTimeMillis() < deadline) {
-      Message message = rabbitTemplate.receive(queue, 500);
-      if (message != null && new String(message.getBody()).contains(needle)) {
-        return message;
+      for (Message message : SQS.receiveMessage(b -> b.queueUrl(url).maxNumberOfMessages(10).waitTimeSeconds(1))
+          .messages()) {
+        if (message.body().contains(needle)) {
+          return message;
+        }
       }
     }
     return null;

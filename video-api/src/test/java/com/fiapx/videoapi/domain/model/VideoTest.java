@@ -15,6 +15,14 @@ class VideoTest {
     assertThat(video.isTerminal()).isFalse();
     assertThat(video.getZipStorageKey()).isNull();
     assertThat(video.getErrorMessage()).isNull();
+    assertThat(video.getFileSizeBytes()).as("sem tamanho quando não informado").isNull();
+  }
+
+  @Test
+  void newQueuedStoresFileSizeBytesWhenProvided() {
+    Video video = Video.newQueued(UUID.randomUUID(), UUID.randomUUID(), "movie.mp4", "raw/movie.mp4", 10_485_760L);
+
+    assertThat(video.getFileSizeBytes()).isEqualTo(10_485_760L);
   }
 
   @Test

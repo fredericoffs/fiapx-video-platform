@@ -48,42 +48,9 @@ public class ProcessVideoUseCase {
     this.ffmpegProperties = ffmpegProperties;
   }
 
-  public ProcessingResult handle(VideoUploadRequestedPayload payload) {
-    Path tempDir = createTempDir(payload);
-    try {
-      // Nome interno controlado: o nome original do usuário nunca vira caminho em disco.
-      Path videoFile = resolveInside(tempDir, "input." + inputExtension(payload));
-      try (InputStream in = storageClient.download(storageProperties.bucketRaw(), payload.storageKey())) {
-        Files.copy(in, videoFile, StandardCopyOption.REPLACE_EXISTING);
-      }
-
-      Path framesDir = Files.createDirectory(tempDir.resolve("frames"));
-      frameExtractor.extractFrames(videoFile, framesDir, ffmpegProperties.fps());
-
-      Path zipFile = tempDir.resolve(payload.videoId() + ".zip");
-      archiver.zip(framesDir, zipFile);
-
-      String zipKey = "processed/" + payload.videoId() + "/" + payload.videoId() + ".zip";
-      try (InputStream zipIn = Files.newInputStream(zipFile)) {
-        storageClient.upload(storageProperties.bucketProcessed(), zipKey, zipIn, Files.size(zipFile),
-            "application/zip");
-      }
-
-      return ProcessingResult.success(payload.videoId(), zipKey);
-    } catch (FfmpegProcessingException | UnsupportedVideoInputException businessFailure) {
-      return ProcessingResult.failure(payload.videoId(), businessFailure.getMessage());
-    } catch (IOException e) {
-      throw new UncheckedIOException("Falha de I/O ao processar vídeo " + payload.videoId(), e);
-    } finally {
-      try {
-        FileSystemUtils.deleteRecursively(tempDir);
-      } catch (IOException e) {
-        log.warn("Falha ao limpar diretório temporário {}", tempDir, e);
-      }
-    }
-  }
-
-  /** Extensão só da lista aceita, vinda da chave de storage (gerada pela API) ou, como fallback, do nome original. */
+  /**
+   * Extensão só da lista aceita, vinda da chave de storage (gerada pela API) ou, como fallback, do nome original.
+   */
   private static String inputExtension(VideoUploadRequestedPayload payload) {
     String fromKey = extensionOf(payload.storageKey());
     if (ALLOWED_EXTENSIONS.contains(fromKey)) {
@@ -115,6 +82,56 @@ public class ProcessVideoUseCase {
       throw new IllegalStateException("Caminho fora do diretório temporário: " + resolved);
     }
     return resolved;
+  }
+
+  public ProcessingResult handle(VideoUploadRequestedPayload payload) {
+    return handle(payload, () -> {
+    });
+  }
+
+  public ProcessingResult handle(VideoUploadRequestedPayload payload, Runnable verifyLease) {
+    String zipKey = "processed/" + payload.videoId() + "/" + payload.videoId() + ".zip";
+    // Reentrega (redelivery do SQS após visibility timeout, ou reprocessamento manual): o
+    // ffmpeg já rodou até o fim numa tentativa anterior e o zip já está no destino final. Sem
+    // DB, a própria existência do objeto de saída é a evidência de "já processado" — evita
+    // rodar o ffmpeg de novo à toa numa mensagem duplicada.
+    if (storageClient.exists(storageProperties.bucketProcessed(), zipKey)) {
+      log.info("Vídeo {} já processado (zip existente em {}), pulando reentrega", payload.videoId(), zipKey);
+      return ProcessingResult.success(payload.videoId(), zipKey);
+    }
+
+    Path tempDir = createTempDir(payload);
+    try {
+      // Nome interno controlado: o nome original do usuário nunca vira caminho em disco.
+      Path videoFile = resolveInside(tempDir, "input." + inputExtension(payload));
+      try (InputStream in = storageClient.download(storageProperties.bucketRaw(), payload.storageKey())) {
+        Files.copy(in, videoFile, StandardCopyOption.REPLACE_EXISTING);
+      }
+
+      Path framesDir = Files.createDirectory(tempDir.resolve("frames"));
+      frameExtractor.extractFrames(videoFile, framesDir, ffmpegProperties.fps());
+
+      Path zipFile = tempDir.resolve(payload.videoId() + ".zip");
+      archiver.zip(framesDir, zipFile);
+
+      verifyLease.run();
+      try (InputStream zipIn = Files.newInputStream(zipFile)) {
+        storageClient.upload(storageProperties.bucketProcessed(), zipKey, zipIn, Files.size(zipFile),
+            "application/zip");
+      }
+
+      return ProcessingResult.success(payload.videoId(), zipKey);
+    } catch (FfmpegProcessingException | UnsupportedVideoInputException businessFailure) {
+      return ProcessingResult.failure(payload.videoId(), businessFailure.getMessage());
+    } catch (IOException e) {
+      throw new UncheckedIOException("Falha de I/O ao processar vídeo " + payload.videoId(), e);
+    } finally {
+      try {
+        FileSystemUtils.deleteRecursively(tempDir);
+      } catch (IOException e) {
+        log.warn("Falha ao limpar diretório temporário {}", tempDir, e);
+      }
+    }
   }
 
   private Path createTempDir(VideoUploadRequestedPayload payload) {

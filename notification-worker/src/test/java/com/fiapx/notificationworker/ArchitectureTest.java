@@ -52,7 +52,7 @@ class ArchitectureTest {
       noClasses().that().resideInAPackage(DOMAIN)
           .should().dependOnClassesThat().resideInAnyPackage(
               "org.springframework..", "jakarta.persistence..", "jakarta.validation..",
-              "tools.jackson..", "com.fasterxml.jackson..", "org.springframework.amqp..")
+              "tools.jackson..", "com.fasterxml.jackson..")
           .as("o domínio deve ser Plain Java, sem acoplamento a frameworks (persistence/framework ignorance)")
           .allowEmptyShould(true);
 

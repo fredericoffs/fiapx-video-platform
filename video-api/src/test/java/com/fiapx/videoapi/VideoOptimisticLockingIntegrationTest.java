@@ -8,7 +8,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,8 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * VideoEntity realmente rejeita a segunda escrita baseada em estado obsoleto.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
-class VideoOptimisticLockingIntegrationTest {
+class VideoOptimisticLockingIntegrationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private SpringDataVideoRepository videoRepository;

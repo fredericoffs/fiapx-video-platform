@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useSessionStore } from '@/shared/lib/session-store'
-import { hasNonTerminalVideo, useVideosQuery } from '@/shared/api/videos'
+import { flattenVideoPages, hasNonTerminalVideo, useVideosQuery } from '@/shared/api/videos'
 import { UploadProcessingScene } from '@/shared/ui/illustrations/upload-processing-scene'
 import { UploadDropzone } from '@/features/upload/components/upload-dropzone'
 import { VideoList } from '@/features/videos/components/video-list'
@@ -19,7 +19,7 @@ export const Route = createFileRoute('/_authenticated/')({
 function DashboardPage() {
   const [isUploading, setIsUploading] = useState(false)
   const videosQuery = useVideosQuery()
-  const isProcessing = hasNonTerminalVideo(videosQuery.data)
+  const isProcessing = hasNonTerminalVideo(flattenVideoPages(videosQuery.data))
   const sceneState = isUploading ? 'uploading' : isProcessing ? 'processing' : 'idle'
 
   return (

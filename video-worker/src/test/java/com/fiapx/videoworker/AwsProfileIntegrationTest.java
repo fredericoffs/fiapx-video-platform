@@ -17,40 +17,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import tools.jackson.databind.ObjectMapper;
 
-/** Perfil aws de ponta a ponta: pedido chega por SQS, worker publica Started + resultado; redrive vira FAILED. */
+/** Fim a fim contra SQS real (LocalStack): pedido chega por SQS, worker publica Started + resultado; redrive vira FAILED. */
 @SpringBootTest
-@ActiveProfiles("aws")
-class AwsProfileIntegrationTest {
-
-  static final SqsClient SQS = SqsTestSupport.client();
-
-  @DynamicPropertySource
-  static void awsProfile(DynamicPropertyRegistry registry) {
-    // Redrive rápido (visibilidade 1s, 2 recebimentos) para o teste da DLQ terminar em segundos.
-    SqsTestSupport.createQueueWithDlq(SQS, "fiapx-video-processing", 1, 2);
-    SqsTestSupport.createPlainQueues(SQS, List.of("fiapx-video-status-updates", "fiapx-video-status-updates-dlq"));
-    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
-    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
-    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
-    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
-    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
-    registry.add("fiapx.storage.endpoint", () -> "");
-  }
-
-  @Autowired
-  private ApplicationContext context;
+class AwsProfileIntegrationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private MessagePublisher messagePublisher;
@@ -68,9 +43,8 @@ class AwsProfileIntegrationTest {
   private ObjectMapper objectMapper;
 
   @Test
-  void contextUsesSqsAdaptersAndNoRabbitBeans() {
+  void contextUsesSqsAdapters() {
     assertThat(messagePublisher).isInstanceOf(SqsMessagePublisher.class);
-    assertThat(context.getBeanNamesForType(RabbitTemplate.class)).isEmpty();
   }
 
   @Test

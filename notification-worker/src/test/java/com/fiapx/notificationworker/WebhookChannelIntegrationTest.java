@@ -13,15 +13,13 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
-class WebhookChannelIntegrationTest {
+class WebhookChannelIntegrationTest extends AbstractSqsIntegrationTest {
 
   private static MockWebServer mockWebServer;
 
@@ -41,7 +39,21 @@ class WebhookChannelIntegrationTest {
   private List<NotificationChannel> channels;
 
   @Test
-  void postsVideoIdAndErrorMessageToConfiguredUrl() throws InterruptedException {
+  void postsVideoIdErrorMessageAndRecipientEmailToConfiguredUrl() throws InterruptedException {
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200));
+    UUID videoId = UUID.randomUUID();
+
+    webhookChannel().send(videoId, "ffmpeg falhou", "dono@example.com").join();
+
+    RecordedRequest request = mockWebServer.takeRequest(5, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getPath()).isEqualTo("/webhook");
+    String body = request.getBody().readUtf8();
+    assertThat(body).contains(videoId.toString()).contains("ffmpeg falhou").contains("dono@example.com");
+  }
+
+  @Test
+  void toleratesNullRecipientEmailWithoutThrowing() throws InterruptedException {
     mockWebServer.enqueue(new MockResponse().setResponseCode(200));
     UUID videoId = UUID.randomUUID();
 
@@ -49,9 +61,6 @@ class WebhookChannelIntegrationTest {
 
     RecordedRequest request = mockWebServer.takeRequest(5, TimeUnit.SECONDS);
     assertThat(request).isNotNull();
-    assertThat(request.getPath()).isEqualTo("/webhook");
-    String body = request.getBody().readUtf8();
-    assertThat(body).contains(videoId.toString()).contains("ffmpeg falhou");
   }
 
   private NotificationChannel webhookChannel() {

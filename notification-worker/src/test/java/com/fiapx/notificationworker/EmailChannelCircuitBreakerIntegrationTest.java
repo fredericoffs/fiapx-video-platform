@@ -8,7 +8,6 @@ import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@link TestPropertySource}, para abrir o circuito com poucas chamadas.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
 @TestPropertySource(properties = {
     "spring.mail.host=127.0.0.1",
     "spring.mail.port=1",
@@ -33,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     "resilience4j.circuitbreaker.instances.email-channel.failure-rate-threshold=50",
     "resilience4j.circuitbreaker.instances.email-channel.wait-duration-in-open-state=10s"
 })
-class EmailChannelCircuitBreakerIntegrationTest {
+class EmailChannelCircuitBreakerIntegrationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private NotificationChannel emailChannel;

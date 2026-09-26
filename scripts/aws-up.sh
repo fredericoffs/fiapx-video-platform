@@ -19,9 +19,9 @@ Opcoes:
                       houver mudancas. Sem mudancas, termina com sucesso sem aplicar.
   -h, --help          Exibe esta ajuda.
 
-Credenciais: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY e AWS_SESSION_TOKEN no ambiente
-(Learner Lab > AWS Details). Variaveis do Terraform via TF_VAR_* (opcional — os
-defaults de k8s/terraform/aws/variables.tf ja servem pro Learner Lab).
+Credenciais: perfil do aws configure ou AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY no
+ambiente (usuario IAM; AWS_SESSION_TOKEN so se forem credenciais temporarias). Variaveis do Terraform via
+TF_VAR_* (opcional — os defaults de k8s/terraform/aws/variables.tf ja servem).
 EOF
 }
 
@@ -48,12 +48,11 @@ done
 require_cmd terraform
 require_cmd aws
 
-for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
-  if [[ -z "${!var:-}" ]]; then
-    echo "Erro: $var nao definida (copie de Learner Lab > AWS Details)." >&2
-    exit 1
-  fi
-done
+# Aceita env vars ou o perfil do aws configure: o que importa e a credencial resolver.
+if ! aws sts get-caller-identity >/dev/null 2>&1; then
+  echo "Erro: credenciais AWS ausentes ou invalidas (aws configure, ou AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)." >&2
+  exit 1
+fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="$ROOT_DIR/k8s/terraform/aws"
@@ -62,9 +61,9 @@ export TF_VAR_aws_region="$AWS_REGION"
 
 terraform -chdir="$TF_DIR" fmt -check
 "$ROOT_DIR/scripts/aws-tf-init.sh" "$TF_DIR"
-# Buckets de vídeo ficam fora do Terraform (SCP do lab nega a leitura de Object Lock).
+# Buckets de vídeo ficam fora do Terraform (herança do Learner Lab, ver s3.tf).
 "$ROOT_DIR/scripts/aws-buckets-init.sh"
-# Parâmetros SSM que sobreviveram a um reset parcial do lab (fora do state) — importa
+# Parâmetros SSM que sobreviveram fora do state (ex.: state perdido) — importa
 # antes do plan/apply pra não bater em ParameterAlreadyExists na criação.
 "$ROOT_DIR/scripts/aws-ssm-reconcile.sh" "$TF_DIR"
 terraform -chdir="$TF_DIR" validate

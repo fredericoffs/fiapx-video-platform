@@ -2,7 +2,6 @@ package com.fiapx.notificationworker.infrastructure.messaging.sqs;
 
 import com.fiapx.notificationworker.infrastructure.config.SqsProperties;
 import java.net.URI;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -14,13 +13,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 
 @Configuration
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsClientConfig {
-
-  @Bean
-  public SqsClient sqsClient(SqsProperties properties) {
-    return configure(SqsClient.builder(), properties).build();
-  }
 
   static SqsClientBuilder configure(SqsClientBuilder builder, SqsProperties properties) {
     builder.region(Region.of(properties.region())).credentialsProvider(credentialsProvider(properties));
@@ -36,5 +29,10 @@ public class SqsClientConfig {
           AwsBasicCredentials.create(properties.accessKey(), properties.secretKey()));
     }
     return DefaultCredentialsProvider.builder().build();
+  }
+
+  @Bean
+  public SqsClient sqsClient(SqsProperties properties) {
+    return configure(SqsClient.builder(), properties).build();
   }
 }

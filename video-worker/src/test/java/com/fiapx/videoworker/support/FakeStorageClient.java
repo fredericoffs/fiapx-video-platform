@@ -41,4 +41,9 @@ public class FakeStorageClient implements StorageClient {
 		}
 		return new ByteArrayInputStream(bytes);
 	}
+
+	@Override
+	public boolean exists(String bucket, String key) {
+		return objects.containsKey(bucket + "/" + key);
+	}
 }

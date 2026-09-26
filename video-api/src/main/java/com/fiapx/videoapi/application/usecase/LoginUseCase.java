@@ -51,7 +51,7 @@ public class LoginUseCase {
 		}
 
 		loginRateLimiter.reset(email);
-		String token = tokenIssuer.generateToken(user.getId(), user.getRole());
+		String token = tokenIssuer.generateToken(user.getId(), user.getRole(), user.isMustChangePassword());
 		long expiresInSeconds = Duration.ofMinutes(jwtProperties.expirationMinutes()).toSeconds();
 		return new LoginResult(token, expiresInSeconds, user.getRole(), user.isMustChangePassword());
 	}

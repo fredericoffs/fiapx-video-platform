@@ -1,7 +1,7 @@
 # StorageClass padrão do cluster EKS. A partir do Kubernetes 1.30 o EKS não marca mais
-# a gp2 como default, e os PVCs de k8s/infra (Postgres, Redis, RabbitMQ, MinIO) não
-# fixam storageClassName — sem uma classe default ficam Pending. Provisionador CSI
-# (add-on aws-ebs-csi-driver), volumes gp3, criados só quando o pod é agendado.
+# a gp2 como default, e os PVCs do kube-prometheus-stack (único componente com estado no
+# cluster) não fixam storageClassName — sem uma classe default ficam Pending. Provisionador
+# CSI (add-on aws-ebs-csi-driver), volumes gp3, criados só quando o pod é agendado.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

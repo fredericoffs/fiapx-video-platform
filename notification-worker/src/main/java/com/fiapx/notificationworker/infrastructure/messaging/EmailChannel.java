@@ -54,9 +54,8 @@ public class EmailChannel implements NotificationChannel {
   }
 
   /**
-   * Traduzo qualquer falha do canal (circuito aberto, bulkhead cheio, erro de SMTP)
-   * pra uma exceção de domínio única — assim o dispatcher não precisa conhecer tipos do
-   * Resilience4j, só {@link NotificationDeliveryException}.
+   * Traduzo qualquer falha do canal (circuito aberto, bulkhead cheio, erro de SMTP) pra uma exceção de domínio única — assim o dispatcher não precisa
+   * conhecer tipos do Resilience4j, só {@link NotificationDeliveryException}.
    */
   private CompletableFuture<Void> unavailable(UUID videoId, String errorMessage, String recipientEmail, Throwable t) {
     return CompletableFuture.failedFuture(

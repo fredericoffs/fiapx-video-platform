@@ -4,7 +4,7 @@
 > **Formato**
 > Fiz este documento como equivalente textual/mermaid a um board de Event Storming (Miro), conforme aceito pela Fase 1 ("Miro ou equivalente").
 >
-> **Convenção de cores do método**: 
+> **Convenção de cores do método**:
 > - 🟧 Evento de Domínio
 > - 🟦 Comando
 > - 🟨 Ator/Persona
@@ -66,25 +66,27 @@ flowchart LR
 
 > [!WARNING]
 > **Decisão registrada**
-> Não criei um agregado `Job` separado de `Video` — ver nota aberta em [Linguagem Ubíqua](./linguagem-ubiqua.md). Modelei o "job" como o próprio ciclo de vida do `Video`. Considero isso suficiente para o domínio atual (não há reprocessamento paralelo do mesmo vídeo, não há histórico de múltiplas tentativas de job por vídeo além do que a DLQ já resolve).
+> Não criei um agregado `Job` separado de `Video` — ver nota aberta em [Linguagem Ubíqua](./linguagem-ubiqua.md). Modelei o "job" como o próprio ciclo
+de vida do `Video`. Considero isso suficiente para o domínio atual (não há reprocessamento paralelo do mesmo vídeo, não há histórico de múltiplas
+tentativas de job por vídeo além do que a DLQ já resolve).
 
 ## 6. Políticas (regras reativas — "quando X, então Y")
 
-| Política                  | Gatilho                                               | Ação                                                                                                                                                                                                                                       |
-|---------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Enfileirar após upload    | `VideoUploadRequested` publicado no outbox            | Publisher agendado envia para `video.processing`                                                                                                                                                                                           |
-| Aplicar conclusão         | `ProcessingCompleted` recebido pelo `video-api`       | Atualiza `status=COMPLETED` no Postgres do `video-api` — **não** é o worker que escreve direto (ver [ADR-008](../architecture/hld-lld-adr-rfc.md#adr-008--comunicação-de-status-entre-video-worker-e-video-api-evento-não-escrita-direta)) |
-| Aplicar falha e notificar | `ProcessingFailed` recebido pelo `video-api`          | Atualiza `status=FAILED` + publica evento de falha em `video.notification`                                                                                                                                                                 |
-| Retry com backoff         | Falha transitória no worker (ex.: MinIO indisponível) | Retry exponencial (Resilience4j); só vira `ProcessingFailed` após esgotar tentativas                                                                                                                                                       |
-| Dead-letter               | Mensagem falha após `maxReceiveCount`                 | Vai para a DLQ correspondente (`video.processing.dlq` / `video.notification.dlq`)                                                                                                                                                          |
+| Política                  | Gatilho                                            | Ação                                                                                                                                                                                                                                       |
+|---------------------------|----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Enfileirar após upload    | `VideoUploadRequested` publicado no outbox         | Publisher agendado envia para `video.processing`                                                                                                                                                                                           |
+| Aplicar conclusão         | `ProcessingCompleted` recebido pelo `video-api`    | Atualiza `status=COMPLETED` no Postgres do `video-api` — **não** é o worker que escreve direto (ver [ADR-008](../architecture/hld-lld-adr-rfc.md#adr-008--comunicação-de-status-entre-video-worker-e-video-api-evento-não-escrita-direta)) |
+| Aplicar falha e notificar | `ProcessingFailed` recebido pelo `video-api`       | Atualiza `status=FAILED` + publica evento de falha em `video.notification`                                                                                                                                                                 |
+| Retry com backoff         | Falha transitória no worker (ex.: S3 indisponível) | Retry exponencial (Resilience4j); só vira `ProcessingFailed` após esgotar tentativas                                                                                                                                                       |
+| Dead-letter               | Mensagem falha após `maxReceiveCount`              | Vai para a DLQ correspondente (`video.processing.dlq` / `video.notification.dlq`)                                                                                                                                                          |
 
 ## 7. Read Models
 
-| Read Model                     | Endpoint                    | Fonte                                                      |
-|--------------------------------|-----------------------------|------------------------------------------------------------|
-| Listagem de status por usuário | `GET /videos`               | Postgres do `video-api`, cache-aside via Redis             |
-| Detalhe de um vídeo            | `GET /videos/{id}`          | Postgres do `video-api`                                    |
-| Download do resultado          | `GET /videos/{id}/download` | URL pré-assinada do MinIO/S3, só quando `status=COMPLETED` |
+| Read Model                     | Endpoint                    | Fonte                                                                                                                                                                         |
+|--------------------------------|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Listagem de status por usuário | `GET /videos`               | Postgres do `video-api`, consulta direta, sem cache intermediário (ver [ADR-013](../architecture/hld-lld-adr-rfc.md#adr-013--sem-cqrsevent-sourcing-para-consulta-de-status)) |
+| Detalhe de um vídeo            | `GET /videos/{id}`          | Postgres do `video-api`                                                                                                                                                       |
+| Download do resultado          | `GET /videos/{id}/download` | Streaming do `.zip` pelo `video-api` (bucket S3 privado, sem URL pré-assinada), só quando `status=COMPLETED`                                                                  |
 
 ## 8. Pontos de incerteza (hotspots — convenção do método: 🟪 rosa/roxo escuro)
 

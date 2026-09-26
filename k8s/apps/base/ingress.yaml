@@ -1,0 +1,70 @@
+# Exposição externa via ingress-nginx (1 NLB só,
+# ver k8s/addons/install-ingress-nginx.sh). Sem "host": ainda sem domínio, só o
+# hostname do NLB. Convenção: API admin sempre em /admin/<recurso> (vai pro gateway);
+# /admin exato é a página da SPA (cai em / → web). Prefixo mais longo vence no nginx.
+# TLS: certificado autoassinado (k8s/apps/base/certificate.yaml + ClusterIssuer
+# fiapx-selfsigned) — sem domínio estável no Learner Lab pra emitir via ACME. Encripta de
+# verdade; o navegador ainda mostra aviso de CA não confiável (esperado sem domínio real).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fiapx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # video-api aceita upload até 520MB (spring.servlet.multipart.max-request-size).
+    nginx.ingress.kubernetes.io/proxy-body-size: "520m"
+    # Download do zip processado pode passar de 1GB; sem isso o nginx corta a conexão
+    # depois de 60s sem tráfego (default) e o navegador recebe "Failed to fetch".
+    # O NLB tem idle timeout fixo em 350s, não configurável (k8s/addons/install-ingress-nginx.sh) —
+    # esta annotation só cobre o lado do nginx.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+    - secretName: fiapx-tls
+  rules:
+    - http:
+        paths:
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /videos
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /admin/users
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /admin/videos
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /users
+            pathType: Prefix
+            backend:
+              service:
+                name: video-gateway
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8080

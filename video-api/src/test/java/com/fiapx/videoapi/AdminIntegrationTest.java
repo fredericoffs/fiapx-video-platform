@@ -1,14 +1,19 @@
 package com.fiapx.videoapi;
 
+import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.port.VideoRepository;
 import java.util.UUID;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
@@ -22,10 +27,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * V8 deixa o admin semeado com um hash placeholder inutilizável (ver comentário da
+ * migration) — só {@link com.fiapx.videoapi.application.usecase.SeedAdminPasswordUseCase},
+ * lendo {@code fiapx.admin.seed-password}, aplica uma senha utilizável. Defino esse valor
+ * aqui, igual ao {@code ADMIN_PASSWORD} usado nos logins abaixo, pra não depender de uma
+ * variável de ambiente externa (SSM em produção) só pra este teste subir.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
-class AdminIntegrationTest {
+@TestPropertySource(properties = "fiapx.admin.seed-password=Admin@123")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class AdminIntegrationTest extends AbstractSqsIntegrationTest {
 
   private static final String PASSWORD = "senha-secreta-123";
   private static final String ADMIN_EMAIL = "admin@fiapx.local";
@@ -36,6 +49,9 @@ class AdminIntegrationTest {
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @Autowired
+  private VideoRepository videoRepository;
 
   @Test
   void regularUserGetsForbiddenOnAdminEndpoints() throws Exception {
@@ -55,7 +71,7 @@ class AdminIntegrationTest {
     String email = newEmail();
     String userToken = registerAndLogin(email);
     UUID videoId = uploadVideo(userToken);
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     MvcResult usersResult = mockMvc
         .perform(get("/admin/users").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -75,7 +91,11 @@ class AdminIntegrationTest {
     assertThat(uploadedVideo.get("ownerEmail").asString()).isEqualTo(email);
   }
 
+  // Precisa rodar antes de qualquer teste que chame adminToken() (que zera a flag pra
+  // conseguir operar) — sem isso a asserção de "primeiro login exige troca" fica dependente
+  // da ordem, que o JUnit não garante por padrão.
   @Test
+  @Order(1)
   void seededAdminMustChangePasswordOnFirstLoginThenFlagClears() throws Exception {
     JsonNode firstLogin = loginResponse(ADMIN_EMAIL, ADMIN_PASSWORD);
     assertThat(firstLogin.get("mustChangePassword").asBoolean()).isTrue();
@@ -91,7 +111,7 @@ class AdminIntegrationTest {
                   .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                   .content(changeBody)
           )
-          .andExpect(status().isNoContent());
+          .andExpect(status().isOk());
 
       JsonNode secondLogin = loginResponse(ADMIN_EMAIL, newPassword);
       assertThat(secondLogin.get("mustChangePassword").asBoolean()).isFalse();
@@ -105,7 +125,7 @@ class AdminIntegrationTest {
                   .header(HttpHeaders.AUTHORIZATION, "Bearer " + restoreToken)
                   .content(restoreBody)
           )
-          .andExpect(status().isNoContent());
+          .andExpect(status().isOk());
     }
   }
 
@@ -138,7 +158,7 @@ class AdminIntegrationTest {
     String uniqueMarker = "marker-" + UUID.randomUUID();
     String email = uniqueMarker + "@fiapx.com";
     registerAndLogin(email);
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     MvcResult result = mockMvc
         .perform(
@@ -161,7 +181,7 @@ class AdminIntegrationTest {
     MockMultipartFile file = new MockMultipartFile("file", uniqueMarker + ".mp4", "video/mp4", "fake".getBytes());
     mockMvc.perform(multipart("/videos").file(file).header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
         .andExpect(status().isCreated());
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
 
     MvcResult result = mockMvc
         .perform(
@@ -182,7 +202,14 @@ class AdminIntegrationTest {
     String email = newEmail();
     String userToken = registerAndLogin(email);
     UUID videoId = uploadVideo(userToken);
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    String adminToken = adminToken();
+
+    // A exclusão em cascata só alcança vídeos em estado terminal (item 11 da revisão crítica —
+    // ver DeleteVideoUseCase): sem um worker real processando neste teste, o vídeo ficaria
+    // QUEUED pra sempre, então simulo o resultado chegando (como o video-worker faria via SQS).
+    Video video = videoRepository.findById(videoId).orElseThrow();
+    video.fail("simulado no teste");
+    videoRepository.save(video);
 
     UUID userId = extractUserId(userToken);
     mockMvc.perform(delete("/admin/users/" + userId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -206,6 +233,32 @@ class AdminIntegrationTest {
 
   private String login(String email, String password) throws Exception {
     return loginResponse(email, password).get("accessToken").asString();
+  }
+
+  /**
+   * O admin semeado nasce com {@code mustChangePassword=true}, e o filtro bloqueia
+   * qualquer rota além de {@code PUT /users/me/password} enquanto isso for verdade. Os
+   * testes que só precisam operar como admin não podem depender da ordem de execução dos
+   * {@code @Test} (JUnit não garante ordem) para herdar a flag já limpa por
+   * {@link #seededAdminMustChangePasswordOnFirstLoginThenFlagClears}. Troco a senha pra
+   * ela mesma — não há regra que proíba isso — só pra zerar a flag de forma idempotente, e
+   * pego um token novo (o antigo ainda carrega o claim antigo).
+   */
+  private String adminToken() throws Exception {
+    JsonNode login = loginResponse(ADMIN_EMAIL, ADMIN_PASSWORD);
+    if (!login.get("mustChangePassword").asBoolean()) {
+      return login.get("accessToken").asString();
+    }
+    String changeBody = objectMapper.writeValueAsString(new ChangePasswordPayload(ADMIN_PASSWORD, ADMIN_PASSWORD));
+    mockMvc
+        .perform(
+            put("/users/me/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login.get("accessToken").asString())
+                .content(changeBody)
+        )
+        .andExpect(status().isOk());
+    return login(ADMIN_EMAIL, ADMIN_PASSWORD);
   }
 
   private JsonNode loginResponse(String email, String password) throws Exception {

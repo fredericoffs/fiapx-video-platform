@@ -1,45 +1,45 @@
 # Superset de env vars compartilhado pelos 4 serviços — cada Deployment usa envFrom e
-# ignora as chaves que não lê.
+# ignora as chaves que não lê. Valores de serviços gerenciados (RDS, ElastiCache, S3, SQS):
+# DB_HOST/REDIS_HOST/STORAGE_BUCKET_*/GATEWAY_CORS_ALLOWED_ORIGINS são placeholders aqui —
+# scripts/k8s-deploy-aws.sh os substitui em runtime pelos valores reais descobertos via aws CLI.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: fiapx-config
 data:
-  # postgres-postgresql/redis-master: nomes reais dos Services gerados pelo chart
-  # Bitnami. rabbitmq/minio são nomes literais dos manifests próprios em k8s/infra/.
-  DB_HOST: "postgres-postgresql"
+  DB_HOST: "placeholder"
   DB_PORT: "5432"
   DB_NAME: "fiapx"
-  DB_SSLMODE: "disable"
-  RABBITMQ_HOST: "rabbitmq"
-  RABBITMQ_PORT: "5672"
-  REDIS_HOST: "redis-master"
+  DB_SSLMODE: "require"
+  REDIS_HOST: "placeholder"
   REDIS_PORT: "6379"
-  STORAGE_ENDPOINT: "http://minio:9000"
-  STORAGE_BUCKET_RAW: "videos-raw"
-  STORAGE_BUCKET_PROCESSED: "videos-processed"
+  STORAGE_ENDPOINT: ""
+  STORAGE_PATH_STYLE: "false"
+  STORAGE_REGION: "us-east-1"
+  AWS_REGION: "us-east-1"
+  STORAGE_BUCKET_RAW: "placeholder"
+  STORAGE_BUCKET_PROCESSED: "placeholder"
   JWT_EXPIRATION_MINUTES: "30"
   LOGIN_RATE_LIMIT_MAX_ATTEMPTS: "5"
   LOGIN_RATE_LIMIT_WINDOW_SECONDS: "60"
   VIDEO_API_URI: "http://video-api:8081"
   GATEWAY_RATE_LIMIT_CAPACITY: "20"
   GATEWAY_RATE_LIMIT_PERIOD_SECONDS: "60"
-  GATEWAY_CORS_ALLOWED_ORIGINS: "http://localhost:5173"
-  QUEUE_STATUS_UPDATES: "video.status-updates"
-  QUEUE_STATUS_UPDATES_DLX: "video.status-updates.dlx"
-  QUEUE_STATUS_UPDATES_DLQ: "video.status-updates.dlq"
-  QUEUE_NOTIFICATION: "video.notification"
-  QUEUE_NOTIFICATION_DLX: "video.notification.dlx"
-  QUEUE_NOTIFICATION_DLQ: "video.notification.dlq"
-  QUEUE_PROCESSING: "video.processing"
-  QUEUE_PROCESSING_DLX: "video.processing.dlx"
-  QUEUE_PROCESSING_DLQ: "video.processing.dlq"
+  GATEWAY_CORS_ALLOWED_ORIGINS: "placeholder"
+  QUEUE_STATUS_UPDATES: "fiapx-video-status-updates"
+  QUEUE_STATUS_UPDATES_DLQ: "fiapx-video-status-updates-dlq"
+  QUEUE_NOTIFICATION: "fiapx-video-notification"
+  QUEUE_NOTIFICATION_DLQ: "fiapx-video-notification-dlq"
+  QUEUE_PROCESSING: "fiapx-video-processing"
+  QUEUE_PROCESSING_DLQ: "fiapx-video-processing-dlq"
   FFMPEG_FPS: "1"
   FFMPEG_TIMEOUT_MINUTES: "15"
   FFMPEG_MAX_DURATION_SECONDS: "1800"
   FFMPEG_PROBE_TIMEOUT_SECONDS: "30"
-  SMTP_HOST: "mailhog"
-  SMTP_PORT: "1025"
-  # Mailhog não roda no cluster — sem isso, o health indicator de mail do Actuator
-  # tenta abrir SMTP de verdade e derruba a liveness do pod.
+  # Sem relay SMTP provisionado: smtp.invalid (RFC 2606, garantido a não resolver) faz o
+  # canal de e-mail cair no fallback de webhook por design — ver ADR-012 (estratégia de
+  # canal de notificação). O health indicator de mail fica desligado por não derrubar a
+  # liveness por causa disso.
+  SMTP_HOST: "smtp.invalid"
+  SMTP_PORT: "587"
   MANAGEMENT_HEALTH_MAIL_ENABLED: "false"

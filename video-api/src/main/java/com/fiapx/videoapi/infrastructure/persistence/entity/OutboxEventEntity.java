@@ -46,6 +46,9 @@ public class OutboxEventEntity {
 	@Column(name = "locked_until")
 	private Instant lockedUntil;
 
+	@Column(name = "locked_by")
+	private UUID lockedBy;
+
 	@Column(nullable = false)
 	private int attempts;
 }

@@ -1,0 +1,10 @@
+# ClusterIssuer self-signed: sem domínio estável no Learner Lab (o hostname do NLB muda a
+# cada deploy), não dá pra emitir certificado publicamente confiável via ACME agora. Isso
+# ainda encripta de verdade o tráfego HTTPS — só não remove o aviso de "não confiável" do
+# navegador, porque a CA não é reconhecida por ninguém fora do cluster.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: fiapx-selfsigned
+spec:
+  selfSigned: {}

@@ -22,6 +22,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.io.IOException;
 import java.util.UUID;
 import org.springframework.core.io.InputStreamResource;
@@ -32,6 +34,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,9 +46,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/videos")
+@Validated
 @Tag(name = "Videos", description = "Upload, listagem, consulta de status e download de vídeos. "
     + "Todos os endpoints exigem Bearer JWT e só enxergam vídeos do próprio usuário autenticado (vídeo de outro usuário é tratado como inexistente).")
 public class VideoController {
+
+  private static final int MAX_PAGE_SIZE = 100;
 
   private final RequestVideoProcessingUseCase requestVideoProcessingUseCase;
   private final GetVideoStatusUseCase getVideoStatusUseCase;
@@ -108,8 +114,9 @@ public class VideoController {
   public VideoListResponse list(
       @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
       @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
-      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
-      @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
+      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") @Min(0) int page,
+      @Parameter(description = "Itens por página (máx. " + MAX_PAGE_SIZE + ")")
+      @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size
   ) {
     PageResult<Video> result = listVideosUseCase.handle(userId, status, page, size);
     return VideoListResponse.from(result);

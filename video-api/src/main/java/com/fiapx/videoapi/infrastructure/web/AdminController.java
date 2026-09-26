@@ -16,9 +16,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,9 +31,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/admin")
+@Validated
 @Tag(name = "Admin", description = "Endpoints restritos a administradores — controle sobre todos os usuários "
     + "e vídeos do sistema. Exige um JWT com papel ADMIN (ver SecurityConfig).")
 public class AdminController {
+
+  private static final int MAX_PAGE_SIZE = 100;
 
   private final ListAllUsersUseCase listAllUsersUseCase;
   private final ListAllVideosUseCase listAllVideosUseCase;
@@ -56,8 +62,9 @@ public class AdminController {
   public AdminUserListResponse listUsers(
       @Parameter(description = "Filtro opcional — substring do e-mail, sem diferenciar maiúsculas/minúsculas")
       @RequestParam(required = false) String email,
-      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
-      @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
+      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") @Min(0) int page,
+      @Parameter(description = "Itens por página (máx. " + MAX_PAGE_SIZE + ")")
+      @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size
   ) {
     PageResult<User> result = listAllUsersUseCase.handle(email, page, size);
     return AdminUserListResponse.from(result);
@@ -93,8 +100,9 @@ public class AdminController {
       @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
       @Parameter(description = "Filtro opcional — substring do nome do arquivo, sem diferenciar maiúsculas/minúsculas")
       @RequestParam(required = false) String filename,
-      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") int page,
-      @Parameter(description = "Itens por página") @RequestParam(defaultValue = "20") int size
+      @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") @Min(0) int page,
+      @Parameter(description = "Itens por página (máx. " + MAX_PAGE_SIZE + ")")
+      @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size
   ) {
     PageResult<VideoWithOwner> result = listAllVideosUseCase.handle(status, filename, page, size);
     return AdminVideoListResponse.from(result);

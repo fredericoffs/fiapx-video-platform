@@ -2,31 +2,29 @@ package com.fiapx.videoapi;
 
 import com.fiapx.videoapi.application.job.OutboxPublisherJob;
 import com.fiapx.videoapi.infrastructure.config.QueueProperties;
+import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsTestSupport;
 import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutboxEventRepository;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.Message;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
-class OutboxPublisherJobIntegrationTest {
+class OutboxPublisherJobIntegrationTest extends AbstractSqsIntegrationTest {
+
+  static final SqsClient SQS = SqsTestSupport.client();
 
   @Autowired
   private OutboxPublisherJob outboxPublisherJob;
 
   @Autowired
   private SpringDataOutboxEventRepository springDataOutboxEventRepository;
-
-  @Autowired
-  private RabbitTemplate rabbitTemplate;
 
   @Autowired
   private QueueProperties queueProperties;
@@ -55,11 +53,14 @@ class OutboxPublisherJobIntegrationTest {
   }
 
   private Message receiveContaining(String queue, String needle) {
+    String url = SqsTestSupport.urlOf(SQS, queue);
     long deadline = System.currentTimeMillis() + 10_000;
     while (System.currentTimeMillis() < deadline) {
-      Message message = rabbitTemplate.receive(queue, 500);
-      if (message != null && new String(message.getBody()).contains(needle)) {
-        return message;
+      for (Message message : SQS.receiveMessage(b -> b.queueUrl(url).maxNumberOfMessages(10).waitTimeSeconds(1))
+          .messages()) {
+        if (message.body().contains(needle)) {
+          return message;
+        }
       }
     }
     return null;

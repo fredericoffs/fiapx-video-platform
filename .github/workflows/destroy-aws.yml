@@ -1,6 +1,6 @@
 name: Destroy AWS
 
-# Derruba tudo ao fim de uma sessão de testes (budget do Learner Lab). A varredura
+# Derruba tudo ao fim de uma sessão de testes (o EKS + NLB + RDS cobram por hora ligados). A varredura
 # via aws CLI (fase [3] do script) garante a limpeza mesmo se o terraform destroy
 # falhar — não depende do state.
 on:
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: terraform-aws
+  group: fiapx-aws-lifecycle
   cancel-in-progress: false
 
 jobs:
@@ -46,7 +46,6 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Gerar kubeconfig do cluster EKS (best-effort — pode já não existir)

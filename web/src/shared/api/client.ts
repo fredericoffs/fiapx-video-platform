@@ -1,6 +1,12 @@
 import createClient from 'openapi-fetch'
+import { expireSession } from '@/shared/lib/expire-session'
 import type { paths } from '@/shared/api/schema.gen'
 import { useSessionStore } from '@/shared/lib/session-store'
+
+// login e change-password respondem 401 por um motivo que não é "sessão inválida" (senha
+// errada, senha atual errada) — cada um já trata isso localmente. Em qualquer outra rota,
+// 401 só pode significar token expirado ou revogado (item 14).
+const LOCALLY_HANDLED_401_PATHS = new Set(['/auth/login'])
 
 // window.__ENV__ é injetado em runtime pelo entrypoint do container (docker-entrypoint.sh),
 // permitindo a mesma imagem 'web' apontar pra URLs diferentes por cluster (AWS, kind, ...)
@@ -21,5 +27,18 @@ apiClient.use({
       request.headers.set('Authorization', `Bearer ${token}`)
     }
     return request
+  },
+  async onResponse({ request, response, schemaPath }) {
+    if (response.status === 401 && !LOCALLY_HANDLED_401_PATHS.has(schemaPath)) {
+      if (schemaPath === '/users/me/password') {
+        const problem = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as { title?: string } | null
+        if (problem?.title === 'Senha atual inválida') return response
+      }
+      expireSession(request.headers.get('Authorization')?.replace(/^Bearer /, ''))
+    }
+    return response
   },
 })

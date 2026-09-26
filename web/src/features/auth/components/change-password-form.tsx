@@ -13,7 +13,7 @@ import { changePasswordSchema, type ChangePasswordFormInput } from '@/features/a
 export function ChangePasswordForm() {
   const navigate = useNavigate()
   const session = useSessionStore((state) => state.session)
-  const clearMustChangePassword = useSessionStore((state) => state.clearMustChangePassword)
+  const setSession = useSessionStore((state) => state.setSession)
   const changePasswordMutation = useChangePasswordMutation()
   const isForced = session?.mustChangePassword ?? false
 
@@ -26,8 +26,15 @@ export function ChangePasswordForm() {
     changePasswordMutation.mutate(
       { currentPassword: values.currentPassword, newPassword: values.newPassword },
       {
-        onSuccess: () => {
-          clearMustChangePassword()
+        onSuccess: (result) => {
+          if (session) {
+            setSession({
+              token: result.accessToken,
+              email: session.email,
+              role: result.role,
+              mustChangePassword: result.mustChangePassword,
+            })
+          }
           toast.success('Senha alterada com sucesso')
           void navigate({ to: '/' })
         },

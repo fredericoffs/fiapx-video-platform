@@ -52,8 +52,21 @@ class LoginUseCaseTest {
 
     assertThat(jwtService.parseUserId(result.accessToken())).isEqualTo(user.getId());
     assertThat(result.role()).isEqualTo(Role.USER);
+    assertThat(jwtService.parseMustChangePassword(result.accessToken())).isFalse();
     verify(loginRateLimiter).reset(email);
     verify(loginRateLimiter, never()).registerFailedAttempt(email);
+  }
+
+  @Test
+  void embedsMustChangePasswordInTheTokenWhenTheUserIsMarkedForIt() {
+    User mustChangeUser = new User(UUID.randomUUID(), email, passwordEncoder.encode(rawPassword), Role.ADMIN, null, true);
+    when(loginRateLimiter.isBlocked(email)).thenReturn(false);
+    when(userRepository.findByEmail(email)).thenReturn(Optional.of(mustChangeUser));
+
+    LoginResult result = useCase.handle(new LoginCommand(email, rawPassword));
+
+    assertThat(result.mustChangePassword()).isTrue();
+    assertThat(jwtService.parseMustChangePassword(result.accessToken())).isTrue();
   }
 
   @Test

@@ -6,7 +6,7 @@ spring:
       enabled: true
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
 server:
@@ -20,6 +20,14 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # Item 16 da revisão crítica: separa /actuator/health/liveness (só o processo) de
+      # /actuator/health/readiness (inclui redis, usado pelo rate limiter de borda) — ver
+      # comentário equivalente no video-api.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,redis
   metrics:
     tags:
       application: ${spring.application.name}
@@ -27,12 +35,14 @@ management:
 # Roteamento MVC do gateway — ver ADR-009 (Spring Cloud Gateway em vez de Kong) e RoutesConfig/CorsConfig
 fiapx:
   gateway:
-    video-api-uri: ${VIDEO_API_URI:http://localhost:8081}
+    video-api-uri: ${VIDEO_API_URI}
     rate-limit:
       capacity: ${GATEWAY_RATE_LIMIT_CAPACITY:20}
       period-seconds: ${GATEWAY_RATE_LIMIT_PERIOD_SECONDS:60}
     cors:
-      allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:*}
+      # Sem default: um wildcard aqui seria CORS aberto por omissão. O valor real (origem do
+      # ELB/ingress) é injetado no ConfigMap no deploy (scripts/k8s-deploy-aws.sh).
+      allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS}
 
 logging:
   # Uso o formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder)

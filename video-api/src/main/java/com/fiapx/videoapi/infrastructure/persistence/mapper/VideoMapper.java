@@ -14,6 +14,7 @@ public final class VideoMapper {
     entity.setUserId(video.getUserId());
     entity.setOriginalFilename(video.getOriginalFilename());
     entity.setStorageKey(video.getStorageKey());
+    entity.setFileSizeBytes(video.getFileSizeBytes());
     entity.setZipStorageKey(video.getZipStorageKey());
     entity.setStatus(video.getStatus());
     entity.setErrorMessage(video.getErrorMessage());
@@ -29,6 +30,7 @@ public final class VideoMapper {
         entity.getUserId(),
         entity.getOriginalFilename(),
         entity.getStorageKey(),
+        entity.getFileSizeBytes(),
         entity.getZipStorageKey(),
         entity.getStatus(),
         entity.getErrorMessage(),

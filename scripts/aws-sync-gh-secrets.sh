@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Renova as credenciais temporarias do Learner Lab no GitHub Environment "AWS" em um
-# comando (elas expiram a cada sessao do lab). Fontes, na ordem em que sao tentadas:
+# Grava as credenciais AWS (chave do usuario IAM) no GitHub Environment "AWS" em um
+# comando. Fontes, na ordem em que sao tentadas:
 #   1. env vars AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
-#   2. --from-stdin: o bloco "[default] aws_access_key_id=..." copiado de
-#      Learner Lab > AWS Details > AWS CLI > Show (ex.: pbpaste | este script)
+#   2. --from-stdin: um bloco "[default] aws_access_key_id=..." (ex.: o CSV/credentials
+#      da chave gerada no console IAM; pbpaste | este script)
 #   3. --profile <nome>: le do ~/.aws/credentials via "aws configure get"
 # Com --save-profile, o bloco lido de stdin tambem e gravado em ~/.aws/credentials,
 # deixando o aws CLI local pronto pra usar (aws sts get-caller-identity).
@@ -19,19 +19,20 @@ AWS_REGION_DEFAULT="us-east-1"
 usage() {
   cat <<'EOF'
 Uso:
-  # (a) colar o bloco do Learner Lab direto da area de transferencia (macOS):
+  # (a) colar o bloco de credenciais direto da area de transferencia (macOS):
   pbpaste | scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
 
   # (b) a partir de um perfil ja gravado em ~/.aws/credentials:
   scripts/aws-sync-gh-secrets.sh --profile default
 
   # (c) a partir de env vars ja exportadas:
-  export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_SESSION_TOKEN=...
+  export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
   scripts/aws-sync-gh-secrets.sh
 
 Opcoes:
-  --from-stdin           Le o bloco [default] aws_access_key_id=... de stdin.
-  --save-profile         Com --from-stdin: grava tambem em ~/.aws/credentials (perfil default).
+  --from-stdin           Le o bloco aws_access_key_id=... de stdin.
+  --save-profile         Com --from-stdin: grava tambem em ~/.aws/credentials (perfil default),
+                         mas so depois de validar as credenciais.
   --profile <nome>       Le as credenciais desse perfil do aws CLI.
   --repo owner/nome      Repositorio (padrao: o do diretorio atual).
   --environment <nome>   GitHub Environment (padrao: AWS).
@@ -62,17 +63,14 @@ ini_get() {
 
 if [[ "$FROM_STDIN" == "true" ]]; then
   BLOCK="$(cat)"
+  # Aceita o formato do ~/.aws/credentials (aws_access_key_id=...) e o de env vars
+  # (AWS_ACCESS_KEY_ID=... / export AWS_ACCESS_KEY_ID=...).
   AWS_ACCESS_KEY_ID="$(ini_get aws_access_key_id "$BLOCK")"
+  [[ -n "$AWS_ACCESS_KEY_ID" ]] || AWS_ACCESS_KEY_ID="$(ini_get '(export[[:space:]]+)?AWS_ACCESS_KEY_ID' "$BLOCK")"
   AWS_SECRET_ACCESS_KEY="$(ini_get aws_secret_access_key "$BLOCK")"
+  [[ -n "$AWS_SECRET_ACCESS_KEY" ]] || AWS_SECRET_ACCESS_KEY="$(ini_get '(export[[:space:]]+)?AWS_SECRET_ACCESS_KEY' "$BLOCK")"
   AWS_SESSION_TOKEN="$(ini_get aws_session_token "$BLOCK")"
-  if [[ "$SAVE_PROFILE" == "true" ]]; then
-    command -v aws >/dev/null 2>&1 || { echo "Erro: aws CLI nao encontrado pra --save-profile" >&2; exit 1; }
-    aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
-    aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
-    aws configure set aws_session_token "$AWS_SESSION_TOKEN"
-    aws configure set region "$AWS_REGION_DEFAULT"
-    echo "perfil default gravado em ~/.aws/credentials (regiao ${AWS_REGION_DEFAULT})"
-  fi
+  [[ -n "$AWS_SESSION_TOKEN" ]] || AWS_SESSION_TOKEN="$(ini_get '(export[[:space:]]+)?AWS_SESSION_TOKEN' "$BLOCK")"
 elif [[ -n "$PROFILE" ]]; then
   command -v aws >/dev/null 2>&1 || { echo "Erro: aws CLI nao encontrado" >&2; exit 1; }
   AWS_ACCESS_KEY_ID="$(aws configure get aws_access_key_id --profile "$PROFILE" || true)"
@@ -80,24 +78,38 @@ elif [[ -n "$PROFILE" ]]; then
   AWS_SESSION_TOKEN="$(aws configure get aws_session_token --profile "$PROFILE" || true)"
 fi
 
-for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+# AWS_SESSION_TOKEN so existe em credenciais temporarias (Learner Lab, STS); a chave de um
+# usuario IAM nao tem, entao e opcional e o workflow nao o usa.
+for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
   [[ -n "${!var:-}" ]] || { echo "Erro: $var vazia (ver --help pras 3 formas de informar)" >&2; exit 1; }
 done
-export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then export AWS_SESSION_TOKEN; else unset AWS_SESSION_TOKEN; fi
 
 if command -v aws >/dev/null 2>&1; then
   if ACCOUNT="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)"; then
     echo "credenciais validas — conta AWS ${ACCOUNT}"
   else
-    echo "Erro: credenciais invalidas ou expiradas (sessao do Learner Lab ativa?)" >&2
+    echo "Erro: credenciais invalidas ou expiradas (chave desativada ou digitada errada?)" >&2
     exit 1
   fi
+fi
+
+# So grava o perfil local depois de validar: com credenciais vazias ou invalidas isso
+# sobrescreveria um perfil que ja funciona.
+if [[ "$SAVE_PROFILE" == "true" ]]; then
+  command -v aws >/dev/null 2>&1 || { echo "Erro: aws CLI nao encontrado pra --save-profile" >&2; exit 1; }
+  aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+  aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+  [[ -z "${AWS_SESSION_TOKEN:-}" ]] || aws configure set aws_session_token "$AWS_SESSION_TOKEN"
+  aws configure set region "$AWS_REGION_DEFAULT"
+  echo "perfil default gravado em ~/.aws/credentials (regiao ${AWS_REGION_DEFAULT})"
 fi
 
 repo_args=()
 [[ -n "$REPO" ]] && repo_args=(--repo "$REPO")
 
-for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
   gh secret set "$var" --env "$ENVIRONMENT" "${repo_args[@]}" --body "${!var}"
   echo "secret $var atualizado no environment $ENVIRONMENT"
 done

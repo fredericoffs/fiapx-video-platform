@@ -158,7 +158,7 @@ class SqsMessagingIntegrationTest {
   @Test
   void clientConfigUsesStaticKeysOnlyWhenProvided() {
     SqsProperties withKeys = SqsTestSupport.properties(30, 120);
-    SqsProperties awsDefaults = new SqsProperties("us-east-1", "", "", "", 20, 30, 120, 10, 30_000L);
+    SqsProperties awsDefaults = new SqsProperties("us-east-1", "", "", "", 20, 30, 120, 30_000L);
 
     assertThat(SqsClientConfig.credentialsProvider(withKeys)).isInstanceOf(StaticCredentialsProvider.class);
     assertThat(SqsClientConfig.credentialsProvider(awsDefaults)).isInstanceOf(DefaultCredentialsProvider.class);

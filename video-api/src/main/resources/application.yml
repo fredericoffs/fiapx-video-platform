@@ -5,9 +5,9 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=video_api&sslmode=${DB_SSLMODE:disable}
-    username: ${DB_USER:fiapx}
-    password: ${DB_PASSWORD:fiapx}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME:fiapx}?currentSchema=video_api&sslmode=${DB_SSLMODE:require}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -19,27 +19,9 @@ spring:
     schemas: video_api
     default-schema: video_api
     create-schemas: true
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
-    # Publisher confirms + returns: a outbox só marca publicado depois que o broker confirma
-    # (ver RabbitMessagePublisher); mandatory faz fila inexistente virar "return", não silêncio.
-    publisher-confirm-type: correlated
-    publisher-returns: true
-    template:
-      mandatory: true
-    listener:
-      simple:
-        retry:
-          enabled: true
-          initial-interval: 2000
-          multiplier: 2.0
-          max-retries: 3
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
   servlet:
     multipart:
@@ -60,45 +42,56 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # Item 16 da revisão crítica: liveness/readiness apontavam pro mesmo /actuator/health
+      # agregado — uma indisponibilidade de dependência (RDS, Redis) virava reinício repetido
+      # do pod (liveness falhando) em vez de só sair da rotação de tráfego (readiness).
+      # /actuator/health/liveness reflete só o processo; /actuator/health/readiness inclui db
+      # e redis — combinado com os paths dos probes em k8s/apps/base/video-api/deployment.yaml.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,redis
   metrics:
     tags:
       application: ${spring.application.name}
 
 # Configuração específica do domínio — ver docs/ddd/linguagem-ubiqua.md e docs/architecture/hld-lld-adr-rfc.md (ADR-004, ADR-008)
 fiapx:
+  admin:
+    # Vazio = seeder não faz nada (admin fica travado no placeholder do V8 até alguém
+    # configurar isto). Vem do SSM /fiapx/admin/password via Terraform — nunca versionado.
+    seed-password: ${ADMIN_SEED_PASSWORD:}
   storage:
-    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
-    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
-    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    endpoint: ${STORAGE_ENDPOINT:}
+    access-key: ${STORAGE_ACCESS_KEY:}
+    secret-key: ${STORAGE_SECRET_KEY:}
     bucket-raw: ${STORAGE_BUCKET_RAW:videos-raw}
     bucket-processed: ${STORAGE_BUCKET_PROCESSED:videos-processed}
-    # Vazios no perfil aws: endpoint regional do S3 e credenciais da cadeia padrão do SDK.
     region: ${STORAGE_REGION:us-east-1}
-    path-style: ${STORAGE_PATH_STYLE:true}
+    path-style: ${STORAGE_PATH_STYLE:false}
   jwt:
-    secret: ${JWT_SECRET:change-me-in-production-min-32-chars-please}
+    secret: ${JWT_SECRET}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:30}
   security:
     login-rate-limit:
       max-attempts: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:5}
       window-seconds: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:60}
-  messaging:
-    provider: ${MESSAGING_PROVIDER:rabbitmq}
-    confirm-timeout: ${MESSAGING_CONFIRM_TIMEOUT:5s}
+  sqs:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${SQS_ENDPOINT:}
   queues:
-    status-updates: ${QUEUE_STATUS_UPDATES:video.status-updates}
-    status-updates-dlx: ${QUEUE_STATUS_UPDATES_DLX:video.status-updates.dlx}
-    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:video.status-updates.dlq}
-    notification: ${QUEUE_NOTIFICATION:video.notification}
-    processing: ${QUEUE_PROCESSING:video.processing}
+    status-updates: ${QUEUE_STATUS_UPDATES:fiapx-video-status-updates}
+    status-updates-dlq: ${QUEUE_STATUS_UPDATES_DLQ:fiapx-video-status-updates-dlq}
+    notification: ${QUEUE_NOTIFICATION:fiapx-video-notification}
+    processing: ${QUEUE_PROCESSING:fiapx-video-processing}
   outbox:
     publish-interval-ms: ${OUTBOX_PUBLISH_INTERVAL_MS:3000}
     batch-size: ${OUTBOX_BATCH_SIZE:50}
 
 logging:
-  # Uso o formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder)
-  # — confirmei rodando localmente que ele já inclui o MDC inteiro (incluindo correlationId)
-  # como campos JSON de nível superior, sem configuração extra.
+  # Formato logstash nativo do Spring Boot 4.1 (sem precisar do logstash-logback-encoder) —
+  # já inclui o MDC inteiro (incluindo correlationId) como campos JSON de nível superior.
   structured:
     format:
       console: logstash

@@ -16,3 +16,10 @@ configMapGenerator:
       - ../../../../video-api/src/main/resources/db/migration/V4__outbox_correlation_id.sql
       - ../../../../video-api/src/main/resources/db/migration/V5__outbox_lease.sql
       - ../../../../video-api/src/main/resources/db/migration/V6__must_change_password.sql
+      - ../../../../video-api/src/main/resources/db/migration/V7__video_file_size.sql
+      - ../../../../video-api/src/main/resources/db/migration/V8__admin_seed_password_placeholder.sql
+      - ../../../../video-api/src/main/resources/db/migration/V9__outbox_lock_token.sql
+      - ../../../../video-api/src/main/resources/db/migration/V10__tokens_valid_after.sql
+      - ../../../../video-api/src/main/resources/db/migration/V11__recover_admin_password_upgrade.sql
+      - ../../../../video-api/src/main/resources/db/migration/beforeMigrate.sql
+      - ../../../../video-api/src/main/resources/db/migration/V12__storage_cleanup.sql

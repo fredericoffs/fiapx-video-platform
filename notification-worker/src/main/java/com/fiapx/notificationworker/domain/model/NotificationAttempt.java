@@ -28,13 +28,13 @@ public class NotificationAttempt {
     this.createdAt = createdAt;
   }
 
-  public static NotificationAttempt sent(UUID videoId, NotificationChannelType channel) {
-    return new NotificationAttempt(UUID.randomUUID(), videoId, channel, NotificationStatus.SENT, null, Instant.now());
-  }
-
-  public static NotificationAttempt failed(UUID videoId, NotificationChannelType channel, String errorMessage) {
+  /**
+   * Reivindica o envio antes do canal ser chamado: o índice único parcial (video_id, channel) WHERE status IN ('SENDING', 'SENT') garante que só uma
+   * execução consegue inserir essa linha por vez, fechando a corrida entre "consultar se já enviou" e "enviar de fato".
+   */
+  public static NotificationAttempt claiming(UUID videoId, NotificationChannelType channel) {
     return new NotificationAttempt(
-        UUID.randomUUID(), videoId, channel, NotificationStatus.FAILED, errorMessage, Instant.now());
+        UUID.randomUUID(), videoId, channel, NotificationStatus.SENDING, null, Instant.now());
   }
 
   public UUID getId() {

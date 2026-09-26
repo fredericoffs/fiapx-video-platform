@@ -1,0 +1,13 @@
+# Certificado autoassinado (ClusterIssuer fiapx-selfsigned, ver k8s/addons/) usado pelo
+# Ingress. cert-manager cria/renova o Secret fiapx-tls sozinho.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fiapx-tls
+spec:
+  secretName: fiapx-tls
+  dnsNames:
+    - fiapx.local
+  issuerRef:
+    name: fiapx-selfsigned
+    kind: ClusterIssuer

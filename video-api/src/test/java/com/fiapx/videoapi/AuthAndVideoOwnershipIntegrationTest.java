@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -29,8 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
-class AuthAndVideoOwnershipIntegrationTest {
+class AuthAndVideoOwnershipIntegrationTest extends AbstractSqsIntegrationTest {
 
   private static final String PASSWORD = "senha-secreta-123";
 
@@ -104,6 +102,20 @@ class AuthAndVideoOwnershipIntegrationTest {
     JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
     assertThat(json.get("totalElements").asLong()).isEqualTo(2);
     assertThat(json.get("items").size()).isEqualTo(2);
+  }
+
+  // Item 12 da revisão crítica: page/size sem limite no backend aceitava qualquer valor
+  // (inclusive negativo, o que quebrava com 500 em vez de 400).
+  @Test
+  void listVideosRejectsOutOfRangePageOrSize() throws Exception {
+    String token = registerAndLogin(newEmail());
+
+    mockMvc.perform(get("/videos").param("page", "-1").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isBadRequest());
+    mockMvc.perform(get("/videos").param("size", "0").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isBadRequest());
+    mockMvc.perform(get("/videos").param("size", "101").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

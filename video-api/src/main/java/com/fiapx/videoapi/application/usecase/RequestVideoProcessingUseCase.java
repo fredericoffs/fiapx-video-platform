@@ -3,10 +3,12 @@ package com.fiapx.videoapi.application.usecase;
 import com.fiapx.videoapi.application.dto.VideoUploadCommand;
 import com.fiapx.videoapi.application.dto.VideoUploadResult;
 import com.fiapx.videoapi.application.event.VideoUploadRequestedPayload;
+import com.fiapx.videoapi.domain.exception.UserNotFoundException;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.model.Video;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.domain.port.StorageClient;
+import com.fiapx.videoapi.domain.port.UserRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
 import com.fiapx.videoapi.domain.service.VideoFormatValidator;
 import com.fiapx.videoapi.infrastructure.config.StorageProperties;
@@ -27,23 +29,28 @@ public class RequestVideoProcessingUseCase {
   private final StorageClient storageClient;
   private final StorageProperties storageProperties;
   private final ObjectMapper objectMapper;
+  private final UserRepository userRepository;
 
   public RequestVideoProcessingUseCase(
       VideoRepository videoRepository,
       OutboxEventRepository outboxEventRepository,
       StorageClient storageClient,
       StorageProperties storageProperties,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      UserRepository userRepository
   ) {
     this.videoRepository = videoRepository;
     this.outboxEventRepository = outboxEventRepository;
     this.storageClient = storageClient;
     this.storageProperties = storageProperties;
     this.objectMapper = objectMapper;
+    this.userRepository = userRepository;
   }
 
   @Transactional
   public VideoUploadResult handle(VideoUploadCommand command) {
+    userRepository.findByIdForUpdate(command.userId())
+        .orElseThrow(() -> new UserNotFoundException(command.userId()));
     String extension = VideoFormatValidator.validatedExtension(command.originalFilename());
 
     UUID videoId = UUID.randomUUID();
@@ -58,7 +65,9 @@ public class RequestVideoProcessingUseCase {
         command.contentType()
     );
 
-    Video video = Video.newQueued(videoId, command.userId(), command.originalFilename(), storageKey);
+    Video video = Video.newQueued(
+        videoId, command.userId(), command.originalFilename(), storageKey, command.contentLength()
+    );
     videoRepository.save(video);
 
     UUID eventId = UUID.randomUUID();

@@ -1,17 +1,10 @@
-# Só profundidade da fila video.processing — nunca um gatilho de CPU aqui: ffmpeg é
+# Só profundidade da fila fiapx-video-processing — nunca um gatilho de CPU aqui: ffmpeg é
 # CPU-bound por natureza, então um único vídeo já satura o limite de CPU do próprio pod
 # sem nenhum vídeo a mais na fila; um gatilho de CPU sobe réplicas ociosas competindo
 # pela mesma capacidade de nó que o vídeo em processamento já está usando.
-apiVersion: keda.sh/v1alpha1
-kind: TriggerAuthentication
-metadata:
-  name: rabbitmq-trigger-auth
-spec:
-  secretTargetRef:
-    - parameter: host
-      name: fiapx-secrets
-      key: RABBITMQ_MANAGEMENT_URL
----
+# Identidade do operador (role do nó via IMDS, ver k8s/terraform/aws/iam.tf) — sem IRSA. O valor de
+# queueURL abaixo é o nome lógico da fila; scripts/k8s-deploy-aws.sh substitui pela URL SQS
+# real (descoberta via aws CLI) depois do deploy.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -24,11 +17,9 @@ spec:
   pollingInterval: 15
   cooldownPeriod: 60
   triggers:
-    - type: rabbitmq
+    - type: aws-sqs-queue
       metadata:
-        queueName: video.processing
-        mode: QueueLength
-        value: "5"
-        protocol: http
-      authenticationRef:
-        name: rabbitmq-trigger-auth
+        queueURL: fiapx-video-processing
+        queueLength: "5"
+        awsRegion: us-east-1
+        identityOwner: operator

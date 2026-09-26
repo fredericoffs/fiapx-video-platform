@@ -11,6 +11,8 @@ public record VideoStatusResponse(
     @Schema(description = "ID do vídeo") UUID id,
     @Schema(description = "ID do usuário dono do vídeo") UUID userId,
     @Schema(description = "Nome original do arquivo enviado", example = "ferias-praia.mp4") String originalFilename,
+    @Schema(description = "Tamanho do arquivo enviado, em bytes — null para vídeos enfileirados antes desse campo "
+        + "existir", nullable = true, example = "10485760") Long fileSizeBytes,
     @Schema(description = "QUEUED → PROCESSING → COMPLETED ou FAILED") VideoStatus status,
     @Schema(description = "Motivo da falha — presente só quando status=FAILED", nullable = true) String errorMessage,
     @Schema(description = "Data/hora do upload") Instant createdAt,
@@ -22,6 +24,7 @@ public record VideoStatusResponse(
         video.getId(),
         video.getUserId(),
         video.getOriginalFilename(),
+        video.getFileSizeBytes(),
         video.getStatus(),
         video.getErrorMessage(),
         video.getCreatedAt(),

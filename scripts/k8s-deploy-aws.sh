@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Deploy no EKS, chamado por .github/workflows/cd-aws.yml depois que o cluster e os serviços
 # gerenciados já existem (Terraform, ver k8s/terraform/aws) e o kubeconfig já está
-# configurado (aws eks update-kubeconfig). Mesma ordenação do scripts/k8s-up.sh (migration
-# Job antes do Deployment do video-api), com imagens do ECR e sem infra self-hosted: os hosts
-# de RDS/ElastiCache, os buckets S3 e a URL da fila SQS (KEDA) são descobertos por nome via
-# aws CLI e injetados no ConfigMap em runtime, sem depender do state do Terraform. Os
-# segredos da aplicação (DB_USER, DB_PASSWORD, JWT_SECRET, NOTIFICATION_WEBHOOK_URL) vêm do
-# SSM Parameter Store (/fiapx/..., criados pelo Terraform); variáveis de ambiente com o
-# mesmo nome, se definidas, têm precedência (uso local).
+# configurado (aws eks update-kubeconfig). Migration Job antes do Deployment do video-api,
+# com imagens do ECR e sem infra self-hosted: os hosts de RDS/ElastiCache, os buckets S3 e a
+# URL da fila SQS (KEDA) são descobertos por nome via aws CLI e injetados no ConfigMap em
+# runtime, sem depender do state do Terraform. Os segredos da aplicação (DB_USER,
+# DB_PASSWORD, JWT_SECRET, NOTIFICATION_WEBHOOK_URL) vêm do SSM Parameter Store
+# (/fiapx/..., criados pelo Terraform); variáveis de ambiente com o mesmo nome, se
+# definidas, têm precedência.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAMESPACE="fiapx"
-OVERLAY_DIR="${ROOT_DIR}/k8s/apps/overlays/aws"
+BASE_DIR="${ROOT_DIR}/k8s/apps/base"
 RENDER_DIR="$(mktemp -d)"
 trap 'rm -rf "$RENDER_DIR"' EXIT
 
@@ -80,11 +80,19 @@ ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 DB_USER="${DB_USER:-$(ssm_param "/${PROJECT}/db/username")}"
 DB_PASSWORD="${DB_PASSWORD:-$(ssm_param "/${PROJECT}/db/password")}"
 JWT_SECRET="${JWT_SECRET:-$(ssm_param "/${PROJECT}/jwt/secret")}"
+ADMIN_SEED_PASSWORD="${ADMIN_SEED_PASSWORD:-$(ssm_param "/${PROJECT}/admin/password")}"
 NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL:-$(ssm_param "/${PROJECT}/notification/webhook-url")}"
 [ -n "$DB_USER" ] || { echo "parâmetro SSM /${PROJECT}/db/username não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$DB_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/db/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$JWT_SECRET" ] || { echo "parâmetro SSM /${PROJECT}/jwt/secret não encontrado (terraform apply rodou?)" >&2; exit 1; }
-echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
+[ -n "$ADMIN_SEED_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/admin/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
+if [ -z "$NOTIFICATION_WEBHOOK_URL" ] && { [ -z "${SMTP_HOST:-}" ] || [ "${SMTP_HOST:-}" = "smtp.invalid" ]; }; then
+  echo "configure NOTIFICATION_WEBHOOK_URL ou SMTP_HOST real antes de publicar" >&2
+  exit 1
+fi
+: "${ALERTMANAGER_WEBHOOK_URL:?configure um receptor compatível com o webhook do Alertmanager}"
+export ALERTMANAGER_WEBHOOK_URL
+ echo "segredos: DB_USER=${DB_USER}, DB_PASSWORD/JWT_SECRET/ADMIN_SEED_PASSWORD lidos do SSM, webhook=$([ -n "$NOTIFICATION_WEBHOOK_URL" ] && echo configurado || echo ausente)"
 DB_HOST="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
   --query 'DBInstances[0].Endpoint.Address' --output text)"
 DB_STATUS="$(aws rds describe-db-instances --region "$AWS_REGION" --db-instance-identifier "${PROJECT}-postgres" \
@@ -115,25 +123,45 @@ wait_for_dns "$LB_HOST"
 echo "==> [4/9] add-ons de cluster (metrics-server, KEDA, kube-prometheus-stack)"
 "$ROOT_DIR/k8s/addons/install.sh"
 
-echo "==> [5/9] Secret fiapx-secrets"
+# Item 20 da revisão crítica: um Secret só, com todas as chaves, ia parar em todo pod via
+# envFrom — video-worker recebia DB_PASSWORD/JWT_SECRET que nunca usa, ADMIN_SEED_PASSWORD
+# idem, aumentando à toa o que vaza se um pod for comprometido. Um Secret por serviço, só com
+# as chaves que ele de fato consome.
+echo "==> [5/9] Secrets por serviço"
 kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
-kubectl -n "$NAMESPACE" create secret generic fiapx-secrets \
+kubectl -n "$NAMESPACE" create secret generic video-api-secrets \
   --from-literal=JWT_SECRET="${JWT_SECRET}" \
   --from-literal=DB_USER="${DB_USER}" \
   --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
+  --from-literal=ADMIN_SEED_PASSWORD="${ADMIN_SEED_PASSWORD}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "$NAMESPACE" create secret generic notification-worker-secrets \
+  --from-literal=DB_USER="${DB_USER}" \
+  --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
+  --from-literal=SMTP_USER="${SMTP_USER:-}" \
+  --from-literal=SMTP_PASSWORD="${SMTP_PASSWORD:-}" \
   --from-literal=NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL}" \
   --dry-run=client -o yaml | kubectl apply -f -
+# video-worker é stateless (ADR-008) e video-gateway não faz auth (ADR-009) — nenhum dos
+# dois precisa de secret nenhum; seus Deployments não têm secretRef.
 
-echo "==> [6/9] apontando as imagens do overlay pro ECR (tag ${IMAGE_TAG})"
-(
-  cd "$OVERLAY_DIR"
+echo "==> [6/9] apontando as imagens (k8s/apps/base) pro ECR (tag ${IMAGE_TAG})"
+# Overlay temporário: executar o deploy não modifica os manifests do checkout.
+mkdir -p "${RENDER_DIR}/overlay"
+{
+  echo 'apiVersion: kustomize.config.k8s.io/v1beta1'
+  echo 'kind: Kustomization'
+  echo 'resources:'
+  echo "  - ${BASE_DIR}"
+  echo 'images:'
   for svc in video-gateway video-api video-worker notification-worker web; do
-    kustomize edit set image "fiapx/${svc}:local=${ECR_REGISTRY}/fiapx/${svc}:${IMAGE_TAG}"
+    echo "  - name: fiapx/${svc}"
+    echo "    newName: ${ECR_REGISTRY}/fiapx/${svc}"
+    echo "    newTag: \"${IMAGE_TAG}\""
   done
-)
-
-echo "==> [7/9] aplicando o overlay (ConfigMap primeiro, com os hosts gerenciados)"
-kubectl kustomize --load-restrictor LoadRestrictionsNone "$OVERLAY_DIR" > "${RENDER_DIR}/rendered.yaml"
+} > "${RENDER_DIR}/overlay/kustomization.yaml"
+echo "==> [7/9] renderizando e aplicando os manifests"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "${RENDER_DIR}/overlay" > "${RENDER_DIR}/rendered.yaml"
 
 awk -v outdir="$RENDER_DIR" '
   BEGIN { n = 0; file = sprintf("%s/doc-%03d.yaml", outdir, n) }
@@ -164,15 +192,27 @@ kubectl -n "$NAMESPACE" patch configmap fiapx-config --type merge -p "{\"data\":
   \"REDIS_HOST\":\"${REDIS_HOST}\",
   \"STORAGE_BUCKET_RAW\":\"${BUCKET_RAW}\",
   \"STORAGE_BUCKET_PROCESSED\":\"${BUCKET_PROCESSED}\",
-  \"GATEWAY_CORS_ALLOWED_ORIGINS\":\"http://${LB_HOST}\"
+  \"GATEWAY_CORS_ALLOWED_ORIGINS\":\"https://${LB_HOST}\"
 }}"
 
 for f in "${RENDER_DIR}"/doc-*.yaml; do
   [ "$f" = "$VIDEO_API_DEPLOY_FILE" ] && continue
   [ "$f" = "$CONFIGMAP_FILE" ] && continue
   [ "$f" = "$JOB_FILE" ] && continue
+  if grep -q '^kind: Certificate$' "$f"; then
+    kubectl patch --local -f "$f" --type merge -p "{\"spec\":{\"dnsNames\":[\"${LB_HOST}\"]}}" -o yaml > "${f}.tmp"
+    mv "${f}.tmp" "$f"
+  elif grep -q '^kind: Ingress$' "$f"; then
+    kubectl patch --local -f "$f" --type json -p "[{\"op\":\"add\",\"path\":\"/spec/rules/0/host\",\"value\":\"${LB_HOST}\"},{\"op\":\"add\",\"path\":\"/spec/tls/0/hosts\",\"value\":[\"${LB_HOST}\"]}]" -o yaml > "${f}.tmp"
+    mv "${f}.tmp" "$f"
+  fi
   kubectl apply -f "$f"
 done
+kubectl -n "$NAMESPACE" wait --for=condition=Ready --timeout=180s certificate/fiapx-tls
+if [ -n "${SMTP_HOST:-}" ]; then
+  kubectl -n "$NAMESPACE" set env deployment/notification-worker SMTP_HOST="$SMTP_HOST" \
+    NOTIFICATION_FROM="${NOTIFICATION_FROM:-no-reply@fiapx.local}"
+fi
 kubectl -n "$NAMESPACE" delete job video-api-migrate --ignore-not-found
 kubectl apply -f "$JOB_FILE"
 kubectl -n "$NAMESPACE" wait --for=condition=complete --timeout=300s job/video-api-migrate
@@ -182,7 +222,7 @@ kubectl apply -f "$VIDEO_API_DEPLOY_FILE"
 echo "==> [8/9] KEDA: URL real da fila SQS + URL pública no web"
 kubectl -n "$NAMESPACE" patch scaledobject video-worker --type json \
   -p "[{\"op\":\"replace\",\"path\":\"/spec/triggers/0/metadata/queueURL\",\"value\":\"${PROCESSING_QUEUE_URL}\"}]"
-kubectl -n "$NAMESPACE" set env deployment/web API_BASE_URL="http://${LB_HOST}"
+kubectl -n "$NAMESPACE" set env deployment/web API_BASE_URL="https://${LB_HOST}"
 
 echo "==> [9/9] aguardando rollout"
 kubectl -n "$NAMESPACE" rollout status deployment/video-gateway --timeout=300s
@@ -191,12 +231,12 @@ kubectl -n "$NAMESPACE" rollout status deployment/video-worker --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/notification-worker --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/web --timeout=300s
 
-echo "==> pronto. Endereço público: http://${LB_HOST}"
+echo "==> pronto. Endereço público: https://${LB_HOST}"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## Deploy no EKS concluído (perfil aws: RDS + ElastiCache + S3 + SQS)"
     echo
-    echo "- Aplicação: http://${LB_HOST}"
+    echo "- Aplicação: https://${LB_HOST}"
     echo "- Imagens: \`${ECR_REGISTRY}/fiapx/<serviço>:${IMAGE_TAG}\`"
     echo "- RDS: \`${DB_HOST}\` · Redis: \`${REDIS_HOST}\`"
     echo "- Fila de processamento: \`${PROCESSING_QUEUE_URL}\`"

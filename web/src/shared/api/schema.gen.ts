@@ -14,7 +14,7 @@ export interface paths {
     get?: never
     /**
      * Troca a senha do usuário autenticado
-     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword).
+     * @description Exige a senha atual. Usado tanto pra troca voluntária quanto pra sair do estado "deve trocar a senha" do usuário admin semeado (ver LoginResponse.mustChangePassword). Retorna um token novo: a troca de senha revoga qualquer token emitido antes dela (incluindo o que autenticou esta própria requisição), então o chamador precisa trocar pelo token da resposta pra continuar autenticado.
      */
     put: operations['changePassword']
     post?: never
@@ -209,6 +209,36 @@ export interface components {
        */
       newPassword: string
     }
+    /** @description Token de acesso emitido após login bem-sucedido */
+    LoginResponse: {
+      /**
+       * @description JWT HS256 assinado
+       * @example eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI...
+       */
+      accessToken?: string
+      /**
+       * @description Sempre "Bearer"
+       * @example Bearer
+       */
+      tokenType?: string
+      /**
+       * Format: int64
+       * @description Validade do token em segundos
+       * @example 1800
+       */
+      expiresIn?: number
+      /**
+       * @description Papel do usuário autenticado
+       * @example USER
+       * @enum {string}
+       */
+      role?: 'USER' | 'ADMIN'
+      /**
+       * @description true quando o usuário precisa trocar a senha antes de continuar — o frontend deve redirecionar direto pra tela de troca de senha, sem deixar navegar pro resto da aplicação
+       * @example false
+       */
+      mustChangePassword?: boolean
+    }
     /** @description Confirmação de upload aceito para processamento */
     VideoUploadResponse: {
       /**
@@ -263,36 +293,6 @@ export interface components {
        */
       password: string
     }
-    /** @description Token de acesso emitido após login bem-sucedido */
-    LoginResponse: {
-      /**
-       * @description JWT HS256 assinado
-       * @example eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI...
-       */
-      accessToken?: string
-      /**
-       * @description Sempre "Bearer"
-       * @example Bearer
-       */
-      tokenType?: string
-      /**
-       * Format: int64
-       * @description Validade do token em segundos
-       * @example 1800
-       */
-      expiresIn?: number
-      /**
-       * @description Papel do usuário autenticado
-       * @example USER
-       * @enum {string}
-       */
-      role?: 'USER' | 'ADMIN'
-      /**
-       * @description true quando o usuário precisa trocar a senha antes de continuar — o frontend deve redirecionar direto pra tela de troca de senha, sem deixar navegar pro resto da aplicação
-       * @example false
-       */
-      mustChangePassword?: boolean
-    }
     /** @description Página de resultados da listagem de vídeos do usuário autenticado */
     VideoListResponse: {
       /** @description Vídeos da página atual */
@@ -332,6 +332,12 @@ export interface components {
        * @example ferias-praia.mp4
        */
       originalFilename?: string
+      /**
+       * Format: int64
+       * @description Tamanho do arquivo enviado, em bytes — null para vídeos enfileirados antes desse campo existir
+       * @example 10485760
+       */
+      fileSizeBytes?: number | null
       /**
        * @description QUEUED → PROCESSING → COMPLETED ou FAILED
        * @enum {string}
@@ -473,12 +479,14 @@ export interface operations {
       }
     }
     responses: {
-      /** @description Senha alterada */
-      204: {
+      /** @description Senha alterada — token novo na resposta */
+      200: {
         headers: {
           [name: string]: unknown
         }
-        content?: never
+        content: {
+          'application/json': components['schemas']['LoginResponse']
+        }
       }
       /** @description Nova senha fora do padrão (8 a 100 caracteres) */
       400: {
@@ -503,7 +511,7 @@ export interface operations {
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
         /** @description Página, começando em 0 */
         page?: number
-        /** @description Itens por página */
+        /** @description Itens por página (máx. 100) */
         size?: number
       }
       header?: never
@@ -775,7 +783,7 @@ export interface operations {
         filename?: string
         /** @description Página, começando em 0 */
         page?: number
-        /** @description Itens por página */
+        /** @description Itens por página (máx. 100) */
         size?: number
       }
       header?: never
@@ -809,7 +817,7 @@ export interface operations {
         email?: string
         /** @description Página, começando em 0 */
         page?: number
-        /** @description Itens por página */
+        /** @description Itens por página (máx. 100) */
         size?: number
       }
       header?: never

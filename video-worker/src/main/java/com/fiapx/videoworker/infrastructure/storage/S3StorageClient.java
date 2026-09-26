@@ -9,6 +9,8 @@ import com.fiapx.videoworker.domain.port.StorageClient;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Component
@@ -34,5 +36,15 @@ public class S3StorageClient implements StorageClient {
 	public InputStream download(String bucket, String key) {
 		GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
 		return s3Client.getObject(request);
+	}
+
+	@Override
+	public boolean exists(String bucket, String key) {
+		try {
+			s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+			return true;
+		} catch (NoSuchKeyException e) {
+			return false;
+		}
 	}
 }

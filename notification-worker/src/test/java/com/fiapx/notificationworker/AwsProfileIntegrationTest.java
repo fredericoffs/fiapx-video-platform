@@ -11,54 +11,28 @@ import com.fiapx.notificationworker.infrastructure.persistence.repository.Spring
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetupTest;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
-import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
-/** Perfil aws de ponta a ponta: pedido de notificação chega por SQS, e-mail sai e a tentativa fica registrada. */
+/**
+ * Fim a fim contra SQS real (LocalStack): pedido de notificação chega por SQS, e-mail sai e
+ * a tentativa fica registrada. {@code smtp.auth=false}: o default de produção virou
+ * {@code true} (hardening — exige credenciais reais), mas o GreenMail aqui não configura
+ * nenhum usuário, então autenticar contra ele falha com "no password specified".
+ */
 @SpringBootTest
-@ActiveProfiles("aws")
-@Testcontainers
-@TestPropertySource(properties = {"spring.mail.host=127.0.0.1", "spring.mail.port=3025"})
-class AwsProfileIntegrationTest {
+@TestPropertySource(properties = {
+    "spring.mail.host=127.0.0.1", "spring.mail.port=3025", "spring.mail.properties.mail.smtp.auth=false"
+})
+class AwsProfileIntegrationTest extends AbstractSqsIntegrationTest {
 
   @RegisterExtension
   static GreenMailExtension greenMail = new GreenMailExtension(ServerSetupTest.SMTP);
-
-  @Container
-  @ServiceConnection
-  static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
-
-  static final SqsClient SQS = SqsTestSupport.client();
-
-  @DynamicPropertySource
-  static void awsProfile(DynamicPropertyRegistry registry) {
-    SqsTestSupport.createPlainQueues(SQS, List.of("fiapx-video-notification", "fiapx-video-notification-dlq"));
-    registry.add("fiapx.sqs.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
-    registry.add("fiapx.sqs.region", SqsTestSupport.LOCALSTACK::getRegion);
-    registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
-    registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
-    registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
-  }
-
-  @Autowired
-  private ApplicationContext context;
 
   @Autowired
   private QueueProperties queueProperties;
@@ -67,8 +41,7 @@ class AwsProfileIntegrationTest {
   private SpringDataNotificationAttemptRepository springDataNotificationAttemptRepository;
 
   @Test
-  void contextHasNoRabbitBeans() {
-    assertThat(context.getBeanNamesForType(RabbitTemplate.class)).isEmpty();
+  void contextResolvesTheNotificationQueueName() {
     assertThat(queueProperties.notification()).isEqualTo("fiapx-video-notification");
   }
 
@@ -83,7 +56,9 @@ class AwsProfileIntegrationTest {
 
     assertThat(greenMail.waitForIncomingEmail(20_000, 1)).isTrue();
     await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
-        assertThat(springDataNotificationAttemptRepository.existsByVideoIdAndChannelAndStatus(
-            videoId, NotificationChannelType.EMAIL, NotificationStatus.SENT)).isTrue());
+        assertThat(springDataNotificationAttemptRepository.findAll())
+            .anyMatch(attempt -> attempt.getVideoId().equals(videoId)
+                && attempt.getChannel() == NotificationChannelType.EMAIL
+                && attempt.getStatus() == NotificationStatus.SENT));
   }
 }

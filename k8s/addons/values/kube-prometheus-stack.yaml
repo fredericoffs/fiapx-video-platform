@@ -34,17 +34,34 @@ alertmanager:
       limits:
         cpu: 100m
         memory: 128Mi
+  # Item 19 da revisão crítica: as PrometheusRule (k8s/addons/queue-depth-alert.yaml) definem
+  # QUANDO alertar, mas sem receiver configurado o alerta nunca "chega a alguém" — fica só
+  # visível na UI do Alertmanager. webhook_configs vazio por padrão (nenhum destino real
+  # configurado ainda, comportamento idêntico a hoje); install.sh aceita
+  # ALERTMANAGER_WEBHOOK_URL e injeta via --set quando definido.
+  config:
+    route:
+      receiver: default
+      group_by: ["alertname", "queue"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 3h
+    receivers:
+      - name: default
+        webhook_configs: []
 
 grafana:
   # limits.cpu baixo trava o boot da Grafana em CrashLoopBackOff (registra uma pilha
   # grande de apiservers internos no startup).
+  # limits.memory em 384Mi OOMKillava o pod ~20min após o boot sob uso normal (dashboards
+  # + consultas ao Prometheus); subiu junto com requests para manter a mesma folga 2x.
   resources:
     requests:
       cpu: 200m
-      memory: 192Mi
+      memory: 256Mi
     limits:
       cpu: 750m
-      memory: 384Mi
+      memory: 512Mi
   # O pod sobe com 2 sidecars (watcher de dashboards/datasources) que não herdam o
   # limite do container principal — precisam de resources próprios.
   sidecar:

@@ -41,6 +41,11 @@ public class UserRepositoryAdapter implements UserRepository {
   }
 
   @Override
+  public Optional<User> findByIdForUpdate(UUID id) {
+    return springDataUserRepository.findLockedById(id).map(UserMapper::toDomain);
+  }
+
+  @Override
   public boolean existsByEmail(String email) {
     return springDataUserRepository.existsByEmail(email);
   }

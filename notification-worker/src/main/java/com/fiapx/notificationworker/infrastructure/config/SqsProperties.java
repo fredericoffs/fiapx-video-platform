@@ -4,8 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Perfil aws: endpoint e chaves vazios — endpoint regional e cadeia padrão de credenciais
- * (instance profile do nó no EKS). Endpoint/chaves só são usados nos testes (LocalStack).
+ * Perfil aws: endpoint e chaves vazios — endpoint regional e cadeia padrão de credenciais (instance profile do nó no EKS). Endpoint/chaves só são
+ * usados nos testes (LocalStack).
  */
 @ConfigurationProperties("fiapx.sqs")
 public record SqsProperties(
@@ -16,7 +16,6 @@ public record SqsProperties(
     @DefaultValue("20") int waitTimeSeconds,
     @DefaultValue("30") int heartbeatSeconds,
     @DefaultValue("120") int visibilityExtensionSeconds,
-    @DefaultValue("10") int maxMessages,
     @DefaultValue("30000") long depthPollMillis
 ) {
 

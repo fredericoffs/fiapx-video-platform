@@ -1,13 +1,21 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Download, LayoutGrid, List, Loader2, Trash2 } from 'lucide-react'
-import { useDeleteVideoMutation, useVideosQuery, type Video } from '@/shared/api/videos'
+import {
+  flattenVideoPages,
+  RateLimitedError,
+  useDeleteVideoMutation,
+  useVideosQuery,
+  type Video,
+} from '@/shared/api/videos'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { VideoProcessingIllustration } from '@/shared/ui/illustrations/video-processing-illustration'
 import { VideoStatusBadge } from '@/shared/ui/video-status-badge'
 import { downloadVideo } from '@/features/videos/api/download-video'
+import { friendlyProcessingError } from '@/features/videos/lib/friendly-processing-error'
+import { formatFileSize } from '@/shared/lib/format-file-size'
 
 type ViewMode = 'list' | 'cards'
 
@@ -53,10 +61,16 @@ export function VideoList() {
   }
 
   if (videosQuery.isError) {
-    return <p className="text-sm text-destructive">Não foi possível carregar seus vídeos.</p>
+    const message =
+      videosQuery.error instanceof RateLimitedError
+        ? videosQuery.error.message
+        : 'Não foi possível carregar seus vídeos.'
+    return <p className="text-sm text-destructive">{message}</p>
   }
 
-  if (videosQuery.data.length === 0) {
+  const videos = flattenVideoPages(videosQuery.data)
+
+  if (videos.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <VideoProcessingIllustration className="w-48" />
@@ -95,6 +109,30 @@ export function VideoList() {
     </div>
   )
 
+  const metadata = (video: Video) => {
+    const size = formatFileSize(video.fileSizeBytes)
+    return (
+      <p className="text-xs text-muted-foreground">
+        {new Date(video.createdAt).toLocaleString('pt-BR')}
+        {size && ` · ${size}`}
+      </p>
+    )
+  }
+
+  const failureDetails = (video: Video) => {
+    if (video.status !== 'FAILED' || !video.errorMessage) {
+      return null
+    }
+    return (
+      <details className="text-xs text-destructive">
+        <summary className="cursor-pointer list-none">
+          {friendlyProcessingError(video.errorMessage)}
+        </summary>
+        <p className="mt-1 text-muted-foreground">{video.errorMessage}</p>
+      </details>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end gap-1">
@@ -124,16 +162,12 @@ export function VideoList() {
 
       {viewMode === 'list' ? (
         <ul className="flex flex-col gap-2">
-          {videosQuery.data.map((video) => (
+          {videos.map((video) => (
             <li key={video.id} className="flex items-center justify-between gap-3 border px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{video.originalFilename}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(video.createdAt).toLocaleString('pt-BR')}
-                </p>
-                {video.status === 'FAILED' && video.errorMessage && (
-                  <p className="text-xs text-destructive">{video.errorMessage}</p>
-                )}
+                {metadata(video)}
+                {failureDetails(video)}
               </div>
               {actions(video)}
             </li>
@@ -141,19 +175,29 @@ export function VideoList() {
         </ul>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {videosQuery.data.map((video) => (
+          {videos.map((video) => (
             <Card key={video.id} className="gap-3 p-4">
               <p className="truncate text-sm font-medium">{video.originalFilename}</p>
-              <p className="text-xs text-muted-foreground">
-                {new Date(video.createdAt).toLocaleString('pt-BR')}
-              </p>
-              {video.status === 'FAILED' && video.errorMessage && (
-                <p className="text-xs text-destructive">{video.errorMessage}</p>
-              )}
+              {metadata(video)}
+              {failureDetails(video)}
               <div className="mt-1">{actions(video)}</div>
             </Card>
           ))}
         </div>
+      )}
+
+      {videosQuery.hasNextPage && (
+        <Button
+          variant="outline"
+          className="self-center"
+          disabled={videosQuery.isFetchingNextPage}
+          onClick={() => {
+            void videosQuery.fetchNextPage()
+          }}
+        >
+          {videosQuery.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null}
+          Carregar mais
+        </Button>
       )}
     </div>
   )

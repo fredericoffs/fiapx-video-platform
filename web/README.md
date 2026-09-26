@@ -1,7 +1,7 @@
 # fiapx video platform — web
 
 [![CI](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml)
-[![Qodana](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana_code_quality.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana_code_quality.yml)
+[![Qodana](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana.yml)
 ![Cobertura](https://img.shields.io/badge/cobertura%20Qodana-82%25-yellowgreen)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
@@ -14,7 +14,7 @@ SPA (React 19 + TypeScript + Vite) que consome exclusivamente o `video-gateway`.
 ## Setup
 
 ```bash
-cp .env.example .env   # ajuste VITE_API_BASE_URL se necessário
+cp .env.example .env   # aponte VITE_API_BASE_URL para um video-gateway acessível (não há mais stack local)
 npm install
 npm run dev
 ```
@@ -27,25 +27,21 @@ npm run dev
 - `npm run typecheck` — só o typecheck.
 - `npm run format` / `format:check` — Prettier.
 - `npm run codegen` — regenera `src/shared/api/schema.gen.ts` a partir do OpenAPI real do
-  `video-api`. **Precisa do `video-api` de pé em `http://localhost:8081`**:
-  ```bash
-  cd .. && docker compose --profile app up -d postgres rabbitmq redis minio minio-init video-api
-  cd web && npm run codegen
-  ```
-  O CI falha se o schema commitado divergir do gerado (`git diff --exit-code` depois de rodar
-  o codegen contra o serviço real) — sempre rode `npm run codegen` e commite o resultado depois
-  de qualquer mudança de contrato no `video-api`.
+  `video-api` (`VITE_API_BASE_URL`, ou `http://localhost:8081` por padrão). Precisa de um
+  `video-api` alcançável — rode `cd ../video-api && ./mvnw spring-boot:run` contra a sua própria
+  infra, ou aponte para um `video-api` já implantado. Sempre rode `npm run codegen` e commite o
+  resultado depois de qualquer mudança de contrato no `video-api`.
 - `npm test` / `test:watch` — Vitest + Testing Library (componentes/hooks).
 - `npm run test:e2e` — Playwright, 1 spec do fluxo feliz completo (registro→login→upload→
-  status→download). Sobe o próprio `npm run dev` como servidor; precisa da stack real de pé
-  (`docker compose --profile app up`) pra passar de verdade.
+  status→download). Sobe o próprio `npm run dev` como servidor; precisa de um backend real
+  alcançável (`VITE_API_BASE_URL` apontando para um deploy na AWS, ou os serviços rodando
+  individualmente) pra passar de verdade.
 
 ## Deploy
 
 `Dockerfile` multi-stage (`node:22-alpine` build → `nginx:alpine` serve, não-root, escuta em
-`8080`). `VITE_API_BASE_URL` é _build-time_ (baked no bundle estático) — passe como build arg se
-o gateway não estiver em `http://localhost:8080`. Servido pelo serviço `web` no
-`docker-compose.yml` (porta `5173`) e pelos manifests em `k8s/apps/base/web/`.
+`8080`). `VITE_API_BASE_URL` é _build-time_ (baked no bundle estático) — passe como build arg
+com a URL pública do `video-gateway`. Servido pelo Deployment `web` em `k8s/apps/base/web/`.
 
 ## Estrutura
 

@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main, develop ]
   pull_request:
-  # k8s-smoke-test/e2e-web só rodam sob demanda, não em todo push/PR.
   workflow_dispatch:
 
 jobs:
@@ -25,6 +24,10 @@ jobs:
               - 'k8s/**'
               - 'scripts/**'
               - '.github/workflows/**'
+              # Sem isso, uma migration nova sem tocar em k8s/** nunca aciona a checagem
+              # abaixo (migrations do video-api listadas no configMapGenerator) — item 17 da
+              # revisão crítica.
+              - 'video-api/src/main/resources/db/migration/**'
             video-gateway:
               - 'video-gateway/**'
               - '.github/workflows/ci.yml'
@@ -33,12 +36,14 @@ jobs:
               - '.github/workflows/ci.yml'
             video-api:
               - 'video-api/**'
+              - 'web/**'
               - '.github/workflows/ci.yml'
             notification-worker:
               - 'notification-worker/**'
               - '.github/workflows/ci.yml'
             web:
               - 'web/**'
+              - 'video-api/**'
               - '.github/workflows/ci.yml'
 
   build-test-video-gateway:
@@ -48,6 +53,11 @@ jobs:
     defaults:
       run:
         working-directory: video-gateway
+    # Sem default em produção (CORS aberto por omissão seria inseguro) — o CI precisa
+    # de um valor próprio, só pra permitir o contexto Spring subir nos testes.
+    env:
+      VIDEO_API_URI: http://localhost:8081
+      GATEWAY_CORS_ALLOWED_ORIGINS: http://localhost:5173
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -113,6 +123,10 @@ jobs:
     defaults:
       run:
         working-directory: video-api
+    # Sem default em produção — o CI precisa de um valor próprio (≥32 chars pro HS256),
+    # só pra permitir o contexto Spring subir nos testes.
+    env:
+      JWT_SECRET: ci-test-only-secret-never-used-in-production-min-32-chars
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -137,6 +151,13 @@ jobs:
           path: video-api/target/site/jacoco/
           retention-days: 7
 
+      - name: Upload OpenAPI contract
+        uses: actions/upload-artifact@v7
+        with:
+          name: video-api-openapi
+          path: video-api/target/openapi.json
+          if-no-files-found: error
+
   build-test-notification-worker:
     needs: changes
     if: contains(fromJSON(needs.changes.outputs.changes), 'notification-worker')
@@ -144,6 +165,12 @@ jobs:
     defaults:
       run:
         working-directory: notification-worker
+    # Sem default em produção — o CI precisa de um valor próprio só pra permitir o
+    # contexto Spring subir nos testes (o canal EMAIL falha no envio real, como esperado
+    # sem um SMTP de verdade; os testes de circuit breaker/bulkhead do canal já apontam
+    # pra um host/porta próprios via @TestPropertySource, então não dependem deste valor).
+    env:
+      SMTP_HOST: localhost
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -169,7 +196,7 @@ jobs:
           retention-days: 7
 
   build-test-web:
-    needs: changes
+    needs: [changes, build-test-video-api]
     if: contains(fromJSON(needs.changes.outputs.changes), 'web')
     runs-on: ubuntu-latest
     steps:
@@ -183,32 +210,17 @@ jobs:
         working-directory: web
         run: npm ci
 
-      # Codegen precisa do video-api real de pé, pra pegar drift entre schema.gen.ts e o spec atual.
-      - name: Start video-api for codegen verification
-        run: docker compose --profile app up -d video-api
-
-      - name: Wait for video-api
-        run: |
-          for _attempt in $(seq 1 30); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/actuator/health || true)"
-            if [ "$code" = "200" ]; then
-              echo "video-api healthy"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "video-api não respondeu a tempo"
-          exit 1
-
-      - name: Verify OpenAPI codegen has no drift
+      - uses: actions/download-artifact@v8
+        with:
+          name: video-api-openapi
+          path: web/.openapi-review
+      - name: Verify generated OpenAPI types
         working-directory: web
         run: |
-          npm run codegen
-          git diff --exit-code -- src/shared/api/schema.gen.ts
-
-      - name: Stop infra
-        if: always()
-        run: docker compose --profile app down
+          ./node_modules/.bin/openapi-typescript .openapi-review/openapi.json -o .openapi-review/schema.gen.ts
+          ./node_modules/.bin/prettier --write .openapi-review/schema.gen.ts
+          diff -u src/shared/api/schema.gen.ts .openapi-review/schema.gen.ts
+          rm -rf .openapi-review
 
       - name: Typecheck
         working-directory: web
@@ -238,7 +250,7 @@ jobs:
         working-directory: web
         run: docker build -t web:ci .
 
-  # Lint estático de tudo que não é código de serviço: scripts, workflows, Terraform e overlays.
+  # Lint estático de tudo que não é código de serviço: scripts, workflows, Terraform e manifests k8s.
   infra-lint:
     needs: changes
     if: contains(fromJSON(needs.changes.outputs.changes), 'infra')
@@ -258,7 +270,7 @@ jobs:
           curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           chmod +x kubectl && sudo mv kubectl /usr/local/bin/kubectl
       - name: shellcheck
-        run: shellcheck scripts/*.sh k8s/addons/*.sh k8s/infra/*.sh
+        run: shellcheck scripts/*.sh k8s/addons/*.sh
       - name: actionlint
         run: actionlint
       - name: terraform fmt + validate (sem backend)
@@ -275,128 +287,8 @@ jobs:
             grep -q "db/migration/$(basename "$f")" k8s/apps/base/video-api/kustomization.yaml || { echo "faltando no configMapGenerator: $f"; missing=1; }
           done
           exit $missing
-      - name: kustomize (overlays local e aws)
+      - name: kustomize (manifests da aplicação e add-ons)
         run: |
-          kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/apps/overlays/local > /dev/null
-          kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/apps/overlays/aws > /dev/null
+          kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/apps/base > /dev/null
           kubectl kustomize k8s/addons > /dev/null
-
-  # Valida os manifests k8s/ contra um cluster kind real, provando que o KEDA escala
-  # o video-worker sob carga (scripts/k8s-up.sh, mesmo script usado localmente).
-  k8s-smoke-test:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install kubectl
-        run: |
-          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
-          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/kubectl
-
-      - name: Install kind
-        run: |
-          KIND_VERSION="$(curl -Ls https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
-          curl -Lo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
-          chmod +x kind
-          sudo mv kind /usr/local/bin/kind
-
-      - name: Install helm
-        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Ensure ffmpeg is present
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-
-      - name: Bring up local Kubernetes environment
-        run: ./scripts/k8s-up.sh
-
-      - name: Run load test
-        run: ./scripts/k8s-loadtest.sh 20
-
-      - name: Assert video-worker scaled beyond minimum
-        run: |
-          for _attempt in $(seq 1 30); do
-            REPLICAS="$(kubectl -n fiapx get deployment video-worker -o jsonpath='{.status.replicas}')"
-            echo "video-worker replicas: ${REPLICAS}"
-            if [ "${REPLICAS}" -gt 1 ]; then
-              echo "escalou para ${REPLICAS} réplicas"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "video-worker nunca escalou acima do mínimo em 5 min"
-          exit 1
-
-      - name: Dump pod status on failure
-        if: failure()
-        run: |
-          kubectl -n fiapx get pods
-          kubectl -n fiapx describe pods
-          kubectl -n fiapx logs -l app.kubernetes.io/name=video-worker --tail=200
-
-      - name: Tear down cluster
-        if: always()
-        run: ./scripts/k8s-down.sh
-
-  # E2E do fluxo feliz contra docker-compose real. playwright.config.ts sobe seu
-  # próprio `npm run dev`, então só preciso levantar a stack de backend aqui.
-  e2e-web:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
-
-      - name: Start backend stack
-        run: docker compose --profile app up -d video-api video-worker notification-worker video-gateway
-
-      - name: Wait for video-api
-        run: |
-          for _attempt in $(seq 1 30); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/actuator/health || true)"
-            if [ "$code" = "200" ]; then
-              echo "video-api healthy"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "video-api não respondeu a tempo"
-          exit 1
-
-      - name: Install dependencies
-        working-directory: web
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: web
-        run: npx playwright install --with-deps chromium
-
-      - name: Run E2E tests
-        working-directory: web
-        run: npm run test:e2e
-
-      - name: Upload Playwright traces
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-e2e-test-results
-          path: web/test-results/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Dump backend logs on failure
-        if: failure()
-        run: docker compose --profile app logs
-
-      - name: Tear down stack
-        if: always()
-        run: docker compose --profile app down
 

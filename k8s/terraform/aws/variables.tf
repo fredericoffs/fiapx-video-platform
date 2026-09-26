@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "Região AWS (Learner Lab só libera us-east-1 e us-west-2)"
+  description = "Região AWS"
   type        = string
   default     = "us-east-1"
 }
@@ -24,35 +24,6 @@ variable "kubernetes_version" {
   default     = "1.36"
 }
 
-# Learner Lab não permite criar IAM roles: o cluster e os nós assumem roles pré-criadas,
-# cujos nomes carregam prefixo/sufixo aleatórios — por isso a busca é por regex.
-variable "cluster_role_name_regex" {
-  description = "Regex do nome da IAM role do control plane (Learner Lab: *-LabEksClusterRole-*)"
-  type        = string
-  default     = ".*LabEksClusterRole.*"
-}
-
-# LabRole, não *-LabEksNodeRole-*: a LabEksNodeRole só tem as 3 políticas básicas de
-# worker (sem EC2/EBS) e o driver EBS CSI, sem IRSA, herda as permissões do nó.
-variable "node_role_name_regex" {
-  description = "Regex do nome da IAM role dos nós (Learner Lab: LabRole, que tem as políticas amplas do lab)"
-  type        = string
-  default     = "^LabRole$"
-}
-
-variable "cluster_role_arn" {
-  description = "ARN explícito da role do control plane (opcional; ignora a busca por regex)"
-  type        = string
-  default     = ""
-}
-
-variable "node_role_arn" {
-  description = "ARN explícito da role dos nós (opcional; ex.: arn:aws:iam::<conta>:role/LabRole se o EBS CSI falhar por permissão)"
-  type        = string
-  default     = ""
-}
-
-# Learner Lab: tipos até "large", máximo 9 instâncias / 32 vCPU simultâneas.
 variable "node_instance_type" {
   description = "Tipo de instância dos nós"
   type        = string
@@ -111,6 +82,13 @@ variable "db_password" {
 
 variable "jwt_secret" {
   description = "Segredo HS256 dos JWTs. Vazio → gerado e publicado no SSM; preenchido (TF_VAR_jwt_secret = PROD_JWT_SECRET) → usado como está."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "admin_password" {
+  description = "Senha do admin semeado (admin@fiapx.local). Vazia → gerada (random_password) e publicada no SSM; preenchida (TF_VAR_admin_password = PROD_ADMIN_PASSWORD) → usada como está. O hash no banco (migration V8) é só um placeholder inutilizável — a senha real só passa a valer depois que AdminPasswordSeeder aplicar este valor no primeiro boot do video-api."
   type        = string
   sensitive   = true
   default     = ""

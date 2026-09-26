@@ -52,6 +52,15 @@ class S3StorageClientIntegrationTest {
   }
 
   @Test
+  void existsReflectsWhetherTheObjectWasUploaded() {
+    assertThat(client.exists("videos-raw", "raw/exists/source.mp4")).isFalse();
+
+    client.upload("videos-raw", "raw/exists/source.mp4", new ByteArrayInputStream("v".getBytes()), 1, "video/mp4");
+
+    assertThat(client.exists("videos-raw", "raw/exists/source.mp4")).isTrue();
+  }
+
+  @Test
   void objectsAreIsolatedByKey() throws Exception {
     client.upload("videos-raw", "raw/a/source.mp4", new ByteArrayInputStream("A".getBytes()), 1, "video/mp4");
     client.upload("videos-raw", "raw/b/source.mp4", new ByteArrayInputStream("B".getBytes()), 1, "video/mp4");

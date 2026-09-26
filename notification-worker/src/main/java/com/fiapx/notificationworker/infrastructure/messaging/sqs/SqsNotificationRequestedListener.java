@@ -4,13 +4,11 @@ import com.fiapx.notificationworker.application.dto.NotificationRequestedMessage
 import com.fiapx.notificationworker.application.usecase.SendFailureNotificationUseCase;
 import java.util.Map;
 import org.slf4j.MDC;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsNotificationRequestedListener implements SqsMessageHandler {
 
   private final SendFailureNotificationUseCase sendFailureNotificationUseCase;

@@ -4,29 +4,27 @@ import com.fiapx.notificationworker.infrastructure.config.QueueProperties;
 import com.fiapx.notificationworker.infrastructure.config.SqsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 @Configuration
-@ConditionalOnProperty(name = "fiapx.messaging.provider", havingValue = "sqs")
 public class SqsConsumersConfig {
 
+  // 1 mensagem por vez: o heartbeat do SqsQueueConsumer só estende a visibilidade da mensagem
+  // em processamento — um lote >1 deixaria as demais perdendo visibilidade em memória.
   @Bean
   public SqsQueueConsumer notificationConsumer(SqsClient sqsClient, SqsProperties sqsProperties,
       SqsQueueUrlResolver resolver, QueueProperties queues, SqsNotificationRequestedListener listener) {
     return new SqsQueueConsumer(sqsClient, sqsProperties, "notification",
-        resolver.urlOf(queues.notification()), resolver.urlOf(queues.notificationDlq()),
-        sqsProperties.maxMessages(), listener);
+        resolver.urlOf(queues.notification()), resolver.urlOf(queues.notificationDlq()), 1, listener);
   }
 
-  @Bean
-  public SqsQueueConsumer notificationDeadLetterConsumer(SqsClient sqsClient, SqsProperties sqsProperties,
-      SqsQueueUrlResolver resolver, QueueProperties queues, SqsNotificationDeadLetterListener listener) {
-    return new SqsQueueConsumer(sqsClient, sqsProperties, "notification-dlq",
-        resolver.urlOf(queues.notificationDlq()), null, sqsProperties.maxMessages(), listener);
-  }
+  // A DLQ de notificação fica sem consumer de propósito (mesmo padrão da DLQ de resultados
+  // no video-api): mensagem retida até replay manual (`aws sqs start-message-move-task`).
+  // Um consumer aqui que só loga e retorna faria o SqsQueueConsumer entender "sucesso" e
+  // apagar a mensagem — perdendo de vez o único registro de uma notificação que esgotou
+  // todos os canais.
 
   @Bean
   public SqsQueueDepthGauge sqsQueueDepthGauge(SqsClient sqsClient, SqsQueueUrlResolver resolver,
