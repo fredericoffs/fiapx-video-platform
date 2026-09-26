@@ -42,15 +42,16 @@ resource "aws_iam_role" "node" {
 }
 
 resource "aws_iam_role_policy_attachment" "node" {
-  for_each = toset([
-    "AmazonEKSWorkerNodePolicy",
-    "AmazonEKS_CNI_Policy",
-    "AmazonEC2ContainerRegistryReadOnly",
-    "AmazonEBSCSIDriverPolicy",
-  ])
+  for_each = {
+    AmazonEKSWorkerNodePolicy          = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+    AmazonEKS_CNI_Policy               = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+    AmazonEC2ContainerRegistryReadOnly = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    # Única das quatro sob o path service-role/, não a raiz de policy/.
+    AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  }
 
   role       = aws_iam_role.node.name
-  policy_arn = "arn:aws:iam::aws:policy/${each.value}"
+  policy_arn = each.value
 }
 
 data "aws_iam_policy_document" "node_app" {
