@@ -24,13 +24,10 @@ resource "aws_eks_cluster" "this" {
     replace_triggered_by = [terraform_data.cluster_version]
   }
 
-  depends_on = [
-    aws_route_table_association.public,
-    aws_iam_role_policy_attachment.cluster,
-  ]
+  depends_on = [aws_route_table_association.public]
 }
 
-# Sem IRSA (as permissões ficam na role do nó, iam.tf), o driver EBS CSI pega credenciais
+# Sem IRSA (Learner Lab não permite criar roles), o driver EBS CSI pega credenciais
 # pelo IMDS do nó; com VPC CNI o pod está a 2 saltos do IMDS, e o padrão do node
 # group (hop limit 1) bloqueia — o controlador fica em CrashLoopBackOff com
 # "no EC2 IMDS role found". Launch template só pra subir o hop limit.
@@ -98,11 +95,6 @@ resource "aws_eks_node_group" "this" {
   lifecycle {
     replace_triggered_by = [terraform_data.cluster_version]
   }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.node,
-    aws_iam_role_policy.node_app,
-  ]
 }
 
 resource "aws_eks_addon" "vpc_cni" {
@@ -142,8 +134,8 @@ resource "aws_eks_addon" "coredns" {
 
 # Obrigatório pros PersistentVolumeClaims do kube-prometheus-stack (único componente com
 # estado no cluster — nada de aplicação usa PVC, ver ADR-014): em EKS >= 1.23 o
-# provisionador in-tree de EBS não existe mais. Sem IRSA, o driver herda as permissões
-# do node role (AmazonEBSCSIDriverPolicy anexada em iam.tf).
+# provisionador in-tree de EBS não existe mais. Sem IRSA (Learner Lab não permite criar
+# roles), o driver herda as permissões do node role.
 resource "aws_eks_addon" "ebs_csi" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "aws-ebs-csi-driver"

@@ -1,10 +1,15 @@
 # Copie para terraform.tfvars (gitignored) só se quiser sobrescrever os defaults de
-# variables.tf. Credenciais NÃO entram aqui: o provider lê AWS_ACCESS_KEY_ID e
-# AWS_SECRET_ACCESS_KEY do ambiente (ou do perfil do aws CLI). As IAM roles do cluster e
-# dos nós são criadas por iam.tf.
+# variables.tf. Credenciais NÃO entram aqui: o provider lê AWS_ACCESS_KEY_ID,
+# AWS_SECRET_ACCESS_KEY e AWS_SESSION_TOKEN do ambiente (Learner Lab > AWS Details).
 aws_region         = "us-east-1"
 cluster_name       = "fiapx"
 kubernetes_version = "1.36"
+# Roles descobertas por regex (nomes do Learner Lab têm prefixo/sufixo aleatórios);
+# cluster_role_arn / node_role_arn sobrescrevem a busca se preenchidos.
+cluster_role_name_regex = ".*LabEksClusterRole.*"
+node_role_name_regex    = "^LabRole$"
+cluster_role_arn        = ""
+node_role_arn           = ""
 node_instance_type = "t3.large"
 node_desired_size  = 2
 node_min_size      = 1

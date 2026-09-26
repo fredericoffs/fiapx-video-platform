@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "Região AWS"
+  description = "Região AWS (Learner Lab só libera us-east-1 e us-west-2)"
   type        = string
   default     = "us-east-1"
 }
@@ -24,14 +24,39 @@ variable "kubernetes_version" {
   default     = "1.36"
 }
 
+# Learner Lab não permite criar IAM roles: o cluster e os nós assumem roles pré-criadas,
+# cujos nomes carregam prefixo/sufixo aleatórios — por isso a busca é por regex.
+variable "cluster_role_name_regex" {
+  description = "Regex do nome da IAM role do control plane (Learner Lab: *-LabEksClusterRole-*)"
+  type        = string
+  default     = ".*LabEksClusterRole.*"
+}
+
+# LabRole, não *-LabEksNodeRole-*: a LabEksNodeRole só tem as 3 políticas básicas de
+# worker (sem EC2/EBS) e o driver EBS CSI, sem IRSA, herda as permissões do nó.
+variable "node_role_name_regex" {
+  description = "Regex do nome da IAM role dos nós (Learner Lab: LabRole, que tem as políticas amplas do lab)"
+  type        = string
+  default     = "^LabRole$"
+}
+
+variable "cluster_role_arn" {
+  description = "ARN explícito da role do control plane (opcional; ignora a busca por regex)"
+  type        = string
+  default     = ""
+}
+
+variable "node_role_arn" {
+  description = "ARN explícito da role dos nós (opcional; ex.: arn:aws:iam::<conta>:role/LabRole se o EBS CSI falhar por permissão)"
+  type        = string
+  default     = ""
+}
+
+# Learner Lab: tipos até "large", máximo 9 instâncias / 32 vCPU simultâneas.
 variable "node_instance_type" {
-  # m7i-flex.large: mesmo vCPU/RAM do t3.large (2 vCPU / 8 GiB), mas elegível para o Free
-  # Tier desta conta — contas AWS novas ficam temporariamente restritas a tipos fora do
-  # Free Tier (ex.: t3.large falha com "InvalidParameterCombination ... not eligible for
-  # Free Tier" ao tentar subir o node group).
   description = "Tipo de instância dos nós"
   type        = string
-  default     = "m7i-flex.large"
+  default     = "t3.large"
 }
 
 variable "node_desired_size" {
