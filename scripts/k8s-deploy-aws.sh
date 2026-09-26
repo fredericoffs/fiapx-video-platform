@@ -152,7 +152,10 @@ mkdir -p "${RENDER_DIR}/overlay"
   echo 'apiVersion: kustomize.config.k8s.io/v1beta1'
   echo 'kind: Kustomization'
   echo 'resources:'
-  echo "  - ${BASE_DIR}"
+  # Path relativo, não absoluto: kubectl kustomize (kustomize >= 5.7ish embutido) recusa um
+  # "resources:" absoluto com "new root '...' cannot be absolute" — confirmado local com
+  # kustomize v5.8.1.
+  echo "  - $(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "${BASE_DIR}" "${RENDER_DIR}/overlay")"
   echo 'images:'
   for svc in video-gateway video-api video-worker notification-worker web; do
     echo "  - name: fiapx/${svc}"
