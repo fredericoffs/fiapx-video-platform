@@ -25,9 +25,13 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_type" {
+  # m7i-flex.large: mesmo vCPU/RAM do t3.large (2 vCPU / 8 GiB), mas elegível para o Free
+  # Tier desta conta — contas AWS novas ficam temporariamente restritas a tipos fora do
+  # Free Tier (ex.: t3.large falha com "InvalidParameterCombination ... not eligible for
+  # Free Tier" ao tentar subir o node group).
   description = "Tipo de instância dos nós"
   type        = string
-  default     = "t3.large"
+  default     = "m7i-flex.large"
 }
 
 variable "node_desired_size" {
