@@ -18,8 +18,10 @@ cluster e dos nós (`k8s/terraform/aws/iam.tf`); o CI usa a chave de um usuário
 
 Billing → Budgets → Create budget → *Monthly cost budget*, com alertas por e-mail em **US$ 5, 20 e 50**.
 
-Esta stack **não cabe no free tier**: EKS cobra US$ 0,10/h de control plane, e há 2 nós `t3.large`,
-um NLB, RDS e ElastiCache. Ligada, custa da ordem de US$ 0,30 a 0,40/h. Rode `Destroy AWS` ao fim de
+Esta stack **não cabe no free tier**: EKS cobra US$ 0,10/h de control plane, e há 2 nós
+`m7i-flex.large` (mesmo vCPU/RAM do `t3.large`, mas contas novas ficam temporariamente restritas a
+lançar tipos fora da lista de free-tier-eligible — ver `node_instance_type` em `variables.tf`), um
+NLB, RDS e ElastiCache. Ligada, custa da ordem de US$ 0,30 a 0,40/h. Rode `Destroy AWS` ao fim de
 cada sessão de testes e confirme com `scripts/aws-validate.sh --strict` que não sobrou nada.
 
 ## 3. AWS CLI local
