@@ -76,7 +76,6 @@ require_cmd curl
 require_cmd jq
 require_cmd kubectl
 has_scenario sqs && require_cmd aws
-has_scenario worker && require_cmd aws
 has_scenario worker && [[ -z "$LONG_VIDEO" ]] && require_cmd ffmpeg
 [[ -f "$SAMPLE" ]] || { echo "Erro: fixture nao encontrada: $SAMPLE" >&2; exit 2; }
 
@@ -235,17 +234,17 @@ scenario_burst() {
   record "OK burst: $accepted aceitos -> $completed COMPLETED, $failed FAILED rastreaveis; $rejected rejeitados (429) sem persistir"
 }
 
-queue_in_flight() {
-  aws sqs get-queue-attributes --region "$AWS_REGION" --queue-url "$QUEUE_URL" \
-    --attribute-names ApproximateNumberOfMessagesNotVisible \
-    --query 'Attributes.ApproximateNumberOfMessagesNotVisible' --output text
+# Pods do video-worker como "nome pronto(true|false)", um por linha.
+worker_pods() {
+  kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=video-worker \
+    -o jsonpath='{range .items[*]}{.metadata.name} {.status.containerStatuses[0].ready}{"\n"}{end}'
 }
 
 # --- cenario 2: worker derrubado no meio do processamento ----------------------------------
 scenario_worker() {
   log ""
   log "== [worker] crash do video-worker durante o processamento"
-  local video="$LONG_VIDEO" id deadline killed_at completed _failed _failed_no_msg _missing
+  local video="$LONG_VIDEO" id deadline killed_at old_pods pod still_old new_ready completed _failed _failed_no_msg _missing
   if [[ -z "$video" ]]; then
     video="$tmp_dir/longo.mp4"
     log "   gerando video de teste (600s, 854x480)"
@@ -253,24 +252,52 @@ scenario_worker() {
   fi
   id="$(upload_retrying "$video")" || { record "FALHOU worker: upload nao aceito"; return 1; }
   echo "$id" >"$tmp_dir/worker-ids"
-  log "   upload aceito: $id — aguardando o worker pegar a mensagem"
+  log "   upload aceito: $id — aguardando ESTE video entrar em PROCESSING"
 
-  # A mensagem "em voo" (NotVisible) marca o instante em que um worker a recebeu.
+  # PROCESSING vem do evento "started" do proprio worker: prova que o video do teste (nao
+  # qualquer mensagem da fila) esta sendo processado no momento do crash.
   deadline=$(( $(now) + 300 ))
-  until (( $(queue_in_flight) > 0 )); do
-    (( $(now) >= deadline )) && { record "FALHOU worker: nenhum worker pegou a mensagem em 300s"; return 1; }
-    sleep 2
+  until snapshot >"$tmp_dir/last" 2>/dev/null && grep -q "^$id PROCESSING " "$tmp_dir/last"; do
+    if grep -qE "^$id (COMPLETED|FAILED) " "$tmp_dir/last" 2>/dev/null; then
+      record "INCONCLUSIVO worker: o video terminou antes do crash — use um --long-video maior"; return 1
+    fi
+    (( $(now) >= deadline )) && { record "FALHOU worker: video $id nao entrou em PROCESSING em 300s"; return 1; }
+    sleep 5
   done
-  sleep 2
-  log "   pods antes do crash: $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=video-worker -o name | tr '\n' ' ')"
-  kubectl -n "$NAMESPACE" delete pod -l app.kubernetes.io/name=video-worker --grace-period=0 --force 2>&1 \
-    | grep -v "^Warning" | tee -a "$LOG_FILE" || true
+
+  old_pods="$(worker_pods | cut -d' ' -f1)"
+  [[ -n "$old_pods" ]] || { record "FALHOU worker: nenhum pod do video-worker encontrado"; return 1; }
+  log "   video em PROCESSING; matando a forca: $(echo "$old_pods" | tr '\n' ' ')"
+  # shellcheck disable=SC2086  # um nome de pod por palavra, de proposito
+  if ! kubectl -n "$NAMESPACE" delete pod $old_pods --grace-period=0 --force >>"$LOG_FILE" 2>&1; then
+    record "FALHOU worker: kubectl delete pod falhou (permissao/conexao?) — ver o log"; return 1
+  fi
   killed_at="$(now)"
+
+  # Substituicao confirmada: nenhum pod antigo sobrou e ha pelo menos um pod novo pronto.
+  deadline=$(( $(now) + 300 ))
+  while :; do
+    still_old=0
+    new_ready=0
+    while read -r pod ready; do
+      [[ -n "$pod" ]] || continue
+      if grep -qx "$pod" <<<"$old_pods"; then
+        still_old=$((still_old + 1))
+      elif [[ "$ready" == "true" ]]; then
+        new_ready=$((new_ready + 1))
+      fi
+    done <<<"$(worker_pods)"
+    (( still_old == 0 && new_ready >= 1 )) && break
+    (( $(now) >= deadline )) && { record "FALHOU worker: pods nao foram substituidos em 300s (antigos: $still_old, novos prontos: $new_ready)"; return 1; }
+    sleep 5
+  done
+  log "   pods substituidos em $(( $(now) - killed_at ))s: $(worker_pods | cut -d' ' -f1 | tr '\n' ' ')"
+
   snapshot >"$tmp_dir/last" || true
   if grep -q "^$id COMPLETED " "$tmp_dir/last"; then
-    record "INCONCLUSIVO worker: o video terminou antes do crash — use um --long-video maior"; return 1
+    record "INCONCLUSIVO worker: o video aparece COMPLETED logo apos o crash — use um --long-video maior"; return 1
   fi
-  log "   pods mortos a forca com o video em $(grep "^$id " "$tmp_dir/last" | cut -d' ' -f2); a mensagem volta a fila quando a visibilidade (<=120s) expirar"
+  log "   aguardando a reentrega (visibilidade <=120s, lease 90s) reprocessar o video"
 
   if ! wait_terminal "$tmp_dir/worker-ids" worker; then
     record "FALHOU worker: video $id pendente ${TIMEOUT}s apos o crash"; return 1
@@ -279,7 +306,7 @@ scenario_worker() {
   if (( completed != 1 )); then
     record "FALHOU worker: video terminou FAILED em vez de ser reprocessado (ver errorMessage em /videos/$id)"; return 1
   fi
-  record "OK worker: video reprocessado e COMPLETED $(( $(now) - killed_at ))s apos matar os pods"
+  record "OK worker: pods $(echo "$old_pods" | wc -l | tr -d ' ') substituidos, video reprocessado e COMPLETED $(( $(now) - killed_at ))s apos o crash"
 }
 
 # --- cenario 3: SQS indisponivel --------------------------------------------------------------
@@ -329,7 +356,7 @@ scenario_sqs() {
   record "OK sqs: 3 uploads persistidos como QUEUED durante a falha e COMPLETED apos restaurar"
 }
 
-if has_scenario worker || has_scenario sqs; then
+if has_scenario sqs; then
   QUEUE_URL="$(aws sqs get-queue-url --region "$AWS_REGION" --queue-name "$PROCESSING_QUEUE" \
     --query QueueUrl --output text)"
 fi

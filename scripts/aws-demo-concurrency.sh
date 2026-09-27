@@ -26,8 +26,9 @@ Use videos de 1 min ou mais: o KEDA consulta a fila a cada 15s e o pod novo aind
 precisa subir, entao o segundo video comeca uns 30-60s depois do primeiro.
 
 Codigos de saida:
-  0  Houve pelo menos 2 videos em PROCESSING ao mesmo tempo.
-  1  Nao houve sobreposicao (ou timeout antes dos videos terminarem).
+  0  Ciclo completo comprovado: o KEDA escalou acima do minimo, houve 2+ videos em
+     PROCESSING ao mesmo tempo, todos terminaram COMPLETED e as replicas voltaram ao minimo.
+  1  Alguma dessas condicoes nao aconteceu antes do timeout (o resumo diz qual).
   2  Erro operacional (dependencia ausente, login/upload falhou, etc.).
 EOF
 }
@@ -150,12 +151,15 @@ while :; do
       '[.items[] | select(.id as $i | $ids | index($i))] | map(.status) | join(",")' 2>/dev/null || echo '?')"
   processing="$(tr ',' '\n' <<<"$statuses" | grep -c '^PROCESSING$' || true)"
   terminal="$(tr ',' '\n' <<<"$statuses" | grep -cE '^(COMPLETED|FAILED)$' || true)"
+  completed="$(tr ',' '\n' <<<"$statuses" | grep -c '^COMPLETED$' || true)"
 
   (( replicas > peak_replicas )) && peak_replicas=$replicas
   (( processing > peak_processing )) && peak_processing=$processing
   [[ -z "$overlap_at" ]] && (( processing >= 2 )) && overlap_at="${elapsed}s"
   [[ -z "$all_done_at" ]] && (( terminal == ${#VIDEO_IDS[@]} )) && all_done_at="${elapsed}s"
-  [[ -n "$all_done_at" && -z "$back_to_min_at" && "$replicas" == "$min_replicas" ]] && back_to_min_at="${elapsed}s"
+  # So conta a volta ao minimo depois de ter subido: sem escala, nao ha ciclo a comprovar.
+  [[ -n "$all_done_at" && -z "$back_to_min_at" && "$replicas" == "$min_replicas" ]] \
+    && (( peak_replicas > min_replicas )) && back_to_min_at="${elapsed}s"
 
   log "$(printf '%-8s %-9s %-7s %-10s %s' "${elapsed}s" "$replicas" "$ready" "$processing" "$statuses")"
 
@@ -176,6 +180,19 @@ log "   pico de replicas do video-worker:        $peak_replicas"
 log "   pico de videos em PROCESSING juntos:     $peak_processing (primeira sobreposicao em ${overlap_at:-nunca})"
 log "   todos os videos terminaram em:           ${all_done_at:-nao terminaram}"
 log "   voltou para $min_replicas replica(s) em:            ${back_to_min_at:-nao observado}"
-log "   evidencia gravada em: $LOG_FILE"
+log "   videos COMPLETED:                        ${completed:-0}/${#VIDEO_IDS[@]}"
 
-(( peak_processing >= 2 )) || exit 1
+failures=()
+(( peak_replicas > min_replicas )) || failures+=("o KEDA nao escalou acima de $min_replicas replica(s)")
+(( peak_processing >= 2 )) || failures+=("nunca houve 2 videos em PROCESSING ao mesmo tempo")
+[[ -n "$all_done_at" ]] || failures+=("os videos nao terminaram em ${TIMEOUT}s")
+[[ "${completed:-0}" == "${#VIDEO_IDS[@]}" ]] || failures+=("${completed:-0}/${#VIDEO_IDS[@]} videos COMPLETED")
+[[ -n "$back_to_min_at" ]] || failures+=("as replicas nao voltaram a $min_replicas em ${TIMEOUT}s")
+
+if (( ${#failures[@]} > 0 )); then
+  for f in "${failures[@]}"; do log "   FALHOU: $f"; done
+  log "   evidencia gravada em: $LOG_FILE"
+  exit 1
+fi
+log "   OK: ciclo completo comprovado"
+log "   evidencia gravada em: $LOG_FILE"
