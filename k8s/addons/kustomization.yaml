@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: monitoring
 resources:
   - queue-depth-alert.yaml
+  - servicemonitors.yaml
 
 # grafana_dashboard: "1" é o label que o sidecar da Grafana usa pra descobrir
 # ConfigMaps de dashboard automaticamente.
@@ -13,6 +14,9 @@ configMapGenerator:
       - dashboards/duracao-processamento.json
       - dashboards/erros-circuit-breakers.json
       - dashboards/logs-aplicacao.json
+      - dashboards/saude-servicos.json
+      - dashboards/autoscaling-borda.json
+      - dashboards/servicos-aws.json
     options:
       labels:
         grafana_dashboard: "1"

@@ -15,6 +15,8 @@ import com.fiapx.videoapi.domain.service.VideoFormatValidator;
 import com.fiapx.videoapi.infrastructure.config.StorageProperties;
 import java.time.Duration;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -37,6 +39,8 @@ import tools.jackson.databind.ObjectMapper;
 public class RequestVideoProcessingUseCase {
 
   public static final String EVENT_TYPE_VIDEO_UPLOAD_REQUESTED = "VideoUploadRequested";
+
+  private static final Logger log = LoggerFactory.getLogger(RequestVideoProcessingUseCase.class);
 
   // Bem acima do envio de 500MB do pod ao S3: vencer antes da fase 3 faz o upload ser rejeitado.
   static final Duration ORPHAN_CLEANUP_DELAY = Duration.ofHours(1);
@@ -85,7 +89,7 @@ public class RequestVideoProcessingUseCase {
 
     storageClient.upload(bucket, storageKey, command.content(), command.contentLength(), command.contentType());
 
-    return transactionTemplate.execute(status -> {
+    VideoUploadResult result = transactionTemplate.execute(status -> {
       userRepository.findByIdForUpdate(command.userId())
           .orElseThrow(() -> new UserNotFoundException(command.userId()));
       if (!storageCleanup.cancel(bucket, storageKey)) {
@@ -113,6 +117,10 @@ public class RequestVideoProcessingUseCase {
 
       return new VideoUploadResult(video.getId(), video.getStatus());
     });
+    // Só ids e tamanho: nome original e e-mail ficam fora do log (dado do usuário).
+    log.info("Upload aceito: vídeo {} ({} bytes) do usuário {}, na fila para processamento",
+        videoId, command.contentLength(), command.userId());
+    return result;
   }
 
   private String writeJson(Object payload) {

@@ -55,6 +55,15 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Histograma de latência HTTP (p95 no dashboard "Saúde dos serviços"); a faixa 5ms–30s
+    # limita os buckets para não multiplicar as séries no Prometheus.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 30s
 
 # Configuração específica do domínio — ver docs/ddd/linguagem-ubiqua.md e docs/architecture/hld-lld-adr-rfc.md (ADR-004, ADR-008)
 fiapx:

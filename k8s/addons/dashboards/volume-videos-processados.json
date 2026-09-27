@@ -1,57 +1,132 @@
 {
-  "title": "FIAP X — Volume diário de vídeos processados",
+  "title": "FIAP X — Resultados de vídeos",
   "uid": "fiapx-volume-diario",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
-  "time": { "from": "now-7d", "to": "now" },
+  "version": 2,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "refresh": "30s",
-  "tags": ["fiapx"],
+  "tags": [
+    "fiapx"
+  ],
   "panels": [
     {
       "id": 1,
-      "title": "Vídeos processados por dia, por status",
+      "title": "Resultados por segundo · média móvel de 5 min",
       "type": "timeseries",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } } },
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          },
+          "noValue": "Sem dados"
+        },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "sum by (status) (increase(fiapx_video_processed_total[1d]))",
+          "expr": "sum by (status) (rate(fiapx_video_processed_total[5m]))",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Taxa de aplicação de resultados na API, separada por status."
     },
     {
       "id": 2,
-      "title": "Total processado (COMPLETED)",
+      "title": "COMPLETED · estimativa no período selecionado",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } }, "overrides": [] },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
       "targets": [
         {
-          "expr": "sum(fiapx_video_processed_total{status=\"COMPLETED\"})",
+          "expr": "sum(increase(fiapx_video_processed_total{status=\"COMPLETED\"}[$__range]))",
           "legendFormat": "COMPLETED",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "increase corrige resets observados, mas pode extrapolar valores fracionários. Scrapes ausentes ou pods muito curtos podem perder eventos."
     },
     {
       "id": 3,
-      "title": "Total com falha (FAILED)",
+      "title": "FAILED · estimativa no período selecionado",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "red" } }, "overrides": [] },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
       "targets": [
         {
-          "expr": "sum(fiapx_video_processed_total{status=\"FAILED\"})",
+          "expr": "sum(increase(fiapx_video_processed_total{status=\"FAILED\"}[$__range]))",
           "legendFormat": "FAILED",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "increase corrige resets observados, mas pode extrapolar valores fracionários. Scrapes ausentes ou pods muito curtos podem perder eventos."
     }
-  ]
+  ],
+  "description": "Resultados aplicados pela API. Contadores são métricas operacionais, não contagem histórica do banco."
 }

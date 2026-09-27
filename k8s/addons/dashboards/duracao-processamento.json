@@ -1,20 +1,37 @@
 {
-  "title": "FIAP X — Tempo médio de execução por status",
+  "title": "FIAP X — Tempo até o resultado",
   "uid": "fiapx-duracao-processamento",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
-  "time": { "from": "now-6h", "to": "now" },
+  "version": 2,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "refresh": "30s",
-  "tags": ["fiapx"],
+  "tags": [
+    "fiapx"
+  ],
   "panels": [
     {
       "id": 1,
-      "title": "Duração média de processamento por status (janela de 5m)",
+      "title": "Tempo médio até o resultado por status · janela móvel de 5 min",
       "type": "timeseries",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          },
+          "noValue": "Sem dados"
+        },
         "overrides": []
       },
       "targets": [
@@ -23,35 +40,85 @@
           "legendFormat": "{{status}}",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Inclui espera na fila; não mede apenas CPU/ffmpeg. Sem conclusões na janela, a média não é definida."
     },
     {
       "id": 2,
-      "title": "Duração média (COMPLETED, acumulado)",
+      "title": "Tempo médio até COMPLETED · período selecionado",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
       "targets": [
         {
-          "expr": "sum(fiapx_video_processing_duration_seconds_sum{status=\"COMPLETED\"}) / sum(fiapx_video_processing_duration_seconds_count{status=\"COMPLETED\"})",
+          "expr": "sum(increase(fiapx_video_processing_duration_seconds_sum{status=\"COMPLETED\"}[$__range])) / sum(increase(fiapx_video_processing_duration_seconds_count{status=\"COMPLETED\"}[$__range]))",
           "legendFormat": "COMPLETED",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "Inclui espera na fila; não mede apenas CPU/ffmpeg. Sem conclusões na janela, a média não é definida."
     },
     {
       "id": 3,
-      "title": "Duração média (FAILED, acumulado)",
+      "title": "Tempo médio até FAILED · período selecionado",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
       "targets": [
         {
-          "expr": "sum(fiapx_video_processing_duration_seconds_sum{status=\"FAILED\"}) / sum(fiapx_video_processing_duration_seconds_count{status=\"FAILED\"})",
+          "expr": "sum(increase(fiapx_video_processing_duration_seconds_sum{status=\"FAILED\"}[$__range])) / sum(increase(fiapx_video_processing_duration_seconds_count{status=\"FAILED\"}[$__range]))",
           "legendFormat": "FAILED",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "Inclui espera na fila; não mede apenas CPU/ffmpeg. Sem conclusões na janela, a média não é definida."
     }
-  ]
+  ],
+  "description": "Da criação do vídeo até a aplicação do resultado: inclui fila, extração, storage e transporte de eventos."
 }

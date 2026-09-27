@@ -1,0 +1,180 @@
+{
+  "title": "FIAP X — Autoscaling e borda",
+  "uid": "fiapx-autoscaling-borda",
+  "description": "Tráfego na borda (ingress-nginx), rate limit, e a cadeia fila → KEDA → HPA → réplicas do video-worker.",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "tags": [
+    "fiapx"
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requisições no ingress por status",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(nginx_ingress_controller_requests[$__rate_interval]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Recusadas pelo rate limit (429)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(nginx_ingress_controller_requests{status=\"429\"}[$__rate_interval]))",
+          "legendFormat": "429 no ingress"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"video-gateway\", status=\"429\"}[$__rate_interval]))",
+          "legendFormat": "429 no video-gateway"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "description": "O rate limit é por IP do cliente (externalTrafficPolicy=Local no ingress)."
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência p95 na borda",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Fila de processamento (mensagens visíveis)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (queue) (fiapx_queue_messages_visible{queue=~\"fiapx-video-processing|fiapx-video-processing-dlq\"})",
+          "legendFormat": "{{queue}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "DLQ acima de 0: algum vídeo esgotou as tentativas (há alerta para isso)."
+    },
+    {
+      "type": "timeseries",
+      "title": "KEDA: métrica da fila vs réplicas do video-worker",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(keda_scaler_metrics_value{scaledObject=\"video-worker\"})",
+          "legendFormat": "métrica do KEDA (mensagens visíveis + em voo)"
+        },
+        {
+          "refId": "B",
+          "expr": "kube_horizontalpodautoscaler_status_desired_replicas{horizontalpodautoscaler=\"keda-hpa-video-worker\"}",
+          "legendFormat": "réplicas desejadas"
+        },
+        {
+          "refId": "C",
+          "expr": "kube_deployment_status_replicas_available{namespace=\"fiapx\", deployment=\"video-worker\"}",
+          "legendFormat": "réplicas prontas"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "queueLength = 1: cada mensagem pede uma réplica (mín. 1, máx. 3)."
+    },
+    {
+      "type": "timeseries",
+      "title": "Réplicas do video-api (HPA por CPU)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kube_horizontalpodautoscaler_status_desired_replicas{horizontalpodautoscaler=\"video-api\"}",
+          "legendFormat": "desejadas"
+        },
+        {
+          "refId": "B",
+          "expr": "kube_deployment_status_replicas_available{namespace=\"fiapx\", deployment=\"video-api\"}",
+          "legendFormat": "prontas"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

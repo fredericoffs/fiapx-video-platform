@@ -6,6 +6,7 @@ import com.fiapx.videoapi.application.event.ProcessingResultMessage;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
 import com.fiapx.videoapi.domain.model.User;
 import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.domain.port.OutboxEventRepository;
 import com.fiapx.videoapi.domain.port.UserRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
@@ -67,6 +68,7 @@ public class ApplyProcessingResultUseCase {
     if (message.eventType() == ProcessingEventType.PROCESSING_STARTED) {
       if (video.startProcessing()) {
         videoRepository.save(video);
+        log.info("Vídeo {} em PROCESSING", video.getId());
       }
       return;
     }
@@ -79,6 +81,11 @@ public class ApplyProcessingResultUseCase {
 
     videoRepository.save(video);
     recordProcessingMetrics(video);
+    if (video.getStatus() == VideoStatus.FAILED) {
+      log.warn("Vídeo {} em FAILED: {}", video.getId(), video.getErrorMessage());
+    } else {
+      log.info("Vídeo {} em {}", video.getId(), video.getStatus());
+    }
 
     if (message.eventType() == ProcessingEventType.PROCESSING_FAILED) {
       String recipientEmail = resolveRecipientEmail(video);
@@ -90,6 +97,7 @@ public class ApplyProcessingResultUseCase {
           eventId, video.getId(), EVENT_TYPE_NOTIFICATION_REQUESTED, writeJson(payload), MDC.get("correlationId")
       );
       outboxEventRepository.save(event);
+      log.info("Notificação de falha do vídeo {} solicitada", video.getId());
     }
   }
 
