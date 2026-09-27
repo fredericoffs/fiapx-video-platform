@@ -83,6 +83,17 @@ grafana:
       access: proxy
       jsonData:
         maxLines: 1000
+    # CloudWatch (RDS, SQS, ElastiCache, S3, NLB): authType default usa a cadeia padrão do
+    # SDK, ou seja, o LabRole do nó via IMDS (hop limit 2 no launch template) — sem chave
+    # nem secret. Leitura confirmada no Learner Lab (docs/Learner_Lab.md: CloudWatch
+    # liberado; LabRole com permissões próximas às do usuário do console).
+    - name: CloudWatch
+      type: cloudwatch
+      uid: cloudwatch
+      access: proxy
+      jsonData:
+        authType: default
+        defaultRegion: us-east-1
   # limits.cpu baixo trava o boot da Grafana em CrashLoopBackOff (registra uma pilha
   # grande de apiservers internos no startup).
   # limits.memory em 384Mi OOMKillava o pod ~20min após o boot sob uso normal (dashboards

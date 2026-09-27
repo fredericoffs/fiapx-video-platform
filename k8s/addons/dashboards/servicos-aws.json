@@ -1,0 +1,975 @@
+{
+  "title": "FIAP X — Serviços AWS",
+  "uid": "fiapx-servicos-aws",
+  "description": "Métricas dos serviços gerenciados lidas do CloudWatch com o LabRole do nó. Atualiza a cada 1 min: o CloudWatch publica em janelas de 1 a 5 min e cada consulta tem custo por métrica.",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "fiapx"
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "RDS PostgreSQL (fiapx-postgres)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "CPU"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Conexões abertas",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "DatabaseConnections",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "conexões"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Soma dos pools Hikari do video-api e do notification-worker. Compare com o painel do pool em Saúde dos serviços."
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência de leitura e escrita",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "ReadLatency",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "leitura"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "WriteLatency",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "escrita"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória livre",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "FreeableMemory",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Minimum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "livre"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Armazenamento livre",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "FreeStorageSpace",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Minimum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "livre"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Créditos de CPU (instância burstable)",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/RDS",
+          "metricName": "CPUCreditBalance",
+          "dimensions": {
+            "DBInstanceIdentifier": [
+              "fiapx-postgres"
+            ]
+          },
+          "statistic": "Minimum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "saldo"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "db.t3.micro acumula créditos; saldo perto de zero limita a CPU do banco."
+    },
+    {
+      "type": "row",
+      "title": "SQS",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens visíveis por fila",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-processing"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "processamento"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-status-updates"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "status"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-notification"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "notificação"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Idade da mensagem mais antiga",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateAgeOfOldestMessage",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-processing"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "processamento"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateAgeOfOldestMessage",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-notification"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "notificação"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "description": "Cresce sem parar = ninguém está consumindo (worker fora ou sem réplicas suficientes)."
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens nas DLQs",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-processing-dlq"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "processamento-dlq"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-status-updates-dlq"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "status-dlq"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-notification-dlq"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "notificação-dlq"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Qualquer valor acima de 0 é mensagem que esgotou as tentativas."
+    },
+    {
+      "type": "timeseries",
+      "title": "Enviadas e recebidas (processamento)",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "NumberOfMessagesSent",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-processing"
+            ]
+          },
+          "statistic": "Sum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "enviadas"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "NumberOfMessagesReceived",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-processing"
+            ]
+          },
+          "statistic": "Sum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "recebidas"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Recebidas acima de enviadas indica reentregas (heartbeat perdido, crash de worker)."
+    },
+    {
+      "type": "timeseries",
+      "title": "Recebimentos vazios (long polling ocioso)",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/SQS",
+          "metricName": "NumberOfEmptyReceives",
+          "dimensions": {
+            "QueueName": [
+              "fiapx-video-processing"
+            ]
+          },
+          "statistic": "Sum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "vazios"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "ElastiCache Redis (fiapx-redis)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU do motor Redis",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 31
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/ElastiCache",
+          "metricName": "EngineCPUUtilization",
+          "dimensions": {
+            "CacheClusterId": [
+              "fiapx-redis"
+            ],
+            "CacheNodeId": [
+              "0001"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "CPU"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Conexões",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 31
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/ElastiCache",
+          "metricName": "CurrConnections",
+          "dimensions": {
+            "CacheClusterId": [
+              "fiapx-redis"
+            ],
+            "CacheNodeId": [
+              "0001"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "conexões"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "video-gateway (rate limit) e video-api (tentativas de login)."
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória usada",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 31
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/ElastiCache",
+          "metricName": "DatabaseMemoryUsagePercentage",
+          "dimensions": {
+            "CacheClusterId": [
+              "fiapx-redis"
+            ],
+            "CacheNodeId": [
+              "0001"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "uso"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Borda e armazenamento",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "NLB: conexões ativas",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/NetworkELB",
+          "metricName": "ActiveFlowCount",
+          "dimensions": {
+            "LoadBalancer": [
+              "*"
+            ]
+          },
+          "statistic": "Maximum",
+          "period": "",
+          "matchExact": false,
+          "id": "",
+          "expression": "",
+          "label": "conexões"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "O nome do NLB muda a cada subida do ambiente; a consulta usa curinga."
+    },
+    {
+      "type": "timeseries",
+      "title": "S3: tamanho dos buckets (atualiza 1x por dia)",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "AWS/S3",
+          "metricName": "BucketSizeBytes",
+          "dimensions": {
+            "BucketName": [
+              "*"
+            ],
+            "StorageType": [
+              "StandardStorage"
+            ]
+          },
+          "statistic": "Average",
+          "period": "86400",
+          "matchExact": false,
+          "id": "",
+          "expression": "",
+          "label": "${PROP('Dim.BucketName')}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "description": "Métrica diária da AWS: num ambiente recém-criado pode levar até 24h para aparecer."
+    }
+  ]
+}
