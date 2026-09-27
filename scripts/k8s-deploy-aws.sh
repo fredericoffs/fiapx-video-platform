@@ -122,7 +122,7 @@ LB_HOST="$(wait_for_lb_hostname)"
 echo "Hostname público: ${LB_HOST}"
 wait_for_dns "$LB_HOST"
 
-echo "==> [4/9] add-ons de cluster (metrics-server, KEDA, kube-prometheus-stack)"
+echo "==> [4/9] add-ons de cluster (metrics-server, KEDA, kube-prometheus-stack, Loki + Alloy)"
 "$ROOT_DIR/k8s/addons/install.sh"
 
 # Item 20 da revisão crítica: um Secret só, com todas as chaves, ia parar em todo pod via

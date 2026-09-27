@@ -1,0 +1,63 @@
+# Alloy coleta o stdout dos pods pela API do Kubernetes (loki.source.kubernetes) — sem
+# hostPath nem DaemonSet — e envia ao Loki. Só os namespaces da aplicação e do ingress:
+# são os logs que respondem "o que aconteceu com este vídeo".
+controller:
+  type: deployment
+  replicas: 1
+
+alloy:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  configMap:
+    content: |
+      discovery.kubernetes "pods" {
+        role = "pod"
+        namespaces {
+          names = ["fiapx", "ingress-nginx"]
+        }
+      }
+
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.process.json.receiver]
+      }
+
+      // Os serviços logam JSON (logstash): level vira label (poucos valores); correlationId
+      // e mensagem ficam no corpo, pesquisáveis com |= ou | json no Grafana.
+      loki.process "json" {
+        stage.json {
+          expressions = { level = "level" }
+        }
+        stage.labels {
+          values = { level = "" }
+        }
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
+        }
+      }
