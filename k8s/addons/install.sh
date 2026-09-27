@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# metrics-server, KEDA, kube-prometheus-stack.
+# metrics-server, KEDA, kube-prometheus-stack, Loki + Alloy (logs no Grafana).
 set -euo pipefail
 
 ADDONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +8,7 @@ helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >
 helm repo add kedacore https://kedacore.github.io/charts >/dev/null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null
 helm repo add jetstack https://charts.jetstack.io >/dev/null
+helm repo add grafana https://grafana.github.io/helm-charts >/dev/null
 helm repo update >/dev/null
 
 # Versões fixadas (item 20 da revisão crítica): sem --version, cada execução puxa o chart
@@ -60,6 +61,22 @@ else
     --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
     --wait --timeout 5m
 fi
+
+# Logs: o Grafana do kube-prometheus-stack já tem o datasource Loki (values/kube-prometheus-stack.yaml);
+# o Loki guarda 72h num PVC gp3 e o Alloy coleta o stdout dos pods de fiapx e ingress-nginx.
+echo "==> Loki (logs)"
+helm upgrade --install loki grafana/loki \
+  --namespace monitoring \
+  --version 7.3.0 \
+  --values "${ADDONS_DIR}/values/loki.yaml" \
+  --wait --timeout 5m
+
+echo "==> Alloy (coleta de logs dos pods)"
+helm upgrade --install alloy grafana/alloy \
+  --namespace monitoring \
+  --version 1.13.0 \
+  --values "${ADDONS_DIR}/values/alloy.yaml" \
+  --wait --timeout 3m
 
 echo "==> dashboards Grafana + alerta de profundidade de fila"
 kubectl apply -k "${ADDONS_DIR}"

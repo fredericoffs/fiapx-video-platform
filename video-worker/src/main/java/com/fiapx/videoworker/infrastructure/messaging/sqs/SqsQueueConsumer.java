@@ -25,6 +25,12 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
  * heartbeat estende a visibilidade da mensagem; a mensagem só é apagada depois do handler
  * retornar. Exceção comum: não apaga — o SQS reentrega e, após maxReceiveCount, move para a
  * DLQ (redrive). Corpo malformado vai direto para a DLQ, sem ocupar tentativas.
+ *
+ * <p>O primeiro heartbeat sai assim que a mensagem chega: a visibilidade cai do padrão da fila
+ * (960s, dimensionado pro ffmpeg) para a extensão curta, então um worker que morre no começo
+ * devolve a mensagem em minutos, não em 16. No desligamento (scale-down do KEDA, deploy) o
+ * consumo para de buscar mensagens mas termina a que está em andamento, em vez de
+ * interromper o ffmpeg e forçar o reprocessamento do zero em outro pod.
  */
 public class SqsQueueConsumer implements SmartLifecycle {
 
@@ -65,11 +71,16 @@ public class SqsQueueConsumer implements SmartLifecycle {
   public void stop() {
     running.set(false);
     if (loop != null) {
-      loop.interrupt();
+      // Sem interrupt: um long polling ocioso volta sozinho em até waitTimeSeconds, e uma
+      // mensagem em processamento termina (ffmpeg incluído) com o heartbeat ainda ativo.
       try {
-        loop.join(TimeUnit.SECONDS.toMillis(30));
+        loop.join(TimeUnit.SECONDS.toMillis(properties.shutdownDrainSeconds()));
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
+      }
+      if (loop.isAlive()) {
+        log.warn("Consumer SQS '{}' não terminou em {}s; interrompendo", name, properties.shutdownDrainSeconds());
+        loop.interrupt();
       }
     }
     heartbeats.shutdownNow();
@@ -104,7 +115,9 @@ public class SqsQueueConsumer implements SmartLifecycle {
         .build()).messages();
     for (Message message : messages) {
       if (!running.get() && loop != null) {
-        return;
+        // Chegou durante o desligamento: devolve já, em vez de esconder pelo padrão da fila.
+        release(message);
+        continue;
       }
       process(message);
     }
@@ -112,7 +125,7 @@ public class SqsQueueConsumer implements SmartLifecycle {
 
   private void process(Message message) {
     ScheduledFuture<?> heartbeat = heartbeats.scheduleAtFixedRate(() -> extendVisibility(message),
-        properties.heartbeatSeconds(), properties.heartbeatSeconds(), TimeUnit.SECONDS);
+        0, properties.heartbeatSeconds(), TimeUnit.SECONDS);
     try {
       handler.handle(message.body(), attributesOf(message));
       delete(message);
@@ -136,6 +149,18 @@ public class SqsQueueConsumer implements SmartLifecycle {
           .build());
     } catch (RuntimeException e) {
       log.warn("Heartbeat de visibilidade falhou para {} em '{}': {}", message.messageId(), name, e.getMessage());
+    }
+  }
+
+  private void release(Message message) {
+    try {
+      sqsClient.changeMessageVisibility(ChangeMessageVisibilityRequest.builder()
+          .queueUrl(queueUrl)
+          .receiptHandle(message.receiptHandle())
+          .visibilityTimeout(0)
+          .build());
+    } catch (RuntimeException e) {
+      log.warn("Não consegui devolver {} a '{}' no desligamento: {}", message.messageId(), name, e.getMessage());
     }
   }
 

@@ -12,6 +12,7 @@ configMapGenerator:
       - dashboards/volume-videos-processados.json
       - dashboards/duracao-processamento.json
       - dashboards/erros-circuit-breakers.json
+      - dashboards/logs-aplicacao.json
     options:
       labels:
         grafana_dashboard: "1"

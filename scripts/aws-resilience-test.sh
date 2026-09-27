@@ -194,8 +194,10 @@ record() { RESULTS+=("$1"); log "$1"; }
 # --- cenario 1: pico de uploads simultaneos ------------------------------------------------
 scenario_burst() {
   log ""
-  log "== [burst] $BURST uploads simultaneos"
-  local i pids=() accepted=0 rejected=0 others=0 persisted completed failed failed_no_msg missing
+  local i pids=() accepted=0 rejected=0 others=0 persisted completed failed failed_no_msg missing capacity
+  capacity="$(kubectl -n "$NAMESPACE" get configmap fiapx-config -o jsonpath='{.data.GATEWAY_RATE_LIMIT_CAPACITY}' 2>/dev/null || true)"
+  [[ "$capacity" =~ ^[0-9]+$ ]] || capacity=20
+  log "== [burst] $BURST uploads simultaneos (cota do gateway: $capacity POST /videos por minuto por IP)"
   for (( i = 0; i < BURST; i++ )); do
     upload_once "$SAMPLE" >"$tmp_dir/burst-$i" &
     pids+=("$!")
@@ -220,6 +222,11 @@ scenario_burst() {
   fi
   if (( others > 0 )); then
     record "FALHOU burst: $others resposta(s) fora de 201/429"; return 1
+  fi
+  # Todos os POST saem do mesmo IP no mesmo segundo: acima da cota, o gateway tem que recusar.
+  # Nenhum 429 aqui significa que o rate limit nao ve o IP do cliente (ex.: conta por no).
+  if (( BURST > capacity && accepted > capacity )); then
+    record "FALHOU burst: $accepted aceitos com cota de $capacity por IP — o rate limit nao ve o IP do cliente?"; return 1
   fi
   if [[ "$persisted" != "$accepted" ]]; then
     record "FALHOU burst: $persisted persistidos, mas $accepted aceitos (um 429 virou video ou um 201 sumiu)"; return 1

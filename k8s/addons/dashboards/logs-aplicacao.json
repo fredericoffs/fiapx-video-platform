@@ -1,0 +1,61 @@
+{
+  "title": "FIAP X — Logs da aplicação",
+  "uid": "fiapx-logs-aplicacao",
+  "description": "Logs dos 4 serviços e do ingress, coletados pelo Alloy e guardados no Loki (72h). Busque por videoId ou correlationId para seguir um vídeo por todos os serviços.",
+  "schemaVersion": 39,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "tags": ["fiapx"],
+  "templating": {
+    "list": [
+      {
+        "name": "app",
+        "label": "Serviço",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": { "label": "app", "stream": "{namespace=\"fiapx\"}", "type": 1 },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] }
+      },
+      {
+        "name": "busca",
+        "label": "videoId, correlationId ou texto",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Volume de logs por nível",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (level) (count_over_time({namespace=\"fiapx\", app=~\"$app\"} |= \"$busca\" [$__auto]))",
+          "legendFormat": "{{level}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" } } }, "overrides": [] }
+    },
+    {
+      "type": "logs",
+      "title": "Logs (mais recentes primeiro)",
+      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=\"fiapx\", app=~\"$app\"} |= \"$busca\""
+        }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true, "prettifyLogMessage": false }
+    }
+  ]
+}

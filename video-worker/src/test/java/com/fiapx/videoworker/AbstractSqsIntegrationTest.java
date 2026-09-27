@@ -33,6 +33,10 @@ abstract class AbstractSqsIntegrationTest {
     registry.add("fiapx.sqs.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
     registry.add("fiapx.sqs.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);
     registry.add("fiapx.sqs.wait-time-seconds", () -> "1");
+    // O heartbeat imediato fixa a visibilidade na extensão ao receber: com os 120s de produção,
+    // o redrive (vários receives até a DLQ) não caberia no tempo dos testes.
+    registry.add("fiapx.sqs.heartbeat-seconds", () -> "1");
+    registry.add("fiapx.sqs.visibility-extension-seconds", () -> "2");
     registry.add("fiapx.storage.endpoint", () -> SqsTestSupport.LOCALSTACK.getEndpoint().toString());
     registry.add("fiapx.storage.access-key", SqsTestSupport.LOCALSTACK::getAccessKey);
     registry.add("fiapx.storage.secret-key", SqsTestSupport.LOCALSTACK::getSecretKey);

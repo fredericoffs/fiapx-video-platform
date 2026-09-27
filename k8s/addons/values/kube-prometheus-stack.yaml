@@ -51,6 +51,16 @@ alertmanager:
         webhook_configs: []
 
 grafana:
+  # Logs: o Loki (values/loki.yaml) recebe o stdout dos pods pelo Alloy; uid fixo pro
+  # dashboard dashboards/logs-aplicacao.json referenciar.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc:3100
+      access: proxy
+      jsonData:
+        maxLines: 1000
   # limits.cpu baixo trava o boot da Grafana em CrashLoopBackOff (registra uma pilha
   # grande de apiservers internos no startup).
   # limits.memory em 384Mi OOMKillava o pod ~20min após o boot sob uso normal (dashboards

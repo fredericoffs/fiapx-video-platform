@@ -1,6 +1,10 @@
 spring:
   application:
     name: video-worker
+  # O consumer SQS segura o desligamento até terminar o vídeo em andamento
+  # (fiapx.sqs.shutdown-drain-seconds = 960); a fase de shutdown não pode cortar antes.
+  lifecycle:
+    timeout-per-shutdown-phase: 17m
   threads:
     virtual:
       enabled: true
