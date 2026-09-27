@@ -75,14 +75,15 @@ if [[ -z "$HOST" ]]; then
     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
   [[ -n "$HOST" ]] || { echo "Erro: nao achei o host do ingress; passe --host" >&2; exit 2; }
 fi
-BASE_URL="http://$HOST"
+# Certificado autoassinado (k8s/apps/base/certificate.yaml): -k e esperado aqui.
+BASE_URL="https://$HOST"
 
 : >"$LOG_FILE"
 log() { echo "$*" | tee -a "$LOG_FILE"; }
 
 # --- login (cadastra o usuario se ainda nao existir) -------------------------------------
 login() {
-  curl -sS -X POST "$BASE_URL/auth/login" -H 'Content-Type: application/json' \
+  curl -sS -k -X POST "$BASE_URL/auth/login" -H 'Content-Type: application/json' \
     -d "$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p}')" \
     -w '\n%{http_code}'
 }
@@ -91,7 +92,7 @@ login_response="$(login)"
 login_status="${login_response##*$'\n'}"
 if [[ "$login_status" == "401" ]]; then
   log "Usuario $EMAIL nao existe (ou senha errada) — tentando cadastrar"
-  register_status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/auth/register" \
+  register_status="$(curl -sS -k -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/auth/register" \
     -H 'Content-Type: application/json' \
     -d "$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p}')")"
   [[ "$register_status" == "201" ]] || { echo "Erro: cadastro falhou (HTTP $register_status)" >&2; exit 2; }
@@ -111,7 +112,7 @@ tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 pids=()
 for i in "${!FILES[@]}"; do
-  curl -sS -X POST "$BASE_URL/videos" -H "Authorization: Bearer $TOKEN" \
+  curl -sS -k -X POST "$BASE_URL/videos" -H "Authorization: Bearer $TOKEN" \
     -F "file=@${FILES[$i]}" -o "$tmp_dir/upload-$i.json" -w '%{http_code}' >"$tmp_dir/status-$i" &
   pids+=("$!")
 done
@@ -144,7 +145,7 @@ while :; do
   ready="$(kubectl -n "$NAMESPACE" get deploy video-worker -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)"
   ready="${ready:-0}"
   [[ "$replicas" =~ ^[0-9]+$ ]] || replicas=0
-  statuses="$(curl -sS "$BASE_URL/videos?size=100" -H "Authorization: Bearer $TOKEN" \
+  statuses="$(curl -sS -k "$BASE_URL/videos?size=100" -H "Authorization: Bearer $TOKEN" \
     | jq -r --argjson ids "$ids_json" \
       '[.items[] | select(.id as $i | $ids | index($i))] | map(.status) | join(",")' 2>/dev/null || echo '?')"
   processing="$(tr ',' '\n' <<<"$statuses" | grep -c '^PROCESSING$' || true)"
