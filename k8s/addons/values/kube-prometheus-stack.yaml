@@ -76,6 +76,8 @@ alertmanager:
           matchers: ['alertname = "Watchdog"']
         - receiver: "null"
           matchers: ['severity = "info"']
+        - receiver: "null"
+          matchers: ['alertname = "InfoInhibitor"']
     receivers:
       - name: default
         webhook_configs: []
