@@ -155,21 +155,30 @@ error_message="$(jq -r '.errorMessage // empty' <<<"$final")"
 [[ -n "$error_message" ]] || fail "video FAILED sem errorMessage"
 echo "    FAILED: $error_message"
 
-step "[6/7] notificacao de falha no log do notification-worker"
+step "[6/7] notificacao de falha pelo canal EMAIL no log do notification-worker"
+# Espera especificamente o EMAIL: com uma falha temporaria de SMTP, o webhook (alerta
+# operacional) sai antes e a reentrega do SQS entrega o e-mail depois — isso e recuperacao
+# correta, nao falha.
 deadline=$(( $(date +%s) + TIMEOUT ))
 notified=""
+webhook_seen=""
 while (( $(date +%s) < deadline )); do
-  notified="$(kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/name=notification-worker \
-    --since-time="$started_at" --tail=-1 --max-log-requests=10 2>/dev/null \
-    | grep "$INVALID_ID" | grep -o 'enviada pelo canal [A-Z]*' | head -1 || true)"
-  [[ -n "$notified" ]] && break
+  notification_logs="$(kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/name=notification-worker \
+    --since-time="$started_at" --tail=-1 --max-log-requests=10 2>/dev/null | grep "$INVALID_ID" || true)"
+  grep -q 'enviada pelo canal WEBHOOK' <<<"$notification_logs" && webhook_seen="sim"
+  if grep -q 'enviada pelo canal EMAIL' <<<"$notification_logs"; then
+    notified="enviada pelo canal EMAIL"
+    break
+  fi
   sleep 5
 done
-[[ -n "$notified" ]] || fail "nenhuma notificacao enviada para o video $INVALID_ID em ${TIMEOUT}s (ver logs do notification-worker)"
-echo "    notificacao $notified (destinatario $EMAIL)"
-# E-mail e o unico canal que chega ao usuario; o webhook e so alerta operacional.
-[[ "$notified" == "enviada pelo canal EMAIL" ]] \
-  || fail "notificacao saiu pelo fallback ($notified): o e-mail ao usuario falhou (ver logs do notification-worker)"
+if [[ -z "$notified" ]]; then
+  if [[ -n "$webhook_seen" ]]; then
+    fail "so o alerta por webhook saiu para o video $INVALID_ID; o e-mail ao usuario nao foi entregue em ${TIMEOUT}s"
+  fi
+  fail "nenhuma notificacao por e-mail para o video $INVALID_ID em ${TIMEOUT}s (ver logs do notification-worker)"
+fi
+echo "    notificacao $notified (destinatario $EMAIL)${webhook_seen:+ — antes, alerta por webhook: o e-mail se recuperou numa reentrega}"
 
 step "[7/7] chegada do e-mail na caixa do destinatario (IMAP)"
 delivery="nao verificada (sem SMTP_USER/SMTP_PASSWORD)"

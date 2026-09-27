@@ -120,6 +120,8 @@ public class ProcessVideoUseCase {
             "application/zip");
       }
 
+      // Evidência por pod (kubectl logs --prefix) usada por scripts/aws-resilience-test.sh.
+      log.info("Vídeo {} processado: zip em {}", payload.videoId(), zipKey);
       return ProcessingResult.success(payload.videoId(), zipKey);
     } catch (FfmpegProcessingException | UnsupportedVideoInputException businessFailure) {
       return ProcessingResult.failure(payload.videoId(), businessFailure.getMessage());

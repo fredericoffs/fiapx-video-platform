@@ -244,7 +244,7 @@ worker_pods() {
 scenario_worker() {
   log ""
   log "== [worker] crash do video-worker durante o processamento"
-  local video="$LONG_VIDEO" id deadline killed_at old_pods pod still_old new_ready completed _failed _failed_no_msg _missing
+  local video="$LONG_VIDEO" id deadline killed_at old_pods pod still_old new_ready finisher completed _failed _failed_no_msg _missing
   if [[ -z "$video" ]]; then
     video="$tmp_dir/longo.mp4"
     log "   gerando video de teste (600s, 854x480)"
@@ -273,6 +273,12 @@ scenario_worker() {
     record "FALHOU worker: kubectl delete pod falhou (permissao/conexao?) — ver o log"; return 1
   fi
   killed_at="$(now)"
+  # Checado logo apos o delete, antes de qualquer substituto subir: COMPLETED aqui so pode
+  # ter vindo do worker antigo, entao o crash nao interrompeu nada.
+  snapshot >"$tmp_dir/last" || true
+  if grep -q "^$id COMPLETED " "$tmp_dir/last"; then
+    record "INCONCLUSIVO worker: o video concluiu antes da interrupcao — use um --long-video maior"; return 1
+  fi
 
   # Substituicao confirmada: nenhum pod antigo sobrou e ha pelo menos um pod novo pronto.
   deadline=$(( $(now) + 300 ))
@@ -293,10 +299,6 @@ scenario_worker() {
   done
   log "   pods substituidos em $(( $(now) - killed_at ))s: $(worker_pods | cut -d' ' -f1 | tr '\n' ' ')"
 
-  snapshot >"$tmp_dir/last" || true
-  if grep -q "^$id COMPLETED " "$tmp_dir/last"; then
-    record "INCONCLUSIVO worker: o video aparece COMPLETED logo apos o crash — use um --long-video maior"; return 1
-  fi
   log "   aguardando a reentrega (visibilidade <=120s, lease 90s) reprocessar o video"
 
   if ! wait_terminal "$tmp_dir/worker-ids" worker; then
@@ -306,7 +308,17 @@ scenario_worker() {
   if (( completed != 1 )); then
     record "FALHOU worker: video terminou FAILED em vez de ser reprocessado (ver errorMessage em /videos/$id)"; return 1
   fi
-  record "OK worker: pods $(echo "$old_pods" | wc -l | tr -d ' ') substituidos, video reprocessado e COMPLETED $(( $(now) - killed_at ))s apos o crash"
+  # Quem concluiu: os logs dos pods mortos somem com eles, entao uma linha de conclusao deste
+  # video num pod que nao estava na lista antiga prova que foi o substituto.
+  finisher="$(kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/name=video-worker --prefix --tail=-1 \
+    --max-log-requests=10 2>/dev/null | grep "$id" | grep -E 'processado(: zip em| \(zip existente)' \
+    | sed -E 's|^\[pod/([^/]+)/.*|\1|' | while read -r pod; do
+        grep -qx "$pod" <<<"$old_pods" || echo "$pod"
+      done | head -1)"
+  if [[ -z "$finisher" ]]; then
+    record "INCONCLUSIVO worker: video COMPLETED, mas nenhum pod novo registrou a conclusao de $id"; return 1
+  fi
+  record "OK worker: $(echo "$old_pods" | wc -l | tr -d ' ') pod(s) derrubado(s) com o video em PROCESSING; o substituto $finisher concluiu $(( $(now) - killed_at ))s apos o crash"
 }
 
 # --- cenario 3: SQS indisponivel --------------------------------------------------------------
