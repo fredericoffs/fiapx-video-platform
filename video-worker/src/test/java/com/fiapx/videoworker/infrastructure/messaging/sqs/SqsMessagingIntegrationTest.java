@@ -193,6 +193,81 @@ class SqsMessagingIntegrationTest {
   }
 
   @Test
+  void releaseFailureDuringShutdownIsOnlyLogged() {
+    SqsClient client = org.mockito.Mockito.mock(SqsClient.class);
+    Message message = Message.builder().messageId("m-2").receiptHandle("rh-2").body("{}").build();
+    org.mockito.Mockito.when(client.receiveMessage(org.mockito.ArgumentMatchers.any(ReceiveMessageRequest.class)))
+        .thenAnswer(invocation -> {
+          sleep(1_000);
+          return ReceiveMessageResponse.builder().messages(message).build();
+        });
+    org.mockito.Mockito.when(client.changeMessageVisibility(
+            org.mockito.ArgumentMatchers.any(ChangeMessageVisibilityRequest.class)))
+        .thenThrow(new IllegalStateException("SQS fora"));
+    AtomicInteger handled = new AtomicInteger();
+    SqsQueueConsumer consumer = new SqsQueueConsumer(client, drainingIn(5), "q", "url-q", null, 1,
+        (body, attributes) -> handled.incrementAndGet());
+
+    consumer.start();
+    sleep(200);
+    consumer.stop();
+
+    assertThat(handled.get()).isZero();
+    assertThat(consumer.isRunning()).isFalse();
+  }
+
+  @Test
+  void stopInterruptsAHandlerThatOutlivesTheDrainTimeout() {
+    SqsClient client = org.mockito.Mockito.mock(SqsClient.class);
+    Message message = Message.builder().messageId("m-3").receiptHandle("rh-3").body("{}").build();
+    org.mockito.Mockito.when(client.receiveMessage(org.mockito.ArgumentMatchers.any(ReceiveMessageRequest.class)))
+        .thenReturn(ReceiveMessageResponse.builder().messages(message).build());
+    java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicBoolean interrupted = new java.util.concurrent.atomic.AtomicBoolean();
+    SqsQueueConsumer consumer = new SqsQueueConsumer(client, drainingIn(1), "q", "url-q", null, 1,
+        (body, attributes) -> {
+          started.countDown();
+          try {
+            Thread.sleep(30_000);
+          } catch (InterruptedException e) {
+            interrupted.set(true);
+          }
+        });
+
+    consumer.start();
+    await().atMost(Duration.ofSeconds(5)).until(() -> started.getCount() == 0);
+    long before = System.nanoTime();
+    consumer.stop();
+
+    assertThat(Duration.ofNanos(System.nanoTime() - before)).isLessThan(Duration.ofSeconds(10));
+    await().atMost(Duration.ofSeconds(5)).untilTrue(interrupted);
+  }
+
+  @Test
+  void pollingErrorIsRetriedAndStopEndsTheBackoff() {
+    SqsClient client = org.mockito.Mockito.mock(SqsClient.class);
+    AtomicInteger receives = new AtomicInteger();
+    org.mockito.Mockito.when(client.receiveMessage(org.mockito.ArgumentMatchers.any(ReceiveMessageRequest.class)))
+        .thenAnswer(invocation -> {
+          receives.incrementAndGet();
+          throw new IllegalStateException("SQS indisponível");
+        });
+    SqsQueueConsumer consumer = new SqsQueueConsumer(client, drainingIn(1), "q", "url-q", null, 1,
+        (body, attributes) -> { });
+
+    consumer.start();
+    await().atMost(Duration.ofSeconds(5)).until(() -> receives.get() >= 1);
+    consumer.stop(); // o loop está nos 5s de espera: o prazo de 1s vence e o interrupt encerra
+
+    assertThat(consumer.isRunning()).isFalse();
+    assertThat(receives.get()).isEqualTo(1);
+  }
+
+  private static SqsProperties drainingIn(int seconds) {
+    return new SqsProperties("us-east-1", "", "", "", 1, 30, 120, 30_000L, seconds);
+  }
+
+  @Test
   void gaugeExposesApproximateQueueDepth() {
     String queue = "t-depth-" + System.nanoTime();
     SqsTestSupport.createPlainQueues(sqs, List.of(queue));
