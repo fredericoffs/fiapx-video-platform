@@ -26,7 +26,7 @@ public final class SqsTestSupport {
 
   public static SqsProperties properties(int heartbeatSeconds, int visibilityExtensionSeconds) {
     return new SqsProperties(LOCALSTACK.getRegion(), LOCALSTACK.getEndpoint().toString(), LOCALSTACK.getAccessKey(),
-        LOCALSTACK.getSecretKey(), 1, heartbeatSeconds, visibilityExtensionSeconds, 30_000L);
+        LOCALSTACK.getSecretKey(), 1, heartbeatSeconds, visibilityExtensionSeconds, 30_000L, 60);
   }
 
   public static SqsClient client() {

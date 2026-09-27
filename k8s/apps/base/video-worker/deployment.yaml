@@ -16,6 +16,11 @@ spec:
       labels:
         app.kubernetes.io/name: video-worker
     spec:
+      # Scale-down do KEDA e deploy mandam SIGTERM num pod que pode estar no meio do ffmpeg:
+      # o consumer termina o vídeo em andamento (até 960s, SqsProperties.shutdownDrainSeconds)
+      # antes de sair. Com o padrão de 30s o SIGKILL chegava antes e o vídeo era refeito do
+      # zero em outro pod.
+      terminationGracePeriodSeconds: 1020
       containers:
         - name: video-worker
           image: fiapx/video-worker:local

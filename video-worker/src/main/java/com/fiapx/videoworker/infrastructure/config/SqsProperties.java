@@ -16,7 +16,10 @@ public record SqsProperties(
     @DefaultValue("20") int waitTimeSeconds,
     @DefaultValue("30") int heartbeatSeconds,
     @DefaultValue("120") int visibilityExtensionSeconds,
-    @DefaultValue("30000") long depthPollMillis
+    @DefaultValue("30000") long depthPollMillis,
+    // Prazo pra terminar a mensagem em andamento no desligamento (scale-down, deploy): cobre o
+    // timeout do ffmpeg (15 min). terminationGracePeriodSeconds do Deployment fica acima dele.
+    @DefaultValue("960") int shutdownDrainSeconds
 ) {
 
   public boolean hasEndpointOverride() {
