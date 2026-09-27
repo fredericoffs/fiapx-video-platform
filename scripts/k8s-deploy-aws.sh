@@ -86,8 +86,10 @@ NOTIFICATION_WEBHOOK_URL="${NOTIFICATION_WEBHOOK_URL:-$(ssm_param "/${PROJECT}/n
 [ -n "$DB_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/db/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$JWT_SECRET" ] || { echo "parâmetro SSM /${PROJECT}/jwt/secret não encontrado (terraform apply rodou?)" >&2; exit 1; }
 [ -n "$ADMIN_SEED_PASSWORD" ] || { echo "parâmetro SSM /${PROJECT}/admin/password não encontrado (terraform apply rodou?)" >&2; exit 1; }
-if [ -z "$NOTIFICATION_WEBHOOK_URL" ] && { [ -z "${SMTP_HOST:-}" ] || [ "${SMTP_HOST:-}" = "smtp.invalid" ]; }; then
-  echo "configure NOTIFICATION_WEBHOOK_URL ou SMTP_HOST real antes de publicar" >&2
+# E-mail é o único canal que chega ao usuário; o webhook (opcional) é só alerta operacional
+# pra equipe, sem dado pessoal no payload — então SMTP real é obrigatório.
+if [ -z "${SMTP_HOST:-}" ] || [ "${SMTP_HOST:-}" = "smtp.invalid" ]; then
+  echo "configure SMTP_HOST real (PROD_SMTP_HOST) antes de publicar: é o canal que notifica o usuário" >&2
   exit 1
 fi
 : "${ALERTMANAGER_WEBHOOK_URL:?configure um receptor compatível com o webhook do Alertmanager}"

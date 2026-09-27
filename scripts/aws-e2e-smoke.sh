@@ -2,8 +2,9 @@
 # Teste de ponta a ponta contra o ambiente implantado (URL publica do ingress), sem nada
 # simulado: cadastro -> upload real -> ffmpeg no video-worker -> COMPLETED -> download ->
 # abre o zip e confere os frames; depois um arquivo que nao e video -> FAILED -> notificacao
-# de falha confirmada no log do notification-worker. Roda no fim do job deploy do cd-aws.yml
-# e tambem localmente (kubectl apontando pro cluster).
+# de falha confirmada no log do notification-worker e, via IMAP, na caixa de entrada do
+# destinatario. Roda no fim do job deploy do cd-aws.yml e tambem localmente (kubectl
+# apontando pro cluster).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,6 +25,11 @@ Opcoes:
 O usuario do teste e criado a cada execucao. O e-mail dele (destinatario da notificacao de
 falha) e um plus-address de NOTIFICATION_FROM (ex.: conta+e2e-<ts>@gmail.com), para a
 mensagem cair na propria caixa da conta remetente; sem NOTIFICATION_FROM, usa @example.com.
+
+Com SMTP_USER e SMTP_PASSWORD no ambiente (a mesma App Password do Gmail), a etapa final
+entra na INBOX dessa conta por IMAP (IMAP_HOST; padrao: SMTP_HOST com smtp. -> imap.) e
+exige a mensagem com o videoId — prova de chegada, nao so de envio. Sem elas, essa etapa e
+pulada com aviso.
 
 Codigos de saida:
   0  Todas as etapas passaram.
@@ -83,7 +89,7 @@ fi
 PASSWORD="e2e-$(openssl rand -hex 12)"
 credentials="$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p}')"
 
-step "[1/6] cadastro e login de $EMAIL em $BASE_URL"
+step "[1/7] cadastro e login de $EMAIL em $BASE_URL"
 status="$("${CURL[@]}" -o "$tmp_dir/register.json" -w '%{http_code}' -X POST "$BASE_URL/auth/register" \
   -H 'Content-Type: application/json' -d "$credentials")"
 [[ "$status" == "201" ]] || fail "cadastro retornou HTTP $status: $(cat "$tmp_dir/register.json")"
@@ -115,17 +121,17 @@ wait_terminal() {
   fail "video $id nao terminou em ${TIMEOUT}s (ultimo status: ${st:-desconhecido})"
 }
 
-step "[2/6] upload do video valido ($(basename "$VIDEO"))"
+step "[2/7] upload do video valido ($(basename "$VIDEO"))"
 VALID_ID="$(upload "$VIDEO" "$tmp_dir/upload-valid.json")"
 echo "    id=$VALID_ID"
 
-step "[3/6] aguardando o processamento real (ffmpeg no video-worker)"
+step "[3/7] aguardando o processamento real (ffmpeg no video-worker)"
 final="$(wait_terminal "$VALID_ID")"
 [[ "$(jq -r '.status' <<<"$final")" == "COMPLETED" ]] \
   || fail "video valido terminou como $(jq -r '.status' <<<"$final"): $(jq -r '.errorMessage' <<<"$final")"
 echo "    COMPLETED"
 
-step "[4/6] download e conferencia do zip"
+step "[4/7] download e conferencia do zip"
 zip_file="$tmp_dir/frames.zip"
 status="$("${CURL[@]}" -o "$zip_file" -w '%{http_code}' "$BASE_URL/videos/$VALID_ID/download" "${AUTH[@]}")"
 [[ "$status" == "200" ]] || fail "download retornou HTTP $status"
@@ -137,7 +143,7 @@ magic="$(unzip -p "$zip_file" "$first_frame" | head -c 8 | od -An -tx1 | tr -d '
 [[ "$magic" == "89504e470d0a1a0a" ]] || fail "$first_frame nao e um PNG valido (assinatura $magic)"
 echo "    $frames frame(s) PNG validos no zip ($(wc -c <"$zip_file" | tr -d ' ') bytes)"
 
-step "[5/6] upload de um arquivo que nao e video (extensao .mp4)"
+step "[5/7] upload de um arquivo que nao e video (extensao .mp4)"
 invalid_file="$tmp_dir/nao-e-video.mp4"
 echo "isto nao e um video — teste e2e $stamp" >"$invalid_file"
 INVALID_ID="$(upload "$invalid_file" "$tmp_dir/upload-invalid.json")"
@@ -149,7 +155,7 @@ error_message="$(jq -r '.errorMessage // empty' <<<"$final")"
 [[ -n "$error_message" ]] || fail "video FAILED sem errorMessage"
 echo "    FAILED: $error_message"
 
-step "[6/6] notificacao de falha no log do notification-worker"
+step "[6/7] notificacao de falha no log do notification-worker"
 deadline=$(( $(date +%s) + TIMEOUT ))
 notified=""
 while (( $(date +%s) < deadline )); do
@@ -161,6 +167,55 @@ while (( $(date +%s) < deadline )); do
 done
 [[ -n "$notified" ]] || fail "nenhuma notificacao enviada para o video $INVALID_ID em ${TIMEOUT}s (ver logs do notification-worker)"
 echo "    notificacao $notified (destinatario $EMAIL)"
+# E-mail e o unico canal que chega ao usuario; o webhook e so alerta operacional.
+[[ "$notified" == "enviada pelo canal EMAIL" ]] \
+  || fail "notificacao saiu pelo fallback ($notified): o e-mail ao usuario falhou (ver logs do notification-worker)"
+
+step "[7/7] chegada do e-mail na caixa do destinatario (IMAP)"
+delivery="nao verificada (sem SMTP_USER/SMTP_PASSWORD)"
+if [[ -n "${SMTP_USER:-}" && -n "${SMTP_PASSWORD:-}" ]]; then
+  require_cmd python3
+  imap_host="${IMAP_HOST:-${SMTP_HOST:-smtp.gmail.com}}"
+  imap_host="${imap_host/#smtp./imap.}"
+  deadline=$(( $(date +%s) + TIMEOUT ))
+  found=""
+  while (( $(date +%s) < deadline )); do
+    # So a INBOX: a copia em Enviados provaria o envio, nao a chegada.
+    if found="$(IMAP_PASSWORD="$SMTP_PASSWORD" python3 - "$imap_host" "$SMTP_USER" "$EMAIL" "$INVALID_ID" <<'PY'
+import email, imaplib, os, sys
+host, user, to, video_id = sys.argv[1:]
+try:
+    box = imaplib.IMAP4_SSL(host)
+    box.login(user, os.environ["IMAP_PASSWORD"])
+except (OSError, imaplib.IMAP4.error) as e:
+    print("IMAP %s: %s" % (host, e), file=sys.stderr)
+    sys.exit(2)
+box.select("INBOX", readonly=True)
+_, data = box.search(None, "TO", '"%s"' % to)
+for num in data[0].split():
+    _, parts = box.fetch(num, "(RFC822)")
+    msg = email.message_from_bytes(parts[0][1])
+    for part in msg.walk():
+        payload = part.get_payload(decode=True)
+        if payload and video_id.encode() in payload:
+            print("%s | %s" % (msg.get("Date"), msg.get("Subject")))
+            sys.exit(0)
+sys.exit(1)
+PY
+    )"; then
+      break
+    else
+      rc=$?
+      (( rc == 2 )) && fail "nao consegui entrar na caixa $SMTP_USER por IMAP em $imap_host (App Password?)"
+    fi
+    sleep 10
+  done
+  [[ -n "$found" ]] || fail "e-mail para $EMAIL com o video $INVALID_ID nao chegou na INBOX de $SMTP_USER em ${TIMEOUT}s"
+  delivery="chegou na INBOX ($found)"
+  echo "    $delivery"
+else
+  echo "    aviso: SMTP_USER/SMTP_PASSWORD ausentes — chegada do e-mail nao verificada" >&2
+fi
 
 echo
 echo "OK: fluxo completo validado contra $BASE_URL"
@@ -170,5 +225,6 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo
     echo "- Upload real → \`COMPLETED\` → zip com **$frames** frame(s) PNG válidos"
     echo "- Arquivo inválido → \`FAILED\` (\`$error_message\`) → notificação $notified"
+    echo "- E-mail para \`$EMAIL\`: $delivery"
   } >>"$GITHUB_STEP_SUMMARY"
 fi

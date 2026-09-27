@@ -42,10 +42,7 @@ public class WebhookChannel implements NotificationChannel {
       restClient.post()
           .uri(url)
           .contentType(MediaType.APPLICATION_JSON)
-          // Registro (record), não Map.of: recipientEmail nunca deveria vir nulo em produção
-          // (SendFailureNotificationUseCase sempre propaga o do evento), mas Map.of lançaria
-          // NullPointerException se algum dia vier — um record serializa null sem quebrar.
-          .body(new WebhookPayload(videoId.toString(), errorMessage, recipientEmail))
+          .body(new WebhookPayload(videoId.toString(), errorMessage))
           .retrieve()
           .toBodilessEntity();
     } catch (RestClientException e) {
@@ -62,9 +59,11 @@ public class WebhookChannel implements NotificationChannel {
         new NotificationDeliveryException("Canal de webhook indisponível para o vídeo " + videoId, t));
   }
 
-  // O destinatário precisa estar no payload pra quem recebe o webhook conseguir notificar o
-  // dono de verdade — antes desta correção o corpo só tinha videoId/errorMessage.
-  private record WebhookPayload(String videoId, String errorMessage, String recipientEmail) {
+  // Alerta operacional, não entrega ao usuário: o webhook avisa a equipe de que o e-mail não
+  // saiu, e quem recebe localiza o dono pelo videoId no painel admin (/admin/videos). Por isso
+  // o e-mail do usuário fica fora do payload — minimização de dados pessoais (LGPD) num
+  // endpoint global de terceiros. recipientEmail continua na assinatura por causa da porta.
+  private record WebhookPayload(String videoId, String errorMessage) {
 
   }
 }

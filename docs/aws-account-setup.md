@@ -41,8 +41,8 @@ pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
 ```
 
 Ou à mão: `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`. Não há mais `AWS_SESSION_TOKEN`.
-Além das credenciais, o deploy exige `PROD_ALERTMANAGER_WEBHOOK_URL` e pelo menos um canal real de
-notificação (`PROD_NOTIFICATION_WEBHOOK_URL` ou `PROD_SMTP_*`). A tabela completa, com o que é
+Além das credenciais, o deploy exige `PROD_ALERTMANAGER_WEBHOOK_URL` e SMTP real (`PROD_SMTP_*` +
+`PROD_NOTIFICATION_FROM`); `PROD_NOTIFICATION_WEBHOOK_URL` é opcional (alerta operacional). A tabela completa, com o que é
 obrigatório e como configurar cada receptor, está na seção "Deploy na AWS (EKS)" do README.
 
 ## 5. Primeira subida

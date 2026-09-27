@@ -190,6 +190,10 @@ jobs:
       # e conferência do zip, mais o caminho de falha até a notificação — tudo pela URL pública.
       - name: Teste E2E contra o ambiente implantado
         env:
-          # Destinatário da notificação de falha vira plus-address desta conta.
+          # Destinatário da notificação de falha vira plus-address desta conta; as mesmas
+          # credenciais do SMTP abrem a INBOX por IMAP pra provar que o e-mail chegou.
           NOTIFICATION_FROM: ${{ vars.PROD_NOTIFICATION_FROM }}
+          SMTP_HOST: ${{ vars.PROD_SMTP_HOST }}
+          SMTP_USER: ${{ secrets.PROD_SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.PROD_SMTP_PASSWORD }}
         run: ./scripts/aws-e2e-smoke.sh

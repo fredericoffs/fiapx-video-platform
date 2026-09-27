@@ -97,11 +97,11 @@ Tudo roda pelo GitHub Actions, no Environment `AWS` (Settings → Environments �
 |---|---|---|---|
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | secret | **sim** | Credenciais do Learner Lab. Expiram a cada sessão; renove com `scripts/aws-sync-gh-secrets.sh` (abaixo). |
 | `PROD_ALERTMANAGER_WEBHOOK_URL` | secret | **sim** | Receptor dos alertas do Alertmanager (ex.: fila de alta profundidade). Sem ele o deploy para em `k8s-deploy-aws.sh`, porque os alertas não chegariam a lugar nenhum. |
-| `PROD_NOTIFICATION_WEBHOOK_URL` | secret | **pelo menos um dos dois canais** | Webhook de fallback das notificações de falha. O Terraform grava em `/fiapx/notification/webhook-url` no SSM. |
-| `PROD_SMTP_HOST` + `PROD_SMTP_USER` + `PROD_SMTP_PASSWORD` + `PROD_NOTIFICATION_FROM` | var + secret + secret + var | **pelo menos um dos dois canais** | E-mail das notificações de falha (porta 587, STARTTLS). Sem nenhum canal real, o deploy para: `configure NOTIFICATION_WEBHOOK_URL ou SMTP_HOST real antes de publicar`. |
+| `PROD_SMTP_HOST` + `PROD_SMTP_USER` + `PROD_SMTP_PASSWORD` + `PROD_NOTIFICATION_FROM` | var + secret + secret + var | **sim** | E-mail das notificações de falha (porta 587, STARTTLS), o único canal que chega ao usuário. Sem SMTP real, o deploy para: `configure SMTP_HOST real (PROD_SMTP_HOST) antes de publicar`. O teste E2E usa as mesmas credenciais pra conferir a chegada por IMAP. |
+| `PROD_NOTIFICATION_WEBHOOK_URL` | secret | não | Alerta operacional quando o e-mail falha: avisa a equipe, não o usuário. O payload leva só `videoId` e `errorMessage`, sem o e-mail do usuário (minimização, LGPD); o dono é localizado pelo `videoId` em `/admin/videos`. O Terraform grava em `/fiapx/notification/webhook-url` no SSM. |
 | `PROD_DB_PASSWORD`, `PROD_JWT_SECRET`, `PROD_ADMIN_PASSWORD` | secret | não | Senha do RDS, segredo dos JWTs e senha do admin semeado (`admin@fiapx.local`). Sem eles o Terraform gera valores aleatórios (`random_password`, estáveis no state). |
 
-**Como configurar os receptores.** Qualquer URL que aceite `POST` com JSON serve para os dois webhooks. Pra uma demo, gere dois endpoints distintos em [webhook.site](https://webhook.site) (expiram em ~7 dias) ou use um Incoming Webhook do Slack. No e-mail com Gmail, use `PROD_SMTP_HOST=smtp.gmail.com`, a própria conta em `PROD_SMTP_USER` e `PROD_NOTIFICATION_FROM`, e em `PROD_SMTP_PASSWORD` uma **App Password** (myaccount.google.com/apppasswords, exige verificação em duas etapas), não a senha normal da conta. Pela linha de comando:
+**Como configurar os receptores.** Qualquer URL que aceite `POST` com JSON serve para os dois webhooks, que são alertas pra equipe (Alertmanager e falha de e-mail). Pra uma demo, gere dois endpoints distintos em [webhook.site](https://webhook.site) (expiram em ~7 dias); num ambiente real, use um Incoming Webhook do canal de plantão no Slack. No e-mail com Gmail, use `PROD_SMTP_HOST=smtp.gmail.com`, a própria conta em `PROD_SMTP_USER` e `PROD_NOTIFICATION_FROM`, e em `PROD_SMTP_PASSWORD` uma **App Password** (myaccount.google.com/apppasswords, exige verificação em duas etapas), não a senha normal da conta. Pela linha de comando:
 
 ```bash
 gh secret set PROD_ALERTMANAGER_WEBHOOK_URL --env AWS --body 'https://webhook.site/<uuid-1>'
@@ -136,9 +136,10 @@ O script valida as credenciais (`aws sts get-caller-identity`), grava o perfil `
 2. Faz upload real de `web/e2e/fixtures/sample.mp4` e espera `COMPLETED` (o `ffmpeg` roda de verdade no `video-worker`).
 3. Baixa o zip e confere que ele abre e tem frames `frame_NNNN.png` com assinatura PNG válida.
 4. Faz upload de um arquivo com extensão `.mp4` que não é vídeo e espera `FAILED` com `errorMessage`.
-5. Confere no log do `notification-worker` que a notificação de falha daquele vídeo foi enviada, e por qual canal.
+5. Confere no log do `notification-worker` que a notificação de falha daquele vídeo saiu pelo canal `EMAIL` (sair pelo webhook de fallback conta como falha: o usuário não foi avisado).
+6. Entra por IMAP na caixa de entrada do destinatário e exige a mensagem com o `videoId`. Isso prova a chegada, não só o envio: a busca é só na INBOX, nunca em Enviados.
 
-O destinatário da notificação é um plus-address de `PROD_NOTIFICATION_FROM` (`conta+e2e-<ts>@gmail.com`), então o e-mail cai na própria caixa da conta remetente. Cada execução deixa um usuário `e2e-*` e dois vídeos no banco. Os testes de integração do Maven (ex.: `EndToEndVideoProcessingFlowIntegrationTest`) continuam cobrindo cada serviço isolado com Testcontainers/LocalStack, e o teste de navegador (`web/e2e`) também pode rodar contra o ambiente com `E2E_BASE_URL=https://<host> npm run test:e2e`.
+O destinatário da notificação é um plus-address de `PROD_NOTIFICATION_FROM` (`conta+e2e-<ts>@gmail.com`), então o e-mail cai na própria caixa da conta remetente, e a mesma App Password do SMTP abre essa caixa por IMAP (`imap.gmail.com`, derivado de `PROD_SMTP_HOST`). Rodando local sem `SMTP_USER`/`SMTP_PASSWORD` no ambiente, o passo 6 é pulado com aviso. Cada execução deixa um usuário `e2e-*` e dois vídeos no banco. Os testes de integração do Maven (ex.: `EndToEndVideoProcessingFlowIntegrationTest`) continuam cobrindo cada serviço isolado com Testcontainers/LocalStack, e o teste de navegador (`web/e2e`) também pode rodar contra o ambiente com `E2E_BASE_URL=https://<host> npm run test:e2e`.
 
 ### Evidência de processamento simultâneo (KEDA)
 
