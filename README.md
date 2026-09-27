@@ -91,13 +91,36 @@ Faço todo trabalho em `develop`. Mantenho a `main` protegida e ela só recebe c
 
 ## Deploy na AWS (EKS)
 
-Tudo roda pelo GitHub Actions, no Environment `AWS`. Os únicos secrets obrigatórios no GitHub são `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` do Learner Lab (expiram a cada sessão). Os segredos da aplicação ficam no **SSM Parameter Store** (`/fiapx/db/username`, `/fiapx/db/password`, `/fiapx/jwt/secret`, `/fiapx/notification/webhook-url`), criados pelo Terraform: se `PROD_DB_PASSWORD`, `PROD_JWT_SECRET` ou `PROD_NOTIFICATION_WEBHOOK_URL` existirem no GitHub, o Terraform usa esses valores; se não, gera senha e segredo JWT (`random_password`, estáveis no state) — o webhook só existe se informado. O deploy lê os parâmetros por nome e monta um Secret por serviço (`video-api-secrets`, `notification-worker-secrets` — cada um só com as chaves que aquele serviço usa; `video-worker` e `video-gateway` não precisam de nenhum). Um push em `main` (ou o `CD - AWS EKS` manual) faz tudo sozinho: provisiona o que faltar, builda e faz o deploy. Os workflows:
+Tudo roda pelo GitHub Actions, no Environment `AWS` (Settings → Environments → **AWS**). Antes do primeiro deploy, configure:
+
+| Nome no GitHub | Tipo | Obrigatório? | Para quê |
+|---|---|---|---|
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | secret | **sim** | Credenciais do Learner Lab. Expiram a cada sessão; renove com `scripts/aws-sync-gh-secrets.sh` (abaixo). |
+| `PROD_ALERTMANAGER_WEBHOOK_URL` | secret | **sim** | Receptor dos alertas do Alertmanager (ex.: fila de alta profundidade). Sem ele o deploy para em `k8s-deploy-aws.sh`, porque os alertas não chegariam a lugar nenhum. |
+| `PROD_NOTIFICATION_WEBHOOK_URL` | secret | **pelo menos um dos dois canais** | Webhook de fallback das notificações de falha. O Terraform grava em `/fiapx/notification/webhook-url` no SSM. |
+| `PROD_SMTP_HOST` + `PROD_SMTP_USER` + `PROD_SMTP_PASSWORD` + `PROD_NOTIFICATION_FROM` | var + secret + secret + var | **pelo menos um dos dois canais** | E-mail das notificações de falha (porta 587, STARTTLS). Sem nenhum canal real, o deploy para: `configure NOTIFICATION_WEBHOOK_URL ou SMTP_HOST real antes de publicar`. |
+| `PROD_DB_PASSWORD`, `PROD_JWT_SECRET`, `PROD_ADMIN_PASSWORD` | secret | não | Senha do RDS, segredo dos JWTs e senha do admin semeado (`admin@fiapx.local`). Sem eles o Terraform gera valores aleatórios (`random_password`, estáveis no state). |
+
+**Como configurar os receptores.** Qualquer URL que aceite `POST` com JSON serve para os dois webhooks. Pra uma demo, gere dois endpoints distintos em [webhook.site](https://webhook.site) (expiram em ~7 dias) ou use um Incoming Webhook do Slack. No e-mail com Gmail, use `PROD_SMTP_HOST=smtp.gmail.com`, a própria conta em `PROD_SMTP_USER` e `PROD_NOTIFICATION_FROM`, e em `PROD_SMTP_PASSWORD` uma **App Password** (myaccount.google.com/apppasswords, exige verificação em duas etapas), não a senha normal da conta. Pela linha de comando:
+
+```bash
+gh secret set PROD_ALERTMANAGER_WEBHOOK_URL --env AWS --body 'https://webhook.site/<uuid-1>'
+gh secret set PROD_NOTIFICATION_WEBHOOK_URL --env AWS --body 'https://webhook.site/<uuid-2>'
+gh variable set PROD_SMTP_HOST --env AWS --body 'smtp.gmail.com'
+gh variable set PROD_NOTIFICATION_FROM --env AWS --body 'sua-conta@gmail.com'
+gh secret set PROD_SMTP_USER --env AWS --body 'sua-conta@gmail.com'
+gh secret set PROD_SMTP_PASSWORD --env AWS   # cola a App Password quando pedir
+```
+
+`PROD_NOTIFICATION_WEBHOOK_URL` passa pelo Terraform e só chega ao cluster depois de um `apply`. Se você criar esse secret com a infra já no ar, rode o `CD - AWS EKS` sem `provision: skip`.
+
+Os segredos da aplicação ficam no **SSM Parameter Store** (`/fiapx/db/username`, `/fiapx/db/password`, `/fiapx/jwt/secret`, `/fiapx/admin/password`, `/fiapx/notification/webhook-url`), criados pelo Terraform a partir dos `PROD_*` acima ou gerados por ele. O deploy lê os parâmetros por nome e monta um Secret por serviço (`video-api-secrets`, `notification-worker-secrets` — cada um só com as chaves que aquele serviço usa; `video-worker` e `video-gateway` não precisam de nenhum). As credenciais SMTP e o webhook do Alertmanager não passam pelo SSM: o job `deploy` recebe esses valores direto do Environment. Um push em `main` (ou o `CD - AWS EKS` manual) faz tudo sozinho: provisiona o que faltar, builda e faz o deploy. Os workflows:
 
 1. `CD - AWS EKS` (`cd-aws.yml`, a cada push em `main` ou manual) — job `provision`: `scripts/aws-up.sh --apply-if-changed` roda `terraform plan`; com a infra no ar e igual ao código é um no-op de ~2 min, senão aplica o plano (~25 min na primeira vez) — VPC, cluster EKS (`t3.large` ×2, add-on EBS CSI), 5 repositórios ECR, RDS PostgreSQL 17 (`db.t3.micro`), ElastiCache Redis 7.1 (`cache.t3.micro`), 3 filas SQS com DLQ e os parâmetros SSM. Os 2 buckets S3 privados são criados antes do `plan` por `scripts/aws-buckets-init.sh` (a SCP do Learner Lab nega `s3:GetBucketObjectLockConfiguration`, que o provider AWS chama ao ler um `aws_s3_bucket`). State no bucket S3 `fiapx-terraform-state-<account>`, criado automaticamente por `scripts/aws-tf-init.sh`.
-2. Ainda no `CD - AWS EKS`, jobs `build-and-push` e `deploy` — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh`: descobre RDS, ElastiCache, fila SQS e buckets por nome via `aws` CLI, injeta os hosts no ConfigMap, instala add-ons (ingress-nginx, metrics-server, KEDA, kube-prometheus-stack) e aplica os manifests (`k8s/apps/base`) depois de rodar a migração. Nenhum componente stateful sobe no cluster e o job de deploy não recebe secret nenhum do GitHub além das credenciais AWS. A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job. No disparo manual, o input `provision: skip` pula o Terraform e só faz build e deploy. `Terraform - AWS EKS` (`terraform-aws.yml`) continua disponível para rodar `plan`, `apply` ou `destroy` isolados à mão; os três workflows compartilham o grupo de concorrência `terraform-aws`, então nunca tocam o state ao mesmo tempo.
+2. Ainda no `CD - AWS EKS`, jobs `build-and-push` e `deploy` — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh`: descobre RDS, ElastiCache, fila SQS e buckets por nome via `aws` CLI, injeta os hosts no ConfigMap, instala add-ons (ingress-nginx, metrics-server, KEDA, kube-prometheus-stack) e aplica os manifests (`k8s/apps/base`) depois de rodar a migração. Nenhum componente stateful sobe no cluster. A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job. No disparo manual, o input `provision: skip` pula o Terraform e só faz build e deploy. `Terraform - AWS EKS` (`terraform-aws.yml`) continua disponível para rodar `plan`, `apply` ou `destroy` isolados à mão; os três workflows compartilham o grupo de concorrência `terraform-aws`, então nunca tocam o state ao mesmo tempo.
 3. `Destroy AWS` (`destroy-aws.yml`) — ao fim de cada sessão: `scripts/aws-destroy.sh` (limpeza k8s → `terraform destroy` → varredura via `aws` CLI independente do state, incluindo RDS, ElastiCache, filas `fiapx-*`, buckets `fiapx-videos-*` e parâmetros SSM `/fiapx/*` → `scripts/aws-validate.sh --strict`).
 
-Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
+Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets `AWS_*` a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
 
 ```bash
 pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
