@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -43,6 +44,9 @@ class VideoUploadIntegrationTest extends AbstractSqsIntegrationTest {
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
 
   @Autowired
   private RegisterUserUseCase registerUserUseCase;
@@ -85,5 +89,10 @@ class VideoUploadIntegrationTest extends AbstractSqsIntegrationTest {
     // O relay (OutboxPublisherJob, a cada 3 s) pode já ter publicado o evento — o que este
     // teste garante é que o upload gravou o evento na mesma transação, não o estado do relay.
     assertThat(events.getFirst().getPayload()).contains(videoId.toString()).contains("\"eventId\"");
+
+    // A reserva de limpeza do objeto enviado foi cancelada junto com o registro do vídeo.
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM video_api.storage_cleanup WHERE object_key = ?", Integer.class,
+        savedVideo.get().getStorageKey())).isZero();
   }
 }

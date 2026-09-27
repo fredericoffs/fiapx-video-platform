@@ -2,6 +2,7 @@ package com.fiapx.videoapi.infrastructure.storage;
 
 import com.fiapx.videoapi.domain.port.StorageCleanup;
 import com.fiapx.videoapi.domain.port.StorageClient;
+import java.time.Duration;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,6 +24,20 @@ public class PersistentStorageCleanup implements StorageCleanup {
   public void delete(String bucket, String key) {
     jdbc.update("INSERT INTO video_api.storage_cleanup(id, bucket, object_key) VALUES (?, ?, ?) ON CONFLICT (bucket, object_key) DO NOTHING",
         UUID.randomUUID(), bucket, key);
+  }
+
+  @Override
+  public void schedule(String bucket, String key, Duration delay) {
+    jdbc.update("INSERT INTO video_api.storage_cleanup(id, bucket, object_key, retry_at) "
+            + "VALUES (?, ?, ?, now() + make_interval(secs => ?)) ON CONFLICT (bucket, object_key) DO NOTHING",
+        UUID.randomUUID(), bucket, key, delay.toSeconds());
+  }
+
+  // Se a limpeza estiver com a linha travada (FOR UPDATE SKIP LOCKED), o DELETE espera ela
+  // terminar e devolve 0 — o chamador fica sabendo que o objeto pode já ter sido apagado.
+  @Override
+  public boolean cancel(String bucket, String key) {
+    return jdbc.update("DELETE FROM video_api.storage_cleanup WHERE bucket = ? AND object_key = ?", bucket, key) == 1;
   }
 
   @Scheduled(fixedDelayString = "${fiapx.storage.cleanup-interval-ms:10000}")
