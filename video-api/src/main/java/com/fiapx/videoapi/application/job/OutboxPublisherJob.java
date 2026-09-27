@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ public class OutboxPublisherJob {
 
   static final Duration LEASE = Duration.ofSeconds(30);
   private static final Logger log = LoggerFactory.getLogger(OutboxPublisherJob.class);
+  private static final String CORRELATION_ID = "correlationId";
   private final OutboxEventRepository outboxEventRepository;
   private final MessagePublisher messagePublisher;
   private final OutboxProperties outboxProperties;
@@ -49,15 +51,23 @@ public class OutboxPublisherJob {
         return;
       }
       OutboxEvent event = claimed.getFirst();
+      // O job roda fora de qualquer requisição: restauro o correlationId gravado com o evento
+      // para os logs da publicação entrarem no mesmo rastro do upload.
+      if (event.getCorrelationId() != null) {
+        MDC.put(CORRELATION_ID, event.getCorrelationId());
+      }
       try {
         String targetQueue = resolveQueue(event.getEventType());
         messagePublisher.publish(targetQueue,
             OutboundMessage.of(event.getPayload(), event.getCorrelationId(), event.getId().toString()));
         outboxEventRepository.markPublished(event.getId(), event.getLockToken());
+        log.info("Evento {} do vídeo {} publicado em {}", event.getEventType(), event.getAggregateId(), targetQueue);
       } catch (Exception e) {
         log.error("Falha ao publicar outbox event {} ({}), tentativa {}", event.getId(), event.getEventType(), event.getAttempts() + 1, e);
         outboxEventRepository.releaseAfterFailure(event.getId(), event.getLockToken());
         return;
+      } finally {
+        MDC.remove(CORRELATION_ID);
       }
     }
   }

@@ -100,6 +100,7 @@ public class ProcessVideoUseCase {
       return ProcessingResult.success(payload.videoId(), zipKey);
     }
 
+    log.info("Processamento do vídeo {} iniciado", payload.videoId());
     Path tempDir = createTempDir(payload);
     try {
       // Nome interno controlado: o nome original do usuário nunca vira caminho em disco.
@@ -124,6 +125,7 @@ public class ProcessVideoUseCase {
       log.info("Vídeo {} processado: zip em {}", payload.videoId(), zipKey);
       return ProcessingResult.success(payload.videoId(), zipKey);
     } catch (FfmpegProcessingException | UnsupportedVideoInputException businessFailure) {
+      log.warn("Vídeo {} não pôde ser processado: {}", payload.videoId(), businessFailure.getMessage());
       return ProcessingResult.failure(payload.videoId(), businessFailure.getMessage());
     } catch (IOException e) {
       throw new UncheckedIOException("Falha de I/O ao processar vídeo " + payload.videoId(), e);
