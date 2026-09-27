@@ -67,4 +67,22 @@ class VideoTest {
     assertThat(video.getErrorMessage()).isEqualTo("ffmpeg falhou");
     assertThat(video.isTerminal()).isTrue();
   }
+
+  @Test
+  void belongsToIsTrueOnlyForTheOwner() {
+    UUID owner = UUID.randomUUID();
+    Video video = Video.newQueued(UUID.randomUUID(), owner, "movie.mp4", "raw/movie.mp4");
+
+    assertThat(video.belongsTo(owner)).isTrue();
+    assertThat(video.belongsTo(UUID.randomUUID())).isFalse();
+    assertThat(video.belongsTo(null)).isFalse();
+  }
+
+  @Test
+  void videoWithoutOwnerBelongsToNobody() {
+    Video video = Video.newQueued(UUID.randomUUID(), null, "movie.mp4", "raw/movie.mp4");
+
+    assertThat(video.belongsTo(UUID.randomUUID())).isFalse();
+    assertThat(video.belongsTo(null)).isFalse();
+  }
 }
