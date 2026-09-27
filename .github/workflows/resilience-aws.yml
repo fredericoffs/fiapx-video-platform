@@ -1,0 +1,71 @@
+name: Resiliência - AWS EKS
+
+# Roda scripts/aws-resilience-test.sh contra o ambiente implantado: pico de uploads
+# (aceitos vs 429), crash do video-worker no meio do processamento e SQS indisponível
+# (queue policy com Deny temporário). Manual e fora do cd-aws.yml de propósito: mata pods
+# e altera a policy da fila por alguns minutos. O log fica como artefato do run.
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "Cenários separados por vírgula (burst, worker, sqs)"
+        required: false
+        type: string
+        default: burst,worker,sqs
+      burst:
+        description: "Uploads simultâneos no cenário burst (cota do gateway: 20/min por IP)"
+        required: false
+        type: string
+        default: "25"
+
+permissions:
+  contents: read
+
+# Mesmo grupo do cd-aws.yml/destroy-aws.yml: nunca roda junto com um deploy ou destroy.
+concurrency:
+  group: fiapx-aws-lifecycle
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: fiapx
+
+jobs:
+  resilience:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: AWS
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar kubectl e ffmpeg
+        run: |
+          KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/kubectl
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Gerar kubeconfig do cluster EKS
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
+
+      - name: Teste de resiliência
+        env:
+          NOTIFICATION_FROM: ${{ vars.PROD_NOTIFICATION_FROM }}
+          SCENARIOS: ${{ inputs.scenarios }}
+          BURST: ${{ inputs.burst }}
+        run: ./scripts/aws-resilience-test.sh --scenarios "$SCENARIOS" --burst "$BURST" --log resilience.log
+
+      - name: Publicar log como artefato
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: resilience-log
+          path: resilience.log
+          if-no-files-found: ignore

@@ -4,7 +4,7 @@ name: CD - AWS EKS
 # tudo no ar é um no-op de ~2 min), builda as 5 imagens, publica no ECR e faz o deploy
 # no EKS com o perfil aws (RDS, ElastiCache, SQS, S3). Requer sessão do Learner Lab
 # ativa (secrets AWS_* renovados). terraform-aws.yml continua disponível pra rodar
-# plan/apply/destroy à mão; os três workflows compartilham o grupo terraform-aws.
+# plan/apply/destroy à mão; todos os workflows AWS compartilham o grupo fiapx-aws-lifecycle.
 on:
   push:
     branches: [ main ]
