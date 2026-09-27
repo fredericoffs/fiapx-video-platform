@@ -25,6 +25,9 @@ echo "==> ingress-nginx"
 # limit do video-gateway (por IP) contava por nó: todos os clientes dividiam duas cotas —
 # observado ao vivo, 25 uploads de um mesmo IP e nenhum 429. O NLB passa a checar a saúde
 # pelo healthCheckNodePort e só encaminha para nós com pod do controller.
+# controller.metrics.enabled abre a porta 10254 (requisições, latência e status na borda,
+# incluindo os 429 do rate limit); o ServiceMonitor fica em k8s/addons/servicemonitors.yaml,
+# aplicado depois do kube-prometheus-stack, que é quem cria o CRD.
 # Versão fixada (item 20 da revisão crítica): sem --version, cada execução puxa o chart mais
 # novo do momento — como este script roda de novo a cada sessão do Learner Lab (o lab reseta
 # entre sessões), a versão podia mudar de uma sessão pra outra sem nenhuma mudança de código.
@@ -37,4 +40,5 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.resources.limits.memory=256Mi \
   --set-string controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
   --set controller.service.externalTrafficPolicy=Local \
+  --set controller.metrics.enabled=true \
   --wait --timeout 5m

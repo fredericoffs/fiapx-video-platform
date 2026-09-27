@@ -1,5 +1,5 @@
-# Componentes de nó/control-plane desligados: não fazem sentido num nó kind local e
-# não alimentam nenhum dos 3 dashboards da aplicação.
+# Control plane do EKS é gerenciado pela AWS: controller-manager, scheduler, proxy e etcd
+# não são acessíveis para coleta.
 kubeControllerManager:
   enabled: false
 kubeScheduler:
@@ -8,10 +8,32 @@ kubeProxy:
   enabled: false
 kubeEtcd:
   enabled: false
-nodeExporter:
-  enabled: false
+
+# Saúde do cluster: kube-state-metrics (estado de pods, deployments, réplicas, restarts) e
+# node-exporter (CPU, memória e disco dos nós) alimentam os dashboards prontos
+# "Kubernetes / ..." e "Node Exporter / ..." do stack e as regras padrão de alerta
+# (KubePodCrashLooping, KubeDeploymentReplicasMismatch, NodeFilesystemSpaceFillingUp...).
+# requests baixas: a CPU reservada nos 2 nós já passa de 70%.
 kubeStateMetrics:
-  enabled: false
+  enabled: true
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+nodeExporter:
+  enabled: true
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 24Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
 
 prometheus:
   prometheusSpec:

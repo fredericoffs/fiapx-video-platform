@@ -33,9 +33,13 @@ helm upgrade --install metrics-server metrics-server/metrics-server \
 
 echo "==> KEDA"
 kubectl get namespace keda >/dev/null 2>&1 || kubectl create namespace keda
+# prometheus.operator.enabled só abre a porta de métricas do operator (valor da métrica de
+# cada ScaledObject); o ServiceMonitor fica em servicemonitors.yaml, aplicado no fim deste
+# script — o CRD ServiceMonitor só existe depois do kube-prometheus-stack.
 helm upgrade --install keda kedacore/keda \
   --namespace keda \
   --version 2.20.2 \
+  --set prometheus.operator.enabled=true \
   --wait --timeout 3m
 
 echo "==> kube-prometheus-stack"
@@ -78,7 +82,7 @@ helm upgrade --install alloy grafana/alloy \
   --values "${ADDONS_DIR}/values/alloy.yaml" \
   --wait --timeout 3m
 
-echo "==> dashboards Grafana + alerta de profundidade de fila"
+echo "==> dashboards Grafana, ServiceMonitors do ingress/KEDA e alerta de profundidade de fila"
 kubectl apply -k "${ADDONS_DIR}"
 
 echo "==> Add-ons prontos:"

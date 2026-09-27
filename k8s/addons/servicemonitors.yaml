@@ -1,0 +1,36 @@
+# ServiceMonitors de componentes instalados ANTES do kube-prometheus-stack (ingress-nginx e
+# KEDA): se os próprios charts criassem o ServiceMonitor, a primeira subida falharia porque o
+# CRD ainda não existe. Ficam aqui, aplicados por install.sh depois do stack. O label release
+# é o que o Prometheus usa para descobrir ServiceMonitors (serviceMonitorSelector).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ingress-nginx
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [ingress-nginx]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+  endpoints:
+    - port: metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keda-operator
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [keda]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keda-operator
+  endpoints:
+    - port: metrics
+      interval: 15s

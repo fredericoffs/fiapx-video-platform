@@ -31,6 +31,15 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Histograma de latência HTTP (p95 no dashboard "Saúde dos serviços"); a faixa 5ms–30s
+    # limita os buckets para não multiplicar as séries no Prometheus.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 30s
 
 # Roteamento MVC do gateway — ver ADR-009 (Spring Cloud Gateway em vez de Kong) e RoutesConfig/CorsConfig
 fiapx:
