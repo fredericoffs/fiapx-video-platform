@@ -104,3 +104,13 @@ pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
 ```
 
 O script valida as credenciais (`aws sts get-caller-identity`), grava o perfil `default` em `~/.aws/credentials` e atualiza os secrets no Environment `AWS` via `gh`.
+
+### Evidência de processamento simultâneo (KEDA)
+
+Cada réplica do `video-worker` processa um vídeo por vez, e o `ScaledObject` usa `queueLength: 1` (uma mensagem por réplica, contando as que estão em processamento), com mínimo 1 e máximo 3 réplicas. Com o ambiente no ar e o `kubectl` apontando pro cluster:
+
+```bash
+./scripts/aws-demo-concurrency.sh --email demo@exemplo.com --password 'senha-da-demo' video1.mp4 video2.mp4
+```
+
+O script faz os uploads em paralelo pela URL pública e registra a cada 5s as réplicas do worker e o status de cada vídeo, até todos terminarem e o worker voltar a 1 réplica. No resumo aparecem o pico de réplicas, o pico de vídeos em `PROCESSING` ao mesmo tempo e o tempo até voltar a 1 réplica. A saída fica num `.log`. Use vídeos de 1 min ou mais, porque o segundo vídeo só começa depois que o KEDA lê a fila (a cada 15s) e o pod novo sobe.
