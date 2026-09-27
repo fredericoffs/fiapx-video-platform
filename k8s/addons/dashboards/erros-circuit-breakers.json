@@ -3,18 +3,37 @@
   "uid": "fiapx-erros-circuit-breakers",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
-  "time": { "from": "now-6h", "to": "now" },
+  "version": 2,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "refresh": "30s",
-  "tags": ["fiapx"],
+  "tags": [
+    "fiapx"
+  ],
   "panels": [
     {
       "id": 1,
       "title": "Taxa de falha de processamento (FAILED / total)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "fieldConfig": {
-        "defaults": { "unit": "percentunit", "max": 1, "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 15 } },
+        "defaults": {
+          "unit": "percentunit",
+          "max": 1,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          },
+          "noValue": "Sem dados"
+        },
         "overrides": []
       },
       "targets": [
@@ -23,53 +42,89 @@
           "legendFormat": "taxa de falha",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Fração dos resultados aplicados como FAILED na janela de 5 min. Sem eventos, não há taxa definida."
     },
     {
       "id": 2,
-      "title": "Estado dos circuit breakers (notification-worker)",
-      "description": "0 = fechado (saudável), 1 = aberto (canal indisponível, chamadas bloqueadas)",
+      "title": "Indicador de circuito aberto por canal e instância",
+      "description": "1 = estado open ativo; 0 = open inativo, não necessariamente closed. Outros estados aparecem no painel abaixo.",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
           "max": 1,
-          "custom": { "drawStyle": "line", "fillOpacity": 20, "stepMode": "before" }
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineInterpolation": "stepBefore"
+          },
+          "noValue": "Sem dados"
         },
         "overrides": []
       },
       "targets": [
         {
           "expr": "resilience4j_circuitbreaker_state{state=\"open\"}",
-          "legendFormat": "{{name}} (open)",
+          "legendFormat": "{{name}} · {{instance}}",
           "refId": "A"
         }
       ]
     },
     {
       "id": 3,
-      "title": "Estado atual por canal",
+      "title": "Estado ativo por canal e instância",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "fechado", "color": "green" } } },
-            { "type": "value", "options": { "1": { "text": "aberto", "color": "red" } } }
-          ]
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "ativo"
+                }
+              }
+            }
+          ],
+          "noValue": "Sem dados"
         },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "resilience4j_circuitbreaker_state{state=\"open\"}",
-          "legendFormat": "{{name}}",
-          "refId": "A"
+          "expr": "resilience4j_circuitbreaker_state == 1",
+          "legendFormat": "{{name}} · {{instance}} · {{state}}",
+          "refId": "A",
+          "instant": true
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "Exibe a série cujo estado está ativo (valor 1), incluindo half_open, disabled e forced_open quando presentes."
     }
   ]
 }
