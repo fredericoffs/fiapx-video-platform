@@ -43,7 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * consumo simulado de fiapx-video-status-updates (papel do video-worker) → status aplicado.
  * Os testes existentes (VideoUploadIntegrationTest, OutboxPublisherJobIntegrationTest)
  * cobrem cada etapa isoladamente, mas nenhum encadeava as três em um só fluxo — por isso
- * escrevi este.
+ * escrevi este. O papel do video-worker é simulado aqui; a cadeia real (ffmpeg, zip, download
+ * e notificação de falha) é exercitada contra o ambiente implantado por scripts/aws-e2e-smoke.sh.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc

@@ -117,7 +117,7 @@ gh secret set PROD_SMTP_PASSWORD --env AWS   # cola a App Password quando pedir
 Os segredos da aplicação ficam no **SSM Parameter Store** (`/fiapx/db/username`, `/fiapx/db/password`, `/fiapx/jwt/secret`, `/fiapx/admin/password`, `/fiapx/notification/webhook-url`), criados pelo Terraform a partir dos `PROD_*` acima ou gerados por ele. O deploy lê os parâmetros por nome e monta um Secret por serviço (`video-api-secrets`, `notification-worker-secrets` — cada um só com as chaves que aquele serviço usa; `video-worker` e `video-gateway` não precisam de nenhum). As credenciais SMTP e o webhook do Alertmanager não passam pelo SSM: o job `deploy` recebe esses valores direto do Environment. Um push em `main` (ou o `CD - AWS EKS` manual) faz tudo sozinho: provisiona o que faltar, builda e faz o deploy. Os workflows:
 
 1. `CD - AWS EKS` (`cd-aws.yml`, a cada push em `main` ou manual) — job `provision`: `scripts/aws-up.sh --apply-if-changed` roda `terraform plan`; com a infra no ar e igual ao código é um no-op de ~2 min, senão aplica o plano (~25 min na primeira vez) — VPC, cluster EKS (`t3.large` ×2, add-on EBS CSI), 5 repositórios ECR, RDS PostgreSQL 17 (`db.t3.micro`), ElastiCache Redis 7.1 (`cache.t3.micro`), 3 filas SQS com DLQ e os parâmetros SSM. Os 2 buckets S3 privados são criados antes do `plan` por `scripts/aws-buckets-init.sh` (a SCP do Learner Lab nega `s3:GetBucketObjectLockConfiguration`, que o provider AWS chama ao ler um `aws_s3_bucket`). State no bucket S3 `fiapx-terraform-state-<account>`, criado automaticamente por `scripts/aws-tf-init.sh`.
-2. Ainda no `CD - AWS EKS`, jobs `build-and-push` e `deploy` — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh`: descobre RDS, ElastiCache, fila SQS e buckets por nome via `aws` CLI, injeta os hosts no ConfigMap, instala add-ons (ingress-nginx, metrics-server, KEDA, kube-prometheus-stack) e aplica os manifests (`k8s/apps/base`) depois de rodar a migração. Nenhum componente stateful sobe no cluster. A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job. No disparo manual, o input `provision: skip` pula o Terraform e só faz build e deploy. `Terraform - AWS EKS` (`terraform-aws.yml`) continua disponível para rodar `plan`, `apply` ou `destroy` isolados à mão; os três workflows compartilham o grupo de concorrência `terraform-aws`, então nunca tocam o state ao mesmo tempo.
+2. Ainda no `CD - AWS EKS`, jobs `build-and-push` e `deploy` — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh`: descobre RDS, ElastiCache, fila SQS e buckets por nome via `aws` CLI, injeta os hosts no ConfigMap, instala add-ons (ingress-nginx, metrics-server, KEDA, kube-prometheus-stack) e aplica os manifests (`k8s/apps/base`) depois de rodar a migração. Nenhum componente stateful sobe no cluster. A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job. Por último, o job roda `scripts/aws-e2e-smoke.sh` pela URL pública (detalhes abaixo); se o fluxo de negócio quebrar, o deploy fica vermelho mesmo com os rollouts prontos. No disparo manual, o input `provision: skip` pula o Terraform e só faz build e deploy. `Terraform - AWS EKS` (`terraform-aws.yml`) continua disponível para rodar `plan`, `apply` ou `destroy` isolados à mão; os três workflows compartilham o grupo de concorrência `terraform-aws`, então nunca tocam o state ao mesmo tempo.
 3. `Destroy AWS` (`destroy-aws.yml`) — ao fim de cada sessão: `scripts/aws-destroy.sh` (limpeza k8s → `terraform destroy` → varredura via `aws` CLI independente do state, incluindo RDS, ElastiCache, filas `fiapx-*`, buckets `fiapx-videos-*` e parâmetros SSM `/fiapx/*` → `scripts/aws-validate.sh --strict`).
 
 Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets `AWS_*` a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
@@ -127,6 +127,18 @@ pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
 ```
 
 O script valida as credenciais (`aws sts get-caller-identity`), grava o perfil `default` em `~/.aws/credentials` e atualiza os secrets no Environment `AWS` via `gh`.
+
+### Teste de ponta a ponta no ambiente implantado
+
+`scripts/aws-e2e-smoke.sh` roda no fim de todo deploy e também pode ser executado localmente, com o `kubectl` apontando pro cluster. Nada é simulado:
+
+1. Cadastra um usuário novo e faz login.
+2. Faz upload real de `web/e2e/fixtures/sample.mp4` e espera `COMPLETED` (o `ffmpeg` roda de verdade no `video-worker`).
+3. Baixa o zip e confere que ele abre e tem frames `frame_NNNN.png` com assinatura PNG válida.
+4. Faz upload de um arquivo com extensão `.mp4` que não é vídeo e espera `FAILED` com `errorMessage`.
+5. Confere no log do `notification-worker` que a notificação de falha daquele vídeo foi enviada, e por qual canal.
+
+O destinatário da notificação é um plus-address de `PROD_NOTIFICATION_FROM` (`conta+e2e-<ts>@gmail.com`), então o e-mail cai na própria caixa da conta remetente. Cada execução deixa um usuário `e2e-*` e dois vídeos no banco. Os testes de integração do Maven (ex.: `EndToEndVideoProcessingFlowIntegrationTest`) continuam cobrindo cada serviço isolado com Testcontainers/LocalStack, e o teste de navegador (`web/e2e`) também pode rodar contra o ambiente com `E2E_BASE_URL=https://<host> npm run test:e2e`.
 
 ### Evidência de processamento simultâneo (KEDA)
 

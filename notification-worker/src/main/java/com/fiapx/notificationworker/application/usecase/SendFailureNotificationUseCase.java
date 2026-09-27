@@ -76,12 +76,15 @@ public class SendFailureNotificationUseCase {
       delivery = channel.send(message.videoId(), message.errorMessage(), message.recipientEmail());
       delivery.get(channelTimeout.toMillis(), TimeUnit.MILLISECONDS);
       notificationAttemptRepository.markSent(attempt.getId());
+      // Sucesso também vai pro log: é a evidência que scripts/aws-e2e-smoke.sh procura.
+      log.info("Notificação do vídeo {} enviada pelo canal {}", message.videoId(), type);
       return true;
     } catch (TimeoutException e) {
       // Resultado desconhecido: não iniciar outro canal enquanto o primeiro pode entregar.
       delivery.whenComplete((ignored, failure) -> {
         if (failure == null) {
           notificationAttemptRepository.markSent(attempt.getId());
+          log.info("Notificação do vídeo {} enviada pelo canal {} (após o prazo)", message.videoId(), type);
         } else {
           notificationAttemptRepository.markFailed(attempt.getId(), failure.getMessage());
         }
