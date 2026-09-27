@@ -68,9 +68,22 @@ alertmanager:
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 3h
+      # Listas substituem as do chart: a rota do Watchdog precisa ser repetida aqui.
+      # Alertas "info" (ex.: CPUThrottlingHigh, esperado com o ffmpeg usando a CPU inteira)
+      # não viram e-mail — continuam visíveis no dashboard "FIAP X — Alertas".
+      routes:
+        - receiver: "null"
+          matchers: ['alertname = "Watchdog"']
+        - receiver: "null"
+          matchers: ['severity = "info"']
     receivers:
       - name: default
         webhook_configs: []
+      # O chart roteia o alerta Watchdog (sinal de vida, sempre disparando) para o receiver
+      # "null". Listas no Helm substituem as do chart em vez de mesclar: sem esta entrada, a
+      # rota apontava para um receiver inexistente, a configuração era rejeitada e o
+      # Alertmanager nunca subia — nenhum alerta saía do cluster.
+      - name: "null"
 
 grafana:
   # Logs: o Loki (values/loki.yaml) recebe o stdout dos pods pelo Alloy; uid fixo pro

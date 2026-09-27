@@ -44,27 +44,48 @@ helm upgrade --install keda kedacore/keda \
 
 echo "==> kube-prometheus-stack"
 kubectl get namespace monitoring >/dev/null 2>&1 || kubectl create namespace monitoring
-# ALERTMANAGER_WEBHOOK_URL (opcional): sem ela, o receiver "default" fica sem
-# webhook_configs — os alertas existem (visíveis na UI do Alertmanager) mas não chegam a
-# lugar nenhum, o gap do item 19 da revisão crítica. Defina a variável antes de rodar este
-# script (ex.: um webhook de entrada do Slack) pra fechar essa lacuna. Comando duplicado (em
-# vez de um array de flags condicional) pra não depender de expansão de array vazio sob
-# "set -u", que quebra no bash 3.2 (o padrão no macOS).
-if [ -n "${ALERTMANAGER_WEBHOOK_URL:-}" ]; then
-  helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-    --namespace monitoring \
-    --version 91.4.1 \
-    --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
-    --set-string "alertmanager.config.receivers[0].name=default" \
-    --set-string "alertmanager.config.receivers[0].webhook_configs[0].url=${ALERTMANAGER_WEBHOOK_URL}" \
-    --wait --timeout 5m
-else
-  helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-    --namespace monitoring \
-    --version 91.4.1 \
-    --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
-    --wait --timeout 5m
+# Destinos dos alertas, montados num values temporário (gerado com jq para escapar senhas e
+# URLs): webhook em ALERTMANAGER_WEBHOOK_URL e, com SMTP_HOST/SMTP_USER/SMTP_PASSWORD, e-mail
+# para ALERTMANAGER_EMAIL_TO (padrão: plus-address "+alertas" de NOTIFICATION_FROM ou de
+# SMTP_USER) pelo mesmo SMTP da aplicação. A lista de receivers é redefinida inteira aqui
+# (o Helm substitui listas) e por isso repete o receiver "null" usado pela rota do Watchdog.
+ALERTS_VALUES="$(mktemp)"
+trap 'rm -f "$ALERTS_VALUES"' EXIT
+SMTP_FROM="${NOTIFICATION_FROM:-${SMTP_USER:-}}"
+EMAIL_TO="${ALERTMANAGER_EMAIL_TO:-}"
+if [ -z "$EMAIL_TO" ] && [ -n "$SMTP_FROM" ]; then
+  EMAIL_TO="${SMTP_FROM%%@*}+alertas@${SMTP_FROM#*@}"
 fi
+SEND_EMAIL="false"
+if [ -n "${SMTP_HOST:-}" ] && [ "${SMTP_HOST}" != "smtp.invalid" ] && [ -n "${SMTP_USER:-}" ] \
+  && [ -n "${SMTP_PASSWORD:-}" ] && [ -n "$EMAIL_TO" ]; then
+  SEND_EMAIL="true"
+fi
+jq -n \
+  --arg webhook "${ALERTMANAGER_WEBHOOK_URL:-}" \
+  --arg sendEmail "$SEND_EMAIL" \
+  --arg to "$EMAIL_TO" \
+  --arg from "$SMTP_FROM" \
+  --arg host "${SMTP_HOST:-}:${SMTP_PORT:-587}" \
+  --arg user "${SMTP_USER:-}" \
+  --arg pass "${SMTP_PASSWORD:-}" \
+  '{alertmanager: {config: {
+      global: (if $sendEmail == "true" then {resolve_timeout: "5m", smtp_smarthost: $host, smtp_from: $from,
+               smtp_auth_username: $user, smtp_auth_password: $pass, smtp_require_tls: true}
+               else {resolve_timeout: "5m"} end),
+      receivers: [
+        ({name: "default"}
+          + (if $webhook != "" then {webhook_configs: [{url: $webhook, send_resolved: true}]} else {} end)
+          + (if $sendEmail == "true" then {email_configs: [{to: $to, send_resolved: true}]} else {} end)),
+        {name: "null"}
+      ]}}}' > "$ALERTS_VALUES"
+echo "alertas: webhook=$([ -n "${ALERTMANAGER_WEBHOOK_URL:-}" ] && echo sim || echo não), e-mail=$([ "$SEND_EMAIL" = true ] && echo "$EMAIL_TO" || echo não)"
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --version 91.4.1 \
+  --values "${ADDONS_DIR}/values/kube-prometheus-stack.yaml" \
+  --values "$ALERTS_VALUES" \
+  --wait --timeout 5m
 
 # Logs: o Grafana do kube-prometheus-stack já tem o datasource Loki (values/kube-prometheus-stack.yaml);
 # o Loki guarda 72h num PVC gp3 e o Alloy coleta o stdout dos pods de fiapx e ingress-nginx.
