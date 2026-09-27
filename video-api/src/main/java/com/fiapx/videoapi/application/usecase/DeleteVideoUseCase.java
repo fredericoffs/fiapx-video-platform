@@ -29,7 +29,7 @@ public class DeleteVideoUseCase {
   @org.springframework.transaction.annotation.Transactional
   public void handle(UUID videoId, UUID requesterId, boolean isAdmin) {
     Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
-    if (video.belongsTo(requesterId) && !isAdmin) {
+    if (!video.belongsTo(requesterId) && !isAdmin) {
       throw new VideoNotFoundException(videoId);
     }
     // A limpeza de objetos é persistida na mesma transação da exclusão lógica do registro.

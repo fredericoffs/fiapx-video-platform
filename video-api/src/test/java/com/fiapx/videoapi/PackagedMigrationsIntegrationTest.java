@@ -1,9 +1,12 @@
 package com.fiapx.videoapi;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.fiapx.videoapi.infrastructure.storage.PersistentStorageCleanup;
 import java.nio.file.Files;
@@ -123,4 +126,36 @@ class PackagedMigrationsIntegrationTest {
     assertThat(jdbc.queryForObject("SELECT count(*) FROM video_api.storage_cleanup", Integer.class)).isZero();
   }
 
+
+  @Test
+  void scheduledOrphanCleanupWaitsForItsDelayAndCanBeCancelledOnlyOnce() throws Exception {
+    copyPackage(true);
+    flyway("latest").clean();
+    flyway("latest").migrate();
+    var dataSource = new DriverManagerDataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword());
+    var jdbc = new JdbcTemplate(dataSource);
+    var tx = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+    var storage = mock(com.fiapx.videoapi.domain.port.StorageClient.class);
+    var cleanup = new PersistentStorageCleanup(jdbc, storage);
+
+    cleanup.schedule("raw", "reserved", java.time.Duration.ofHours(1));
+    cleanup.schedule("raw", "orphan", java.time.Duration.ofHours(1));
+
+    // Reserva ainda no prazo: a limpeza não toca no objeto que está sendo enviado.
+    tx.executeWithoutResult(status -> cleanup.cleanupPending());
+    verify(storage, never()).delete(anyString(), anyString());
+    assertThat(jdbc.queryForObject(
+        "SELECT retry_at > now() + interval '59 minutes' FROM video_api.storage_cleanup WHERE object_key = 'reserved'",
+        Boolean.class)).isTrue();
+
+    assertThat(cleanup.cancel("raw", "reserved")).isTrue();
+    assertThat(cleanup.cancel("raw", "reserved")).isFalse();
+
+    // Upload que nunca chegou à fase 3: vencida a reserva, o objeto órfão é apagado.
+    jdbc.update("UPDATE video_api.storage_cleanup SET retry_at = now()");
+    tx.executeWithoutResult(status -> cleanup.cleanupPending());
+    verify(storage).delete("raw", "orphan");
+    verify(storage, never()).delete("raw", "reserved");
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM video_api.storage_cleanup", Integer.class)).isZero();
+  }
 }

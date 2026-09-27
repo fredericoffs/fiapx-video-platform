@@ -4,7 +4,7 @@ name: CD - AWS EKS
 # tudo no ar é um no-op de ~2 min), builda as 5 imagens, publica no ECR e faz o deploy
 # no EKS com o perfil aws (RDS, ElastiCache, SQS, S3). Requer sessão do Learner Lab
 # ativa (secrets AWS_* renovados). terraform-aws.yml continua disponível pra rodar
-# plan/apply/destroy à mão; os três workflows compartilham o grupo terraform-aws.
+# plan/apply/destroy à mão; todos os workflows AWS compartilham o grupo fiapx-aws-lifecycle.
 on:
   push:
     branches: [ main ]
@@ -185,3 +185,15 @@ jobs:
           NOTIFICATION_FROM: ${{ vars.PROD_NOTIFICATION_FROM }}
           # DB_USER/DB_PASSWORD/JWT_SECRET/NOTIFICATION_WEBHOOK_URL vêm do SSM (/fiapx/...).
         run: ./scripts/k8s-deploy-aws.sh
+
+      # Rollout pronto não prova o fluxo de negócio: cadastro, upload real, ffmpeg, download
+      # e conferência do zip, mais o caminho de falha até a notificação — tudo pela URL pública.
+      - name: Teste E2E contra o ambiente implantado
+        env:
+          # Destinatário da notificação de falha vira plus-address desta conta; as mesmas
+          # credenciais do SMTP abrem a INBOX por IMAP pra provar que o e-mail chegou.
+          NOTIFICATION_FROM: ${{ vars.PROD_NOTIFICATION_FROM }}
+          SMTP_HOST: ${{ vars.PROD_SMTP_HOST }}
+          SMTP_USER: ${{ secrets.PROD_SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.PROD_SMTP_PASSWORD }}
+        run: ./scripts/aws-e2e-smoke.sh

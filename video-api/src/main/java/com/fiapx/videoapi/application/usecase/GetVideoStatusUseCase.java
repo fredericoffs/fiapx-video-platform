@@ -17,7 +17,7 @@ public class GetVideoStatusUseCase {
 
   public Video handle(UUID videoId, UUID requesterId) {
     Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
-    if (video.belongsTo(requesterId)) {
+    if (!video.belongsTo(requesterId)) {
       throw new VideoNotFoundException(videoId);
     }
     return video;

@@ -91,16 +91,74 @@ Faço todo trabalho em `develop`. Mantenho a `main` protegida e ela só recebe c
 
 ## Deploy na AWS (EKS)
 
-Tudo roda pelo GitHub Actions, no Environment `AWS`. Os únicos secrets obrigatórios no GitHub são `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` do Learner Lab (expiram a cada sessão). Os segredos da aplicação ficam no **SSM Parameter Store** (`/fiapx/db/username`, `/fiapx/db/password`, `/fiapx/jwt/secret`, `/fiapx/notification/webhook-url`), criados pelo Terraform: se `PROD_DB_PASSWORD`, `PROD_JWT_SECRET` ou `PROD_NOTIFICATION_WEBHOOK_URL` existirem no GitHub, o Terraform usa esses valores; se não, gera senha e segredo JWT (`random_password`, estáveis no state) — o webhook só existe se informado. O deploy lê os parâmetros por nome e monta um Secret por serviço (`video-api-secrets`, `notification-worker-secrets` — cada um só com as chaves que aquele serviço usa; `video-worker` e `video-gateway` não precisam de nenhum). Um push em `main` (ou o `CD - AWS EKS` manual) faz tudo sozinho: provisiona o que faltar, builda e faz o deploy. Os workflows:
+Tudo roda pelo GitHub Actions, no Environment `AWS` (Settings → Environments → **AWS**). Antes do primeiro deploy, configure:
+
+| Nome no GitHub | Tipo | Obrigatório? | Para quê |
+|---|---|---|---|
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | secret | **sim** | Credenciais do Learner Lab. Expiram a cada sessão; renove com `scripts/aws-sync-gh-secrets.sh` (abaixo). |
+| `PROD_ALERTMANAGER_WEBHOOK_URL` | secret | **sim** | Receptor dos alertas do Alertmanager (ex.: fila de alta profundidade). Sem ele o deploy para em `k8s-deploy-aws.sh`, porque os alertas não chegariam a lugar nenhum. |
+| `PROD_SMTP_HOST` + `PROD_SMTP_USER` + `PROD_SMTP_PASSWORD` + `PROD_NOTIFICATION_FROM` | var + secret + secret + var | **sim** | E-mail das notificações de falha (porta 587, STARTTLS), o único canal que chega ao usuário. Sem SMTP real, o deploy para: `configure SMTP_HOST real (PROD_SMTP_HOST) antes de publicar`. O teste E2E usa as mesmas credenciais pra conferir a chegada por IMAP. |
+| `PROD_NOTIFICATION_WEBHOOK_URL` | secret | não | Alerta operacional quando o e-mail falha: avisa a equipe, não o usuário. O payload leva só `videoId` e `errorMessage`, sem o e-mail do usuário (minimização, LGPD); o dono é localizado pelo `videoId` em `/admin/videos`. O Terraform grava em `/fiapx/notification/webhook-url` no SSM. |
+| `PROD_DB_PASSWORD`, `PROD_JWT_SECRET`, `PROD_ADMIN_PASSWORD` | secret | não | Senha do RDS, segredo dos JWTs e senha do admin semeado (`admin@fiapx.local`). Sem eles o Terraform gera valores aleatórios (`random_password`, estáveis no state). |
+
+**Como configurar os receptores.** Qualquer URL que aceite `POST` com JSON serve para os dois webhooks, que são alertas pra equipe (Alertmanager e falha de e-mail). Pra uma demo, gere dois endpoints distintos em [webhook.site](https://webhook.site) (expiram em ~7 dias); num ambiente real, use um Incoming Webhook do canal de plantão no Slack. No e-mail com Gmail, use `PROD_SMTP_HOST=smtp.gmail.com`, a própria conta em `PROD_SMTP_USER` e `PROD_NOTIFICATION_FROM`, e em `PROD_SMTP_PASSWORD` uma **App Password** (myaccount.google.com/apppasswords, exige verificação em duas etapas), não a senha normal da conta. Pela linha de comando:
+
+```bash
+gh secret set PROD_ALERTMANAGER_WEBHOOK_URL --env AWS --body 'https://webhook.site/<uuid-1>'
+gh secret set PROD_NOTIFICATION_WEBHOOK_URL --env AWS --body 'https://webhook.site/<uuid-2>'
+gh variable set PROD_SMTP_HOST --env AWS --body 'smtp.gmail.com'
+gh variable set PROD_NOTIFICATION_FROM --env AWS --body 'sua-conta@gmail.com'
+gh secret set PROD_SMTP_USER --env AWS --body 'sua-conta@gmail.com'
+gh secret set PROD_SMTP_PASSWORD --env AWS   # cola a App Password quando pedir
+```
+
+`PROD_NOTIFICATION_WEBHOOK_URL` passa pelo Terraform e só chega ao cluster depois de um `apply`. Se você criar esse secret com a infra já no ar, rode o `CD - AWS EKS` sem `provision: skip`.
+
+Os segredos da aplicação ficam no **SSM Parameter Store** (`/fiapx/db/username`, `/fiapx/db/password`, `/fiapx/jwt/secret`, `/fiapx/admin/password`, `/fiapx/notification/webhook-url`), criados pelo Terraform a partir dos `PROD_*` acima ou gerados por ele. O deploy lê os parâmetros por nome e monta um Secret por serviço (`video-api-secrets`, `notification-worker-secrets` — cada um só com as chaves que aquele serviço usa; `video-worker` e `video-gateway` não precisam de nenhum). As credenciais SMTP e o webhook do Alertmanager não passam pelo SSM: o job `deploy` recebe esses valores direto do Environment. Um push em `main` (ou o `CD - AWS EKS` manual) faz tudo sozinho: provisiona o que faltar, builda e faz o deploy. Os workflows:
 
 1. `CD - AWS EKS` (`cd-aws.yml`, a cada push em `main` ou manual) — job `provision`: `scripts/aws-up.sh --apply-if-changed` roda `terraform plan`; com a infra no ar e igual ao código é um no-op de ~2 min, senão aplica o plano (~25 min na primeira vez) — VPC, cluster EKS (`t3.large` ×2, add-on EBS CSI), 5 repositórios ECR, RDS PostgreSQL 17 (`db.t3.micro`), ElastiCache Redis 7.1 (`cache.t3.micro`), 3 filas SQS com DLQ e os parâmetros SSM. Os 2 buckets S3 privados são criados antes do `plan` por `scripts/aws-buckets-init.sh` (a SCP do Learner Lab nega `s3:GetBucketObjectLockConfiguration`, que o provider AWS chama ao ler um `aws_s3_bucket`). State no bucket S3 `fiapx-terraform-state-<account>`, criado automaticamente por `scripts/aws-tf-init.sh`.
-2. Ainda no `CD - AWS EKS`, jobs `build-and-push` e `deploy` — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh`: descobre RDS, ElastiCache, fila SQS e buckets por nome via `aws` CLI, injeta os hosts no ConfigMap, instala add-ons (ingress-nginx, metrics-server, KEDA, kube-prometheus-stack) e aplica os manifests (`k8s/apps/base`) depois de rodar a migração. Nenhum componente stateful sobe no cluster e o job de deploy não recebe secret nenhum do GitHub além das credenciais AWS. A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job. No disparo manual, o input `provision: skip` pula o Terraform e só faz build e deploy. `Terraform - AWS EKS` (`terraform-aws.yml`) continua disponível para rodar `plan`, `apply` ou `destroy` isolados à mão; os três workflows compartilham o grupo de concorrência `terraform-aws`, então nunca tocam o state ao mesmo tempo.
+2. Ainda no `CD - AWS EKS`, jobs `build-and-push` e `deploy` — builda as 5 imagens, publica no ECR e roda `scripts/k8s-deploy-aws.sh`: descobre RDS, ElastiCache, fila SQS e buckets por nome via `aws` CLI, injeta os hosts no ConfigMap, instala add-ons (ingress-nginx, metrics-server, KEDA, kube-prometheus-stack) e aplica os manifests (`k8s/apps/base`) depois de rodar a migração. Nenhum componente stateful sobe no cluster. A URL pública (hostname do ELB do `ingress-nginx`) sai no resumo do job. Por último, o job roda `scripts/aws-e2e-smoke.sh` pela URL pública (detalhes abaixo); se o fluxo de negócio quebrar, o deploy fica vermelho mesmo com os rollouts prontos. No disparo manual, o input `provision: skip` pula o Terraform e só faz build e deploy. `Terraform - AWS EKS` (`terraform-aws.yml`) continua disponível para rodar `plan`, `apply` ou `destroy` isolados à mão; todos os workflows AWS (inclusive o `Resiliência - AWS EKS`, abaixo) compartilham o grupo de concorrência `fiapx-aws-lifecycle`, então nunca rodam ao mesmo tempo.
 3. `Destroy AWS` (`destroy-aws.yml`) — ao fim de cada sessão: `scripts/aws-destroy.sh` (limpeza k8s → `terraform destroy` → varredura via `aws` CLI independente do state, incluindo RDS, ElastiCache, filas `fiapx-*`, buckets `fiapx-videos-*` e parâmetros SSM `/fiapx/*` → `scripts/aws-validate.sh --strict`).
 
-Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
+Os mesmos scripts funcionam localmente com `aws`, `terraform`, `kubectl`, `kustomize` e `helm` instalados (`scripts/aws-up.sh`, `scripts/aws-validate.sh`). Para renovar os 3 secrets `AWS_*` a cada sessão do lab, copie o bloco de **AWS Details → AWS CLI → Show** e rode:
 
 ```bash
 pbpaste | ./scripts/aws-sync-gh-secrets.sh --from-stdin --save-profile
 ```
 
 O script valida as credenciais (`aws sts get-caller-identity`), grava o perfil `default` em `~/.aws/credentials` e atualiza os secrets no Environment `AWS` via `gh`.
+
+### Teste de ponta a ponta no ambiente implantado
+
+`scripts/aws-e2e-smoke.sh` roda no fim de todo deploy e também pode ser executado localmente, com o `kubectl` apontando pro cluster. Nada é simulado:
+
+1. Cadastra um usuário novo e faz login.
+2. Faz upload real de `web/e2e/fixtures/sample.mp4` e espera `COMPLETED` (o `ffmpeg` roda de verdade no `video-worker`).
+3. Baixa o zip e confere que ele abre e tem frames `frame_NNNN.png` com assinatura PNG válida.
+4. Faz upload de um arquivo com extensão `.mp4` que não é vídeo e espera `FAILED` com `errorMessage`.
+5. Confere no log do `notification-worker` que a notificação de falha daquele vídeo saiu pelo canal `EMAIL` (sair pelo webhook de fallback conta como falha: o usuário não foi avisado).
+6. Entra por IMAP na caixa de entrada do destinatário e exige a mensagem com o `videoId`. Isso prova a chegada, não só o envio: a busca é só na INBOX, nunca em Enviados.
+
+O destinatário da notificação é um plus-address de `PROD_NOTIFICATION_FROM` (`conta+e2e-<ts>@gmail.com`), então o e-mail cai na própria caixa da conta remetente, e a mesma App Password do SMTP abre essa caixa por IMAP (`imap.gmail.com`, derivado de `PROD_SMTP_HOST`). Rodando local sem `SMTP_USER`/`SMTP_PASSWORD` no ambiente, o passo 6 é pulado com aviso. Cada execução deixa um usuário `e2e-*` e dois vídeos no banco. Os testes de integração do Maven (ex.: `EndToEndVideoProcessingFlowIntegrationTest`) continuam cobrindo cada serviço isolado com Testcontainers/LocalStack, e o teste de navegador (`web/e2e`) também pode rodar contra o ambiente com `E2E_BASE_URL=https://<host> npm run test:e2e`.
+
+### Teste de resiliência: picos, crash do worker e SQS fora do ar
+
+`scripts/aws-resilience-test.sh` exercita de propósito os mecanismos de confiabilidade contra o ambiente implantado. Roda local (com `kubectl` e `aws` apontando pro ambiente) ou pelo workflow manual `Resiliência - AWS EKS` (`resilience-aws.yml`), que guarda o log como artefato do run. Não roda a cada deploy porque mata pods e altera a fila por alguns minutos. São três cenários:
+
+| Cenário | O que faz | Passa quando |
+|---|---|---|
+| `burst` | 25 uploads simultâneos de um mesmo IP; a cota do gateway é 20 `POST /videos` por minuto | Cada resposta é `201` (aceito) ou `429` (rejeitado), sem outro código; `totalElements` do usuário é igual ao número de aceitos (nenhum 429 virou vídeo, nenhum 201 sumiu); todos os aceitos terminam, e todo `FAILED` tem `errorMessage` |
+| `worker` | Gera um vídeo de 600s, espera **esse** vídeo aparecer como `PROCESSING` na API e mata à força (`--grace-period=0 --force`) os pods do `video-worker` daquele momento | O `delete` funcionou, os pods antigos sumiram e há pelo menos um pod novo pronto; o vídeo termina `COMPLETED` depois da reentrega (a visibilidade de ≤120s expira, e o lease de 90s no S3 também). Se o vídeo já estava pronto antes do crash, o resultado sai `INCONCLUSIVO` |
+| `sqs` | Aplica na fila de processamento uma queue policy com `Deny` de `SendMessage`/`ReceiveMessage` pra todos, sem reiniciar nada, e faz 3 uploads | Durante a falha os 3 ficam `QUEUED` (persistidos; a outbox do `video-api` loga as tentativas); depois de restaurar a policy original, os 3 terminam `COMPLETED` |
+
+A policy original da fila é restaurada por um `trap` mesmo se o script abortar. `SetQueueAttributes` nunca é negado, então sempre dá pra reverter. Um vídeo que esgota as 3 tentativas vai pra DLQ, e o consumer da DLQ no `video-worker` marca `FAILED` com a mensagem de erro. Essa é a "falha rastreável", e o cenário `burst` a aceita, desde que tenha `errorMessage`.
+
+### Evidência de processamento simultâneo (KEDA)
+
+Cada réplica do `video-worker` processa um vídeo por vez, e o `ScaledObject` usa `queueLength: 1` (uma mensagem por réplica, contando as que estão em processamento), com mínimo 1 e máximo 3 réplicas. Com o ambiente no ar e o `kubectl` apontando pro cluster:
+
+```bash
+./scripts/aws-demo-concurrency.sh --email demo@exemplo.com --password 'senha-da-demo' video1.mp4 video2.mp4
+```
+
+O script faz os uploads em paralelo pela URL pública e registra a cada 5s as réplicas do worker e o status de cada vídeo, até todos terminarem e o worker voltar a 1 réplica. No resumo aparecem o pico de réplicas, o pico de vídeos em `PROCESSING` ao mesmo tempo e o tempo até voltar a 1 réplica. A saída fica num `.log`. O script só sai com sucesso se o ciclo inteiro acontecer antes do timeout: o KEDA escalou acima do mínimo, houve 2 vídeos em `PROCESSING` juntos, todos terminaram `COMPLETED` e as réplicas voltaram ao mínimo. Se faltar qualquer um desses, ele diz qual. Use vídeos de 1 min ou mais, porque o segundo vídeo só começa depois que o KEDA lê a fila (a cada 15s) e o pod novo sobe.

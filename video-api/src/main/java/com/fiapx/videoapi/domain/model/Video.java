@@ -60,8 +60,9 @@ public class Video {
     return newQueued(id, userId, originalFilename, storageKey, null);
   }
 
+  /** true só quando o vídeo é do usuário informado; vídeo sem dono não pertence a ninguém. */
   public boolean belongsTo(UUID requesterId) {
-    return userId == null || !userId.equals(requesterId);
+    return userId != null && userId.equals(requesterId);
   }
 
   /**

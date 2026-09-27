@@ -33,9 +33,10 @@ npm run dev
   resultado depois de qualquer mudança de contrato no `video-api`.
 - `npm test` / `test:watch` — Vitest + Testing Library (componentes/hooks).
 - `npm run test:e2e` — Playwright, 1 spec do fluxo feliz completo (registro→login→upload→
-  status→download). Sobe o próprio `npm run dev` como servidor; precisa de um backend real
-  alcançável (`VITE_API_BASE_URL` apontando para um deploy na AWS, ou os serviços rodando
-  individualmente) pra passar de verdade.
+  status→download). Contra o ambiente implantado: `E2E_BASE_URL=https://<host-do-nlb> npm run test:e2e`
+  (não sobe servidor local e aceita o certificado autoassinado do ingress; na primeira vez,
+  `npx playwright install chromium`). Sem `E2E_BASE_URL`, sobe o próprio `npm run dev` e precisa
+  de `VITE_API_BASE_URL` apontando pra um backend real.
 
 ## Deploy
 

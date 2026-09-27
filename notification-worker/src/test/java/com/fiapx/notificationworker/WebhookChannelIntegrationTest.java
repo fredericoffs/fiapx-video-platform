@@ -39,7 +39,7 @@ class WebhookChannelIntegrationTest extends AbstractSqsIntegrationTest {
   private List<NotificationChannel> channels;
 
   @Test
-  void postsVideoIdErrorMessageAndRecipientEmailToConfiguredUrl() throws InterruptedException {
+  void postsVideoIdAndErrorMessageWithoutRecipientEmail() throws InterruptedException {
     mockWebServer.enqueue(new MockResponse().setResponseCode(200));
     UUID videoId = UUID.randomUUID();
 
@@ -49,18 +49,9 @@ class WebhookChannelIntegrationTest extends AbstractSqsIntegrationTest {
     assertThat(request).isNotNull();
     assertThat(request.getPath()).isEqualTo("/webhook");
     String body = request.getBody().readUtf8();
-    assertThat(body).contains(videoId.toString()).contains("ffmpeg falhou").contains("dono@example.com");
-  }
-
-  @Test
-  void toleratesNullRecipientEmailWithoutThrowing() throws InterruptedException {
-    mockWebServer.enqueue(new MockResponse().setResponseCode(200));
-    UUID videoId = UUID.randomUUID();
-
-    webhookChannel().send(videoId, "ffmpeg falhou", null).join();
-
-    RecordedRequest request = mockWebServer.takeRequest(5, TimeUnit.SECONDS);
-    assertThat(request).isNotNull();
+    assertThat(body).contains(videoId.toString()).contains("ffmpeg falhou");
+    // Alerta operacional: o e-mail do usuário não sai para o endpoint global (LGPD).
+    assertThat(body).doesNotContain("dono@example.com").doesNotContain("recipientEmail");
   }
 
   private NotificationChannel webhookChannel() {

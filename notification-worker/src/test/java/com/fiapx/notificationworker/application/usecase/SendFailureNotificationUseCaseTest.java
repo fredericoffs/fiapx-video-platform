@@ -73,7 +73,7 @@ class SendFailureNotificationUseCaseTest {
   }
 
   @Test
-  void fallsBackToWebhookWhenEmailFails() {
+  void alertsOperatorsByWebhookButStillRethrowsSoTheEmailIsRetried() {
     UUID videoId = UUID.randomUUID();
     NotificationAttempt emailAttempt = claim(NotificationChannelType.EMAIL);
     NotificationAttempt webhookAttempt = claim(NotificationChannelType.WEBHOOK);
@@ -85,7 +85,10 @@ class SendFailureNotificationUseCaseTest {
     when(webhookChannel.send(videoId, "erro", "user@example.com"))
         .thenReturn(CompletableFuture.completedFuture(null));
 
-    useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
+    // Sucesso do webhook não conclui a notificação: o usuário ainda não recebeu nada.
+    assertThatThrownBy(() -> useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com")))
+        .isInstanceOf(NotificationDeliveryException.class)
+        .hasMessageContaining("não entregue ao usuário");
 
     verify(notificationAttemptRepository).markFailed(eq(emailAttempt.getId()), contains("smtp indisponível"));
     verify(notificationAttemptRepository).markSent(webhookAttempt.getId());
@@ -102,9 +105,28 @@ class SendFailureNotificationUseCaseTest {
     when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("smtp indisponível"));
     when(notificationAttemptRepository.isSent(videoId, NotificationChannelType.WEBHOOK)).thenReturn(true);
 
-    useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com"));
+    // Reentrega: o e-mail é tentado de novo, o alerta já enviado não se repete.
+    assertThatThrownBy(() -> useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com")))
+        .isInstanceOf(NotificationDeliveryException.class);
 
+    verify(emailChannel).send(videoId, "erro", "user@example.com");
     verify(webhookChannel, never()).send(any(), any(), any());
+  }
+
+  @Test
+  void webhookClaimInProgressDoesNotHideTheEmailFailure() {
+    UUID videoId = UUID.randomUUID();
+    NotificationAttempt emailAttempt = claim(NotificationChannelType.EMAIL);
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.EMAIL))
+        .thenReturn(Optional.of(emailAttempt));
+    when(notificationAttemptRepository.tryClaim(videoId, NotificationChannelType.WEBHOOK))
+        .thenReturn(Optional.empty());
+    when(notificationAttemptRepository.isSent(videoId, NotificationChannelType.WEBHOOK)).thenReturn(false);
+    when(emailChannel.send(videoId, "erro", "user@example.com")).thenReturn(failedFuture("smtp indisponível"));
+
+    assertThatThrownBy(() -> useCase.handle(new NotificationRequestedMessage(videoId, "erro", "user@example.com")))
+        .isInstanceOf(NotificationDeliveryException.class)
+        .hasMessageContaining("não entregue ao usuário");
   }
 
   @Test
