@@ -21,8 +21,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Meu dispatcher: tento o canal primário (e-mail); se falhar (circuito aberto, bulkhead cheio ou erro real de envio), caio pro canal secundário
- * (webhook). Só relanço — pro retry/DLQ do SQS agir — se os dois canais falharem.
+ * Meu dispatcher: o e-mail é a entrega ao usuário; o webhook é só alerta operacional pra equipe.
+ * Se o e-mail falhar (circuito aberto, bulkhead cheio ou erro real de envio), aviso a equipe pelo
+ * webhook e relanço mesmo assim — o sucesso do alerta não conclui a notificação, então a
+ * reentrega do SQS tenta o e-mail de novo até esgotar e cair na DLQ. O webhook sai uma vez só
+ * por vídeo: nas reentregas, a tentativa SENT dele é reconhecida e não repete.
  */
 @Service
 public class SendFailureNotificationUseCase {
@@ -47,11 +50,18 @@ public class SendFailureNotificationUseCase {
     if (tryChannel(NotificationChannelType.EMAIL, message)) {
       return;
     }
-    if (tryChannel(NotificationChannelType.WEBHOOK, message)) {
-      return;
-    }
+    alertOperators(message);
     throw new NotificationDeliveryException(
-        "Falha ao notificar vídeo " + message.videoId() + " por todos os canais", null);
+        "E-mail do vídeo " + message.videoId() + " não entregue ao usuário; reentrega tenta de novo", null);
+  }
+
+  // Best-effort: falha ou tentativa em andamento no alerta não muda o desfecho (relançar).
+  private void alertOperators(NotificationRequestedMessage message) {
+    try {
+      tryChannel(NotificationChannelType.WEBHOOK, message);
+    } catch (NotificationDeliveryException e) {
+      log.warn("Alerta operacional do vídeo {} não confirmado: {}", message.videoId(), e.getMessage());
+    }
   }
 
   // Reivindica ANTES de chamar o canal (não "consultar então enviar"): fecha a corrida em que
