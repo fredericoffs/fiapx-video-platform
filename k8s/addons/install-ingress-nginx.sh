@@ -20,6 +20,11 @@ helm repo update >/dev/null
 kubectl get namespace ingress-nginx >/dev/null 2>&1 || kubectl create namespace ingress-nginx
 
 echo "==> ingress-nginx"
+# externalTrafficPolicy=Local preserva o IP do cliente até o nginx, que o repassa no
+# X-Forwarded-For. Com o padrão (Cluster) o kube-proxy troca a origem pelo IP do nó, e o rate
+# limit do video-gateway (por IP) contava por nó: todos os clientes dividiam duas cotas —
+# observado ao vivo, 25 uploads de um mesmo IP e nenhum 429. O NLB passa a checar a saúde
+# pelo healthCheckNodePort e só encaminha para nós com pod do controller.
 # Versão fixada (item 20 da revisão crítica): sem --version, cada execução puxa o chart mais
 # novo do momento — como este script roda de novo a cada sessão do Learner Lab (o lab reseta
 # entre sessões), a versão podia mudar de uma sessão pra outra sem nenhuma mudança de código.
@@ -31,4 +36,5 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.resources.limits.cpu=250m \
   --set controller.resources.limits.memory=256Mi \
   --set-string controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  --set controller.service.externalTrafficPolicy=Local \
   --wait --timeout 5m
