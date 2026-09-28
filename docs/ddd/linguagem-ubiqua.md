@@ -1,37 +1,55 @@
-# Linguagem Ubíqua — Sistema de Processamento de Vídeos (FIAP X)
+# Linguagem Ubíqua — FIAP X
 
 > [!NOTE]
 > **Por que este documento existe**
-> A [documentação de arquitetura](../architecture/hld-lld-adr-rfc.md) já aplica os *conceitos* de DDD (bounded contexts, arquitetura hexagonal), mas eu nunca tinha fixado os termos do domínio como artefato — exatamente o que a Fase 1 exige (linguagem ubíqua aplicada, entregável formal). Trato este glossário como a fonte única de nomenclatura para código, testes, eventos e documentação — se um termo não está aqui, não deveria aparecer em `camelCase` no código sem antes ser adicionado aqui.
+> A [documentação de arquitetura](../architecture/README.md) aplica os *conceitos* de DDD (bounded contexts, arquitetura hexagonal), mas os termos do domínio também precisavam estar fixados num artefato próprio — é o que a Fase 1 exige (linguagem ubíqua aplicada, entregável formal). Trato este glossário como a fonte única de nomenclatura para código, testes, eventos, interface e documentação. Um termo conceitual daqui não implica, por si só, uma classe, tabela ou fila própria.
 
-## Termos do domínio
+## 📖 Termos do domínio
 
 | Termo | Definição | Não confundir com |
 |---|---|---|
-| **Vídeo** | O arquivo binário original enviado pelo usuário, mais seus metadados (nome, formato, tamanho). Representado pela entidade `Video`. | O `.zip` de frames gerado — esse é o **Resultado**, não o Vídeo |
-| **Job de Processamento** | A unidade de trabalho que representa "extrair frames deste Vídeo". Um Vídeo tem no máximo um Job ativo por vez. Em código, hoje modelado como o próprio agregado `Video` com campo `status` — ver nota abaixo | Uma mensagem na fila (a mensagem é o *transporte* do comando de processar, não o Job em si) |
-| **Status** | Estado do ciclo de vida de um Vídeo: `QUEUED` (na fila, aguardando worker), `PROCESSING` (worker está extraindo frames), `COMPLETED` (zip gerado com sucesso), `FAILED` (falhou após esgotar tentativas) | "Progresso" (percentual) — o sistema não expõe progresso granular, só esses 4 estados discretos |
-| **Resultado** | O arquivo `.zip` contendo os frames extraídos (1 frame/segundo via `ffmpeg -vf fps=1`), armazenado no Amazon S3 e disponibilizado via streaming pelo `video-api` (bucket privado, sem URL pré-assinada) | O Vídeo original — arquivos distintos, `storage_key` diferentes |
-| **Usuário** | Pessoa autenticada por e-mail/senha, dona de zero ou mais Vídeos. Nunca vê Vídeos de outro Usuário | "Cliente" (termo usado no domínio da oficina mecânica das fases anteriores — não reaproveitar aqui) |
-| **Falha de Processamento** | Erro definitivo (após esgotar retries) durante a extração de frames — vídeo corrompido, formato não suportado, timeout. Sempre acompanhada de `error_message` e dispara notificação | Falha transitória (ex.: S3 indisponível por 1s) — essa é absorvida por retry, nunca vira `FAILED` sozinha |
-| **Notificação** | Comunicação assíncrona ao Usuário informando uma Falha de Processamento (e-mail, com webhook como fallback — ver [ADR-011](../architecture/hld-lld-adr-rfc.md#adr-011--notificação-multicanal-como-incremento-não-como-núcleo)) | Resposta HTTP síncrona de erro (ex.: `400` no upload) — isso não é "Notificação", é validação de request |
-| **Fila de Processamento** | A fila de mensageria (`video.processing`) que desacopla o recebimento do Vídeo da sua extração de frames — o mecanismo central que garante RF1/RF2 do enunciado | O `outbox_events` do Postgres — este é o *buffer transacional* antes da fila, não a fila em si |
+| 🎬 **Vídeo** | O arquivo original enviado pelo usuário e seus metadados (nome, tamanho, dono). Entidade `Video`, tabela `videos` | O `.zip` de frames — esse é o **Resultado** |
+| ⚙️ **Job de Processamento** | O trabalho de "extrair frames deste Vídeo". Modelado pelo próprio ciclo de vida do `Video` — não existe tabela `jobs` nem classe `Job` | A mensagem na fila: ela é o *transporte* do pedido, não o Job |
+| 🚦 **Status** | Estado do Vídeo: `QUEUED`, `PROCESSING`, `COMPLETED` ou `FAILED` (definições abaixo) | "Progresso" percentual — o sistema só expõe esses 4 estados discretos |
+| ⏳ `QUEUED` | Upload aceito e persistido, aguardando processamento; o pedido pode ainda estar na outbox | Vídeo "na fila SQS" — a publicação acontece depois, pelo job da outbox |
+| 🔄 `PROCESSING` | A API recebeu `PROCESSING_STARTED` do worker | Prova instantânea de que o pod está vivo — isso é o heartbeat/lease |
+| ✅ `COMPLETED` | Resultado aplicado pela API, com a chave do ZIP no S3 | ZIP gravado no S3 mas ainda não aplicado (janela entre worker e API) |
+| ❌ `FAILED` | Falha definitiva de negócio, ou resultado após esgotar as tentativas; sempre acompanhada de `error_message` | Falha transitória (ex.: S3 indisponível por segundos) — absorvida pela reentrega, nunca vira `FAILED` sozinha |
+| 📦 **Resultado** | O ZIP com os frames extraídos (1 frame/s, até 854 × 480), privado no S3 e baixado por streaming pela API | O Vídeo original — arquivos e chaves distintos |
+| 👤 **Usuário** | Pessoa autenticada por e-mail e senha, dona de zero ou mais Vídeos; nunca vê Vídeos de outro Usuário (404) | "Cliente" (domínio da oficina mecânica das fases anteriores — não reaproveitar) |
+| 🛡️ **Administrador** | Usuário com papel `ADMIN`, com endpoints próprios em `/admin` | Operação/equipe que recebe **Alertas operacionais** |
+| 📤 **Outbox** | Eventos gravados na mesma transação da alteração de negócio e publicados depois no SQS | A fila em si — a outbox é o *buffer transacional* antes da fila |
+| 🔒 **Lease** | Reserva temporária de trabalho com dono e prazo: na outbox (Postgres, 30 s) e no processamento (S3, 90 s) | Lock de banco — o lease expira sozinho se o dono morrer |
+| 🔁 **Reentrega** | Nova entrega da mesma mensagem pelo SQS, após a visibilidade expirar; exige consumidores idempotentes | Retry dentro do código — aqui quem repete é a fila |
+| 🪦 **DLQ** | Fila (sufixo `-dlq`) das mensagens que esgotaram 3 recebimentos | Descarte — a mensagem fica retida para investigação e replay |
+| ✉️ **Notificação** | E-mail ao Usuário informando a falha do seu Vídeo | Resposta HTTP de erro (ex.: `400` no upload) — isso é validação de request |
+| 🚨 **Alerta operacional** | Webhook opcional para a equipe quando o e-mail falha, sem dado pessoal; não encerra a retentativa do e-mail | Alerta do Alertmanager (saúde da plataforma) — outro destino e outro payload |
+| 📬 `SENT` | Envio aceito pelo canal; para e-mail, o SMTP aceitou a mensagem | Chegada à caixa de entrada — comprovada à parte, pelo E2E via IMAP |
 
-## Eventos de domínio (vocabulário formal)
+## 🟧 Eventos de domínio (vocabulário formal)
 
 Nomeados no passado, como fatos já ocorridos — ver [Event Storming](./event-storming.md) para o quadro completo:
 
-- `VideoUploadRequested` — usuário concluiu o upload; vídeo persistido e enfileirado.
-- `ProcessingStarted` — worker pegou o job da fila e começou a extrair frames.
-- `ProcessingCompleted` — frames extraídos, zip gerado e armazenado com sucesso.
-- `ProcessingFailed` — processamento falhou definitivamente após esgotar retries.
-- `NotificationSent` — notificação de falha foi entregue ao usuário (por algum canal).
+| Fato | Representação no sistema |
+|---|---|
+| Upload solicitado | `VideoUploadRequested` — na outbox e depois na fila `fiapx-video-processing` |
+| Processamento iniciado | `PROCESSING_STARTED` — worker obteve o lease; fila `fiapx-video-status-updates` |
+| Processamento concluído | `PROCESSING_COMPLETED` — ZIP gravado no S3; mesma fila de resultados |
+| Processamento falhou | `PROCESSING_FAILED` — com motivo; mesma fila de resultados |
+| Notificação solicitada | `NotificationRequested` — gravado pela API na outbox ao aplicar `FAILED`; fila `fiapx-video-notification` |
+| Notificação enviada | Estado `SENT` em `NotificationAttempt` — não há evento `NotificationSent` publicado |
+
+Cada fila tem uma DLQ com sufixo `-dlq`.
 
 ## Regra de nomenclatura
 
-- Uso português nos documentos/UI, inglês no código (entidades, eventos, nomes de fila) — mesmo padrão que já uso nos ADRs existentes (`Video`, `VideoUploadRequested`, fila `video.processing`).
-- Um termo da tabela acima = um nome de classe/tabela/evento no código. Se o código introduzir um sinônimo (ex.: chamar `Job` de `Task` em algum lugar), corrijo o código, não a tabela.
+- Português nos documentos e na interface, inglês no código (entidades, eventos, filas): `Video`, `VideoUploadRequested`, `fiapx-video-processing`.
+- Um termo da tabela = um nome no código. Se o código introduzir um sinônimo (ex.: chamar `Video` de `Media`), corrijo o código, não a tabela.
+- Os valores de resultado seguem o enum `ProcessingEventType` (`PROCESSING_*`), que é o contrato da fila; o nome de negócio fica em português na coluna "Fato".
 
-## Nota aberta
+## Referências
 
-O termo "Job de Processamento" ainda não tem uma classe própria no LLD — hoje é só o campo `status` do agregado `Video`. Considero isso uma simplificação aceitável para o escopo do hackathon (ver [Event Storming](./event-storming.md), seção Agregados), mas registro isso aqui para não gerar confusão de nomenclatura entre este glossário e o código.
+- [Event Storming](./event-storming.md)
+- [Domain Storytelling](./domain-storytelling.md)
+- [Context Map](./context-map.md)
+- [Documentação de arquitetura](../architecture/README.md)
