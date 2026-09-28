@@ -15,6 +15,34 @@
 
 Construí esta arquitetura de processamento de vídeos para o Hackathon da Fase 5. Guardo a documentação de arquitetura (requisitos, RFC, HLD, LLD, riscos, ADRs e artefatos de DDD) em [`docs/`](./docs) — o ponto de partida é o [índice da arquitetura](./docs/architecture/README.md). Este README apresenta o produto e o caminho de execução.
 
+## Para quem vai avaliar
+
+**Vídeo da apresentação:** _link a informar_.
+
+**O ambiente não fica no ar o tempo todo.** Ele roda no AWS Academy Learner Lab, que tem limitações que definem como avaliar:
+
+- As credenciais da AWS são temporárias e valem só durante a sessão do lab. Quando o cronômetro zera, os nós do EKS são desligados e a aplicação sai do ar, mesmo que os recursos continuem na conta.
+- Para não gastar o orçamento do lab, destruo o ambiente ao fim de cada sessão (`destroy-aws.yml`) e o recrio quando preciso (push em `main` ou `cd-aws.yml`, cerca de 25 min).
+- O endereço público é o hostname do NLB criado a cada subida (`https://<id>.elb.us-east-1.amazonaws.com`), então **muda a cada ambiente**. O endereço da vez aparece no resumo do run do `cd-aws.yml` ("Deploy no EKS concluído") e em `kubectl get ingress -n fiapx`.
+- Para ver o sistema ao vivo, combine um horário comigo; ou suba numa conta própria do Learner Lab seguindo [Deploy na AWS](#deploy-na-aws-eks).
+
+**Acesso com o ambiente no ar:**
+
+- Use `https://`. O `http://` redireciona (308) para `https://`.
+- O certificado é **autoassinado** (emitido pelo cert-manager com um `ClusterIssuer` `selfSigned`), porque o hostname do NLB é da AWS e não dá para emitir certificado público para ele. O navegador vai mostrar um aviso de conexão não confiável: aceite para continuar. No terminal, use `curl -k`.
+- Crie um usuário na tela de cadastro; não há conta de avaliação pré-criada.
+
+**Roteiro sugerido (cerca de 10 min):**
+
+1. Cadastre-se e entre.
+2. Arraste **dois vídeos juntos** para a área de upload (de 1 min ou mais). Cada um sobe com sua barra de progresso e entra na lista como "Na fila".
+3. Acompanhe os dois em "Processando" ao mesmo tempo: o KEDA escala o `video-worker` pela profundidade da fila do SQS. `scripts/aws-demo-concurrency.sh` faz o mesmo pela linha de comando e registra as réplicas ([detalhes](#evidência-de-processamento-simultâneo-keda)).
+4. Quando o status virar "Concluído", baixe o `.zip` com os frames.
+5. Envie um arquivo com extensão `.mp4` que não seja vídeo: ele termina em "Falhou" com o motivo, e o usuário recebe um e-mail de falha.
+6. No Grafana (tag `fiapx`), veja o processamento, o escalonamento e os logs pelo `X-Correlation-Id` ([Observabilidade](#observabilidade)).
+
+**Sem o ambiente no ar**, as execuções reais (E2E com e-mail confirmado na caixa de entrada, concorrência, resiliência e alertas) estão registradas com data e horário em [Requisitos e evidências](./docs/architecture/01-requisitos.md#evidências-de-execução), e cada deploy deixa o log do E2E no run do `cd-aws.yml`.
+
 ## Requisitos do desafio
 
 | Requisito (enunciado do Hackathon)            | Implementação | Onde                                                                                                                                                                                                                                                                                        |
