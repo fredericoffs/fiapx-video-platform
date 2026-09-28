@@ -18,7 +18,6 @@ export function useUploadMutation() {
     mutationFn: ({ file, onProgress }: UploadVariables) => uploadVideo(file, onProgress),
     onMutate: async ({ file }) => {
       await queryClient.cancelQueries({ queryKey: videoKeys.list(email) })
-      const previous = queryClient.getQueryData<InfiniteData<VideoPage>>(videoKeys.list(email))
 
       const optimisticVideo: Video = {
         id: `optimistic-${randomId()}`,
@@ -53,16 +52,30 @@ export function useUploadMutation() {
         }
       })
 
-      return { previous }
+      return { optimisticId: optimisticVideo.id }
     },
-    onError: (error, _variables, context) => {
+    onError: (error, { file }, context) => {
+      // Remove só o próprio item otimista: com vários uploads em paralelo, restaurar um
+      // snapshot anterior apagaria os itens otimistas dos outros envios ainda em curso.
       if (context) {
-        queryClient.setQueryData(videoKeys.list(email), context.previous)
+        queryClient.setQueryData<InfiniteData<VideoPage>>(videoKeys.list(email), (old) =>
+          old
+            ? {
+                ...old,
+                pages: old.pages.map((page) => {
+                  const items = page.items.filter((video) => video.id !== context.optimisticId)
+                  const removed = page.items.length - items.length
+                  return { ...page, items, totalElements: page.totalElements - removed }
+                }),
+              }
+            : old,
+        )
       }
-      toast.error(error instanceof Error ? error.message : 'Não foi possível enviar o vídeo')
+      const message = error instanceof Error ? error.message : 'Não foi possível enviar o vídeo'
+      toast.error(`${file.name}: ${message}`)
     },
-    onSuccess: () => {
-      toast.success('Vídeo enviado — processando')
+    onSuccess: (_data, { file }) => {
+      toast.success(`${file.name} enviado — processando`)
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: videoKeys.list(email) })
