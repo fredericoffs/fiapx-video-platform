@@ -23,7 +23,7 @@ Detalhamento para quem vai manter o código. As [migrações Flyway](../../video
 
 ## 2. Estados do vídeo
 
-![Estados do vídeo.svg](img/Estados%20do%20vi%CC%81deo.svg)
+![Estados do vídeo.svg](img/Estados%20do%20v%C3%ADdeo.svg)
 
 O consumidor ignora eventos para vídeos em estado terminal. As transições diretas de `QUEUED` para terminal acomodam a entrega fora de ordem do SQS Standard: um `PROCESSING_STARTED` atrasado não regride o estado. A exclusão de um vídeo só é aceita em estado terminal (HTTP 409 antes disso), porque o worker ainda pode gravar o ZIP.
 
@@ -58,7 +58,7 @@ Cada fila tem uma DLQ com sufixo `-dlq`, após 3 recebimentos. Toda mensagem car
 
 O envio de até 500 MB ao S3 acontece **fora** de qualquer transação, e uma reserva de limpeza garante que nenhuma falha deixe objeto órfão no bucket.
 
-![Upload em três fases.svg](img/Upload%20em%20tre%CC%82s%20fases.svg)
+![Upload em três fases.svg](img/Upload%20em%20tr%C3%AAs%20fases.svg)
 
 A trava do usuário na fase 3 é a mesma proteção contra exclusão concorrente de antes, agora mantida por milissegundos em vez de durante todo o envio.
 

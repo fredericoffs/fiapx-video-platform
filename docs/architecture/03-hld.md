@@ -28,7 +28,7 @@ O upload em três fases (reserva, envio, confirmação) evita manter transação
 
 ### Falha e notificação
 
-![Falha e notificação.svg](img/Falha%20e%20notificac%CC%A7a%CC%83o.svg)
+![Falha e notificação.svg](img/Falha%20e%20notifica%C3%A7%C3%A3o.svg)
 
 Erros de formato, duração ou extração produzem `PROCESSING_FAILED`. Falhas transitórias de infraestrutura mantêm a mensagem disponível para reentrega. O consumidor da DLQ de processamento produz um resultado terminal, recuperando sucesso se o ZIP já existir. A aceitação pelo SMTP não prova a chegada: o E2E confirma a mensagem na caixa de entrada por IMAP ([ADR-011](adr/ADR-011-notificacao.md)).
 
