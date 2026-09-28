@@ -29,7 +29,7 @@ management:
     tags:
       application: ${spring.application.name}
 
-# Fiz o video-worker stateless por decisão (ver docs/architecture/hld-lld-adr-rfc.md, ADR-008) — não coloco datasource aqui de propósito.
+# Fiz o video-worker stateless por decisão (ver docs/architecture/adr/ADR-008-status-por-evento.md) — não coloco datasource aqui de propósito.
 fiapx:
   storage:
     endpoint: ${STORAGE_ENDPOINT:}

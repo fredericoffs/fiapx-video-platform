@@ -1,5 +1,5 @@
 # VPC + cluster EKS + node group + repositórios ECR na AWS (Learner Lab).
-# Ver ADR-012 (docs/architecture/hld-lld-adr-rfc.md).
+# Ver docs/architecture/adr/ADR-012-aws-eks.md.
 terraform {
   required_version = ">= 1.10"
   required_providers {

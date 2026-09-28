@@ -1,24 +1,36 @@
-# Documentação — FIAP X Video Platform
+# Documentação — FIAP X
 
-Índice da documentação de arquitetura do hackathon. Para instruções de "como rodar", ver o [README da raiz](../README.md).
+Comece pelo [README principal](../README.md) para entender o produto e executar o projeto. Esta documentação descreve a implementação versionada e separa configuração de evidência operacional.
 
-## Enunciado
+| Objetivo | Documento |
+|---|---|
+| Conferir requisitos e entregáveis | [Enunciado original](enunciado.md) |
+| Ver a arquitetura por assunto | [Índice da arquitetura](architecture/README.md) |
+| Ligar requisitos à implementação e às evidências | [Requisitos e evidências](architecture/01-requisitos.md) |
+| Entender o problema e a proposta | [RFC](architecture/02-rfc.md) |
+| Entender componentes, fluxos, implantação e observabilidade | [HLD](architecture/03-hld.md) |
+| Entender dados, contratos e mecanismos internos | [LLD](architecture/04-lld.md) |
+| Avaliar riscos e o resultado dos testes de falha | [Riscos e resiliência](architecture/05-riscos-e-resiliencia.md) |
+| Entender o porquê de cada decisão | [14 ADRs](architecture/adr/README.md) |
+| Preparar o ambiente do laboratório | [Guia AWS](aws-account-setup.md) |
+| Consultar o material fornecido pelo lab | [AWS Academy Learner Lab](Learner_Lab.md) |
+| Entender a escolha do gateway | [RFC-002](architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md) |
+| Explorar a API | [Collection Postman](postman/fiapx-video-api.postman_collection.json) |
+| Desenvolver o frontend | [README web](../web/README.md) |
 
-- [`enunciado.md`](./enunciado.md) — enunciado original do desafio (Hackathon Fase 5), com os requisitos funcionais/técnicos e a lista de entregáveis.
-- [`Learner_Lab.md`](./Learner_Lab.md) — regras e limites do AWS Academy Learner Lab (regiões, `LabRole`/`LabEksClusterRole`, tipos de instância, budget), ambiente do deploy em nuvem (ver ADR-012).
+## Domínio
 
-## Arquitetura
+- [Linguagem ubíqua](ddd/linguagem-ubiqua.md): termos e contratos.
+- [Context Map](ddd/context-map.md): responsabilidades e fronteiras.
+- [Event Storming](ddd/event-storming.md): comandos, fatos e políticas.
+- [Domain Storytelling](ddd/domain-storytelling.md): jornadas de sucesso e falha.
 
-- [`architecture/hld-lld-adr-rfc.md`](./architecture/hld-lld-adr-rfc.md) — documento principal: RFC (motivação e proposta), HLD (visão de containers e topologia de implantação), LLD (modelo de dados com diagramas ER por schema, contratos de API, diagramas de sequência) e os 14 ADRs técnicos (broker, outbox, storage, autenticação, observabilidade, linguagem/runtime, comunicação entre serviços, API Gateway, Kubernetes, notificação multicanal, topologia de execução, consulta de status, serviços gerenciados).
-- [`architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md`](./architecture/rfc/RFC-002-spring-cloud-gateway-vs-kong.md) — RFC curto: problema, proposta, comparação com Kong/Traefik, consequências e como validar (par do ADR-009).
+## Fontes executáveis
 
-## API
+- [Migrações da API](../video-api/src/main/resources/db/migration/) e [notificações](../notification-worker/src/main/resources/db/migration/).
+- [Manifests Kubernetes](../k8s/apps/base/), [Terraform](../k8s/terraform/aws/) e [workflows](../.github/workflows/).
+- [Dashboards Grafana](../k8s/addons/dashboards/) e [scripts operacionais](../scripts/).
 
-- [`postman/fiapx-video-api.postman_collection.json`](./postman/fiapx-video-api.postman_collection.json) — collection Postman do `video-api` (auth + upload/listagem/status/download de vídeos), exportada a partir do OpenAPI real (`/v3/api-docs`, springdoc). Cada serviço também expõe Swagger UI em `/swagger-ui.html`.
+Os diagramas Mermaid ficam no próprio Markdown, evitando imagens externas desatualizadas. Os documentos de origem (enunciado e material do laboratório) são preservados como referência.
 
-## DDD (Domain-Driven Design)
-
-- [`ddd/linguagem-ubiqua.md`](./ddd/linguagem-ubiqua.md) — glossário de termos do domínio de processamento de vídeo.
-- [`ddd/event-storming.md`](./ddd/event-storming.md) — eventos de domínio, comandos, agregados, políticas e read models.
-- [`ddd/domain-storytelling.md`](./ddd/domain-storytelling.md) — jornada do usuário narrada (caminho feliz e caminho de falha).
-- [`ddd/context-map.md`](./ddd/context-map.md) — bounded contexts e como se relacionam (Published Language, Customer/Supplier, Conformist).
+Projeto desenvolvido no Hackathon da Fase 5 — PosTech FIAP.

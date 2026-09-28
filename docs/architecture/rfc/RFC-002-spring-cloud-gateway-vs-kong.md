@@ -2,9 +2,9 @@
 
 | Campo  | Valor                                                                                                                    |
 |--------|--------------------------------------------------------------------------------------------------------------------------|
-| Status | Aceito — decisão registrada no [ADR-009](../hld-lld-adr-rfc.md#adr-009--api-gateway-spring-cloud-gateway-em-vez-de-kong) |
+| Status | Aceito — decisão registrada no [ADR-009](../adr/ADR-009-api-gateway.md) |
 | Autor  | Frederico Ferreira                                                                                                       |
-| Escopo | Serviço `video-gateway`, único ponto de entrada HTTP do cluster                                                          |
+| Escopo | Serviço `video-gateway`, entrada HTTP da API, atrás do ingress                                                          |
 
 ## Problema
 
@@ -15,12 +15,12 @@ limite de requisições de borda. O HLD original deixou "Kong ou Spring Cloud Ga
 
 Usar **Spring Cloud Gateway** (variante servlet, `spring-cloud-starter-gateway-server-webmvc`) como o serviço `video-gateway`:
 
-- Roteamento declarativo: `/auth/**`, `/videos/**` e `/admin/**` para `video-api`.
+- Roteamento declarativo: `/auth/**`, `/videos/**`, `/admin/**` e `/users/**` para `video-api`.
 - CORS configurado por variável de ambiente (`GATEWAY_CORS_ALLOWED_ORIGINS`), preenchida em runtime com a URL pública do cluster.
-- Rate limiting de borda com contador de janela fixa no Redis (`INCR` por IP, 20 requisições a cada 60 s por padrão), complementar ao limite de
+- Rate limiting de borda com contador de janela fixa no Redis (`INCR` por IP, 20 requisições a cada 60 s por chave de IP/família de rota/método, separando downloads, por padrão), complementar ao limite de
   tentativas de login que já existe no `video-api`.
 - Correlation-id gerado na borda e propagado por header até os workers.
-- O JWT **não** é validado no gateway. Cada serviço valida o próprio token com o mesmo filtro Spring Security, então continua testável isolado, sem
+- O JWT **não** é validado no gateway. O `video-api` valida o token com Spring Security, então continua testável isolado, sem
   depender do gateway.
 
 ## Alternativa considerada: Kong
@@ -28,10 +28,10 @@ Usar **Spring Cloud Gateway** (variante servlet, `spring-cloud-starter-gateway-s
 | Critério         | Spring Cloud Gateway                                                    | Kong (DB-less)                                                                                            |
 |------------------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
 | Stack            | Java/Spring, mesmo ferramental de teste dos outros serviços             | Lua/NGINX, configuração declarativa em YAML próprio                                                       |
-| Validação de JWT | Feita nos serviços; gateway só roteia                                   | Plugin JWT modelado em *Consumers* cadastrados; usuários auto-registrados exigiriam sincronizar consumers |
+| Validação de JWT | Feita na API; gateway só roteia                                   | Plugin JWT modelado em *Consumers* cadastrados; usuários auto-registrados exigiriam sincronizar consumers |
 | Rate limiting    | Filtro próprio com Redis, duas classes pequenas com teste de integração | Plugin pronto, mas configuração fora do repositório de código                                             |
 | Testes           | `@SpringBootTest` com MockMvc, mesmo `mvn verify` e gate de cobertura   | Testes de integração contra o container do Kong                                                           |
-| Peso operacional | Um container JVM (128 Mi)                                               | Um container NGINX, mais leve, porém mais um sistema para conhecer                                        |
+| Peso operacional | Um container JVM com recursos definidos no Deployment                                               | Um container NGINX, mais leve, porém mais um sistema para conhecer                                        |
 
 Traefik também foi avaliado como proxy puro. Sem validação de JWT na borda, ele não traz ganho sobre o Spring Cloud Gateway e sai do stack Java.
 
@@ -45,4 +45,4 @@ Traefik também foi avaliado como proxy puro. Sem validação de JWT na borda, e
 ## Como validar
 
 Fluxo completo pela URL pública do `ingress-nginx` no cluster EKS: registro, login, upload, status, download e área admin respondem igual à chamada
-direta ao `video-api`. Rate limiting: mais de 20 requisições em 60 s do mesmo IP retornam `429`.
+direta ao `video-api`. Rate limiting: exceder a cota da mesma chave (IP, família de rota, método e grupo de download) retorna `429`.
