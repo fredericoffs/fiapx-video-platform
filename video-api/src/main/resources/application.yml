@@ -65,7 +65,7 @@ management:
       maximum-expected-value:
         http.server.requests: 30s
 
-# Configuração específica do domínio — ver docs/ddd/linguagem-ubiqua.md e docs/architecture/hld-lld-adr-rfc.md (ADR-004, ADR-008)
+# Configuração específica do domínio — ver docs/ddd/linguagem-ubiqua.md e docs/architecture/adr/ (ADR-004, ADR-008)
 fiapx:
   admin:
     # Vazio = seeder não faz nada (admin fica travado no placeholder do V8 até alguém

@@ -1,4 +1,4 @@
-# fiapx video platform — web
+# FIAP X — Interface web
 
 [![CI](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml)
 [![Qodana](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana.yml)
@@ -9,56 +9,70 @@
 ![Vitest](https://img.shields.io/badge/Vitest-unit%20%2B%20coverage-6E9F18?logo=vitest&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-e2e-2EAD33?logo=playwright&logoColor=white)
 
-SPA (React 19 + TypeScript + Vite) que consome exclusivamente o `video-gateway`.
+SPA em React, TypeScript e Vite para cadastro, login, upload, consulta de status, download de ZIP e administração. O frontend consome o `video-gateway`; o backend completo roda no EKS.
 
-## Setup
+## Desenvolvimento
+
+Use Node 22. Dentro de `web/`:
 
 ```bash
-cp .env.example .env   # aponte VITE_API_BASE_URL para um video-gateway acessível (não há mais stack local)
-npm install
+cp .env.example .env
+npm ci
 npm run dev
 ```
 
-## Scripts
+Configure `VITE_API_BASE_URL` para um gateway acessível. O gateway deve permitir a origem do Vite em `GATEWAY_CORS_ALLOWED_ORIGINS`; a configuração padrão do deploy permite a origem pública, não automaticamente `localhost`. HTTPS com certificado autoassinado também exige confiança no navegador.
 
-- `npm run dev` — servidor de desenvolvimento (Vite).
-- `npm run build` — typecheck (`tsc -b`) + build de produção.
-- `npm run lint` — ESLint (`typescript-eslint` strict, `eslint-plugin-boundaries`).
-- `npm run typecheck` — só o typecheck.
-- `npm run format` / `format:check` — Prettier.
-- `npm run codegen` — regenera `src/shared/api/schema.gen.ts` a partir do OpenAPI real do
-  `video-api` (`VITE_API_BASE_URL`, ou `http://localhost:8081` por padrão). Precisa de um
-  `video-api` alcançável — rode `cd ../video-api && ./mvnw spring-boot:run` contra a sua própria
-  infra, ou aponte para um `video-api` já implantado. Sempre rode `npm run codegen` e commite o
-  resultado depois de qualquer mudança de contrato no `video-api`.
-- `npm test` / `test:watch` — Vitest + Testing Library (componentes/hooks).
-- `npm run test:e2e` — Playwright, 1 spec do fluxo feliz completo (registro→login→upload→
-  status→download). Contra o ambiente implantado: `E2E_BASE_URL=https://<host-do-nlb> npm run test:e2e`
-  (não sobe servidor local e aceita o certificado autoassinado do ingress; na primeira vez,
-  `npx playwright install chromium`). Sem `E2E_BASE_URL`, sobe o próprio `npm run dev` e precisa
-  de `VITE_API_BASE_URL` apontando pra um backend real.
+## Verificação
 
-## Deploy
+| Comando                 | Finalidade                               |
+| ----------------------- | ---------------------------------------- |
+| `npm run typecheck`     | Verificar tipos                          |
+| `npm run lint`          | Verificar limites de módulos e qualidade |
+| `npm test`              | Testes unitários e de componentes        |
+| `npm run test:coverage` | Relatório de cobertura da execução       |
+| `npm run build`         | Tipos e bundle de produção               |
+| `npm run format:check`  | Conferir formatação                      |
+| `npm run test:e2e`      | Jornada pelo navegador com backend real  |
 
-`Dockerfile` multi-stage (`node:22-alpine` build → `nginx:alpine` serve, não-root, escuta em
-`8080`). `VITE_API_BASE_URL` é _build-time_ (baked no bundle estático) — passe como build arg
-com a URL pública do `video-gateway`. Servido pelo Deployment `web` em `k8s/apps/base/web/`.
+A cobertura deve ser consultada no relatório do CI; não há percentual fixo documentado como resultado atual.
 
-## Estrutura
+Para testar o ambiente implantado:
 
-Organização feature-based (reforçada por `eslint-plugin-boundaries` — sem import cruzado entre
-`features/*` a não ser via `shared/`):
-
+```bash
+npx playwright install chromium
+E2E_BASE_URL=https://<host-do-nlb> npm run test:e2e
 ```
+
+Com `E2E_BASE_URL`, Playwright não sobe o Vite e aceita o certificado autoassinado. Sem essa variável, inicia o frontend local e usa o backend configurado. O teste de navegador e o smoke de API do deploy são verificações diferentes; o CI atual não executa Playwright.
+
+## Contrato OpenAPI
+
+`npm run codegen` consulta **`http://localhost:8081/v3/api-docs`**, conforme `package.json`; não lê `VITE_API_BASE_URL`. Para usar o serviço implantado, abra um túnel em outro terminal:
+
+```bash
+kubectl -n fiapx port-forward service/video-api 8081:8081
+```
+
+Depois execute `npm run codegen` e revise `src/shared/api/schema.gen.ts`. O CI gera o contrato a partir dos testes da API e compara os tipos gerados com o arquivo versionado.
+
+## Configuração do container
+
+O Dockerfile compila com Node e serve o bundle com nginx não-root na porta 8080. O entrypoint gera `env-config.js`; o cliente resolve a URL nesta ordem:
+
+1. `window.__ENV__.API_BASE_URL`, definida pela variável **`API_BASE_URL` no container**.
+2. `VITE_API_BASE_URL`, definida no build, como fallback.
+3. `http://localhost:8080`, fallback final.
+
+O deploy injeta a URL pública em runtime. Portanto, mudar o endereço do gateway não exige reconstruir a imagem web.
+
+## Organização
+
+```text
 src/
-  app/            # bootstrap: providers, layout raiz, rotas
-  features/
-    auth/         # login, registro
-    upload/       # tela e lógica de upload
-    videos/       # listagem de status, download
-  shared/
-    api/          # cliente gerado (OpenAPI) + wrapper openapi-fetch
-    ui/           # componentes shadcn/ui reutilizáveis
-    hooks/
-    lib/          # session store (Zustand), utils
+  app/       # providers, layout e rotas
+  features/  # funcionalidades agrupadas por domínio de interface
+  shared/    # contrato da API, componentes e utilitários compartilhados
 ```
+
+[Projeto e execução](../README.md) · [Arquitetura](../docs/architecture/README.md)

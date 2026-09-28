@@ -1,0 +1,84 @@
+# Alertas da aplicação (fila e DLQ ficam em queue-depth-alert.yaml). Cada anotação diz o que
+# fazer e onde olhar, porque é esse texto que chega por e-mail/webhook via Alertmanager.
+# O label release é o que o Prometheus usa para descobrir PrometheusRules.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fiapx-app-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: fiapx-api
+      rules:
+        - alert: FiapxServiceDown
+          expr: kube_deployment_status_replicas_available{namespace="fiapx"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.deployment }} sem nenhuma réplica pronta"
+            description: "O deployment {{ $labels.deployment }} está sem réplicas disponíveis há 2 min. Ver 'kubectl -n fiapx describe deploy {{ $labels.deployment }}' e o dashboard Saúde dos serviços."
+        - alert: FiapxHighErrorRate
+          expr: |
+            sum by (job) (rate(http_server_requests_seconds_count{namespace="fiapx", uri!~"/actuator.*", status=~"5.."}[5m]))
+              / sum by (job) (rate(http_server_requests_seconds_count{namespace="fiapx", uri!~"/actuator.*"}[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.job }} respondendo mais de 5% de erros 5xx"
+            description: "Taxa de 5xx em {{ $value | humanizePercentage }} nos últimos 5 min. Ver Logs da aplicação filtrando {{ $labels.job }}."
+        - alert: FiapxHighLatency
+          # Só leituras: upload (POST /videos) e download do ZIP levam segundos por natureza.
+          expr: |
+            histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket{
+              namespace="fiapx", method="GET", uri!~"/actuator.*|.*/download"}[5m]))) > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Consultas lentas em {{ $labels.job }}"
+            description: "p95 das leituras em {{ $value | humanizeDuration }} há 10 min. Ver Saúde dos serviços (pool do banco, CPU, GC)."
+    - name: fiapx-processamento
+      rules:
+        - alert: FiapxProcessingFailureRate
+          # Mínimo de 5 resultados em 15 min para um único vídeo inválido não disparar sozinho.
+          expr: |
+            (sum(rate(fiapx_video_processed_total{status="FAILED"}[15m])) / sum(rate(fiapx_video_processed_total[15m])) > 0.2)
+              and on() (sum(increase(fiapx_video_processed_total[15m])) >= 5)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Mais de 20% dos vídeos falhando"
+            description: "{{ $value | humanizePercentage }} dos vídeos terminaram FAILED nos últimos 15 min. Ver Erros de processamento e os logs do video-worker."
+        - alert: FiapxWorkerCapacityExhausted
+          expr: |
+            (kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="keda-hpa-video-worker"}
+              >= on(namespace, horizontalpodautoscaler) kube_horizontalpodautoscaler_spec_max_replicas{horizontalpodautoscaler="keda-hpa-video-worker"})
+            and on() (max(fiapx_queue_messages_visible{queue="fiapx-video-processing"}) > 3)
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "video-worker no máximo de réplicas com fila acumulando"
+            description: "O KEDA está no teto de réplicas há 10 min e a fila continua com mensagens: a capacidade de processamento esgotou e o tempo de espera cresce. Ver Autoscaling e borda."
+    - name: fiapx-notificacao
+      rules:
+        - alert: FiapxEmailCircuitOpen
+          expr: max(resilience4j_circuitbreaker_state{job="notification-worker", name="email-channel", state="open"}) == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Circuito do e-mail aberto: usuários não estão sendo avisados"
+            description: "O notification-worker abriu o circuit breaker do canal de e-mail. As notificações ficam em retentativa até a DLQ. Verificar o SMTP e os logs do notification-worker."
+        - alert: FiapxNotificationErrors
+          expr: sum(increase(logback_events_total{job="notification-worker", level="error"}[10m])) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Erros repetidos no notification-worker"
+            description: "{{ $value | humanize }} erros de log em 10 min. Ver Logs da aplicação filtrando notification-worker."
