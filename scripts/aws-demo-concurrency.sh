@@ -74,6 +74,9 @@ done
 if [[ -z "$HOST" ]]; then
   HOST="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+  # Sem load balancer (INGRESS_EXPOSE=nodeport): a URL pública, com porta, está no CORS.
+  [[ -n "$HOST" ]] || HOST="$(kubectl -n "$NAMESPACE" get configmap fiapx-config \
+    -o jsonpath='{.data.GATEWAY_CORS_ALLOWED_ORIGINS}' 2>/dev/null | sed 's#^https://##')"
   [[ -n "$HOST" ]] || { echo "Erro: nao achei o host do ingress; passe --host" >&2; exit 2; }
 fi
 # Certificado autoassinado (k8s/apps/base/certificate.yaml): -k e esperado aqui.

@@ -31,6 +31,22 @@ echo "==> ingress-nginx"
 # Versão fixada (item 20 da revisão crítica): sem --version, cada execução puxa o chart mais
 # novo do momento — como este script roda de novo a cada sessão do Learner Lab (o lab reseta
 # entre sessões), a versão podia mudar de uma sessão pra outra sem nenhuma mudança de código.
+# INGRESS_EXPOSE=nodeport: contorno para conta AWS que não pode criar load balancer
+# ("OperationNotPermitted: This AWS account currently does not support creating load
+# balancers" — trava de conta nova, só o AWS Support libera). O controller vira NodePort
+# fixo (HTTPS em 30443) e é acessado pelo IP público do nó; k8s-deploy-aws.sh abre a porta
+# no security group do cluster. Só para demonstração: sem NLB, um nó é o ponto de entrada.
+expose_args=(
+  --set-string 'controller.service.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-type=nlb'
+)
+if [ "${INGRESS_EXPOSE:-nlb}" = "nodeport" ]; then
+  expose_args=(
+    --set controller.service.type=NodePort
+    --set controller.service.nodePorts.http=30080
+    --set controller.service.nodePorts.https=30443
+  )
+fi
+
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress-nginx \
   --version 4.15.1 \
@@ -38,7 +54,7 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.resources.requests.memory=128Mi \
   --set controller.resources.limits.cpu=250m \
   --set controller.resources.limits.memory=256Mi \
-  --set-string controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  "${expose_args[@]}" \
   --set controller.service.externalTrafficPolicy=Local \
   --set controller.metrics.enabled=true \
   --wait --timeout 5m
