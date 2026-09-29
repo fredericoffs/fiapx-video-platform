@@ -183,8 +183,13 @@ jobs:
 
       # Segredos versionados no código: aqui reprova o job — nenhum segredo deveria
       # estar no repositório (ficam no SSM e nos secrets do GitHub).
+      # TRIVY_OFFLINE_SCAN: mesmo com scanners=secret o Trivy ainda analisa os pom.xml e
+      # busca os POMs pais no Maven Central — que devolveu 429 pro IP do runner e derrubou
+      # o job. Offline, ele não faz essa consulta (nem precisa dela pra achar segredos).
       - name: Trivy secret scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_OFFLINE_SCAN: "true"
         with:
           scan-type: fs
           scan-ref: .
