@@ -117,8 +117,29 @@ kubectl apply -f "$ROOT_DIR/k8s/addons/aws/storageclass-gp3.yaml"
 echo "==> [3/9] ingress-nginx"
 "$ROOT_DIR/k8s/addons/install-ingress-nginx.sh"
 
-echo "==> [3b/9] aguardando hostname público do LoadBalancer"
-LB_HOST="$(wait_for_lb_hostname)"
+if [ "${INGRESS_EXPOSE:-nlb}" = "nodeport" ]; then
+  # Contorno sem load balancer (ver install-ingress-nginx.sh): entrada pelo IP público do nó
+  # que roda o controller (externalTrafficPolicy=Local só responde nesse nó), com hostname
+  # nip.io — o Ingress e o certificado precisam de um nome, não de um IP.
+  echo "==> [3b/9] INGRESS_EXPOSE=nodeport: liberando 30443 e descobrindo o IP público do nó"
+  CLUSTER_SG="$(aws eks describe-cluster --region "$AWS_REGION" --name "$CLUSTER_NAME" \
+    --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId' --output text)"
+  if ! out="$(aws ec2 authorize-security-group-ingress --region "$AWS_REGION" --group-id "$CLUSTER_SG" \
+      --protocol tcp --port 30443 --cidr 0.0.0.0/0 2>&1)"; then
+    grep -q 'InvalidPermission.Duplicate' <<<"$out" || { echo "$out" >&2; exit 1; }
+  fi
+  CONTROLLER_NODE="$(kubectl -n ingress-nginx get pods -l app.kubernetes.io/component=controller \
+    -o jsonpath='{.items[0].spec.nodeName}')"
+  NODE_IP="$(kubectl get node "$CONTROLLER_NODE" \
+    -o jsonpath='{.status.addresses[?(@.type=="ExternalIP")].address}')"
+  [ -n "$NODE_IP" ] || { echo "nó ${CONTROLLER_NODE} sem IP público" >&2; exit 1; }
+  LB_HOST="${NODE_IP//./-}.nip.io"
+  PUBLIC_URL="https://${LB_HOST}:30443"
+else
+  echo "==> [3b/9] aguardando hostname público do LoadBalancer"
+  LB_HOST="$(wait_for_lb_hostname)"
+  PUBLIC_URL="https://${LB_HOST}"
+fi
 echo "Hostname público: ${LB_HOST}"
 wait_for_dns "$LB_HOST"
 
@@ -197,7 +218,7 @@ kubectl -n "$NAMESPACE" patch configmap fiapx-config --type merge -p "{\"data\":
   \"REDIS_HOST\":\"${REDIS_HOST}\",
   \"STORAGE_BUCKET_RAW\":\"${BUCKET_RAW}\",
   \"STORAGE_BUCKET_PROCESSED\":\"${BUCKET_PROCESSED}\",
-  \"GATEWAY_CORS_ALLOWED_ORIGINS\":\"https://${LB_HOST}\"
+  \"GATEWAY_CORS_ALLOWED_ORIGINS\":\"${PUBLIC_URL}\"
 }}"
 
 for f in "${RENDER_DIR}"/doc-*.yaml; do
@@ -227,7 +248,7 @@ kubectl apply -f "$VIDEO_API_DEPLOY_FILE"
 echo "==> [8/9] KEDA: URL real da fila SQS + URL pública no web"
 kubectl -n "$NAMESPACE" patch scaledobject video-worker --type json \
   -p "[{\"op\":\"replace\",\"path\":\"/spec/triggers/0/metadata/queueURL\",\"value\":\"${PROCESSING_QUEUE_URL}\"}]"
-kubectl -n "$NAMESPACE" set env deployment/web API_BASE_URL="https://${LB_HOST}"
+kubectl -n "$NAMESPACE" set env deployment/web API_BASE_URL="${PUBLIC_URL}"
 
 echo "==> [9/9] aguardando rollout"
 kubectl -n "$NAMESPACE" rollout status deployment/video-gateway --timeout=300s
@@ -236,12 +257,12 @@ kubectl -n "$NAMESPACE" rollout status deployment/video-worker --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/notification-worker --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/web --timeout=300s
 
-echo "==> pronto. Endereço público: https://${LB_HOST}"
+echo "==> pronto. Endereço público: ${PUBLIC_URL}"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## Deploy no EKS concluído (perfil aws: RDS + ElastiCache + S3 + SQS)"
     echo
-    echo "- Aplicação: https://${LB_HOST}"
+    echo "- Aplicação: ${PUBLIC_URL}"
     echo "- Imagens: \`${ECR_REGISTRY}/fiapx/<serviço>:${IMAGE_TAG}\`"
     echo "- RDS: \`${DB_HOST}\` · Redis: \`${REDIS_HOST}\`"
     echo "- Fila de processamento: \`${PROCESSING_QUEUE_URL}\`"

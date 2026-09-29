@@ -180,6 +180,9 @@ jobs:
           SMTP_USER: ${{ secrets.PROD_SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.PROD_SMTP_PASSWORD }}
           NOTIFICATION_FROM: ${{ vars.PROD_NOTIFICATION_FROM }}
+          # "nodeport" só em conta que ainda não pode criar load balancer (ver
+          # k8s/addons/install-ingress-nginx.sh); vazio = NLB.
+          INGRESS_EXPOSE: ${{ vars.INGRESS_EXPOSE }}
           # DB_USER/DB_PASSWORD/JWT_SECRET/NOTIFICATION_WEBHOOK_URL vêm do SSM (/fiapx/...).
         run: ./scripts/k8s-deploy-aws.sh
 
