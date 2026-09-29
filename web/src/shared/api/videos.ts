@@ -1,9 +1,4 @@
-import {
-  type InfiniteData,
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/shared/api/client'
 import type { components } from '@/shared/api/schema.gen'
 import { useSessionStore } from '@/shared/lib/session-store'
@@ -44,11 +39,67 @@ export function toVideo(dto: components['schemas']['VideoStatusResponse']): Vide
   }
 }
 
+export type VideoSortField = 'CREATED_AT' | 'FILENAME' | 'FILE_SIZE'
+export type SortDirection = 'ASC' | 'DESC'
+
+/** Datas no formato do `<input type="datetime-local">` (hora local); '' = sem filtro. */
+export interface VideoListFilters {
+  createdFrom: string
+  createdTo: string
+  sortBy: VideoSortField
+  direction: SortDirection
+}
+
+export const DEFAULT_VIDEO_LIST_FILTERS: VideoListFilters = {
+  createdFrom: '',
+  createdTo: '',
+  sortBy: 'CREATED_AT',
+  direction: 'DESC',
+}
+
+export interface VideoPageParams {
+  page: number
+  filters: VideoListFilters
+}
+
+const MINUTE_MS = 60_000
+
+/**
+ * Converte os filtros da tela pros parâmetros da API. O datetime-local tem precisão de
+ * minuto, então o "até" cobre o minuto inteiro (15:00 inclui 15:00:59).
+ */
+export function toVideoListQuery(filters: VideoListFilters) {
+  return {
+    ...(filters.createdFrom ? { createdFrom: new Date(filters.createdFrom).toISOString() } : {}),
+    ...(filters.createdTo
+      ? { createdTo: new Date(new Date(filters.createdTo).getTime() + MINUTE_MS - 1).toISOString() }
+      : {}),
+    sortBy: filters.sortBy,
+    direction: filters.direction,
+  }
+}
+
+export function hasActiveDateFilter(filters: VideoListFilters): boolean {
+  return filters.createdFrom !== '' || filters.createdTo !== ''
+}
+
+/** Só a 1ª página em "mais recentes primeiro" sem teto de data mostra um upload recém-feito no topo. */
+export function showsNewUploadsFirst({ page, filters }: VideoPageParams): boolean {
+  return (
+    page === 0 &&
+    filters.sortBy === 'CREATED_AT' &&
+    filters.direction === 'DESC' &&
+    filters.createdTo === ''
+  )
+}
+
 // Escopado por usuário (e-mail da sessão): sem isso, o cache de uma conta apareceria pra
 // outra que logasse na mesma aba antes de os dados serem revalidados (ou numa falha de rede).
 export const videoKeys = {
   all: ['videos'] as const,
   list: (email: string | undefined) => [...videoKeys.all, 'list', email] as const,
+  page: (email: string | undefined, params: VideoPageParams) =>
+    [...videoKeys.list(email), params] as const,
 }
 
 const NON_TERMINAL_STATUSES: VideoStatus[] = ['QUEUED', 'PROCESSING']
@@ -57,18 +108,10 @@ export function hasNonTerminalVideo(videos: Video[] | undefined): boolean {
   return (videos ?? []).some((video) => NON_TERMINAL_STATUSES.includes(video.status))
 }
 
-export function flattenVideoPages(data: InfiniteData<VideoPage> | undefined): Video[] {
-  return data?.pages.flatMap((videoPage) => videoPage.items) ?? []
-}
-
-export const PAGE_SIZE = 20
-// >20/min (a cota de /videos no gateway, escopada por rota — ver RateLimitFilterFunction)
-// sobraria zero folga pra "carregar mais" ou um refresh manual competirem com o polling.
+export const PAGE_SIZE = 10
+// Seis consultas/min: a cota de /videos no gateway é 20/min (escopada por rota — ver
+// RateLimitFilterFunction), e sobra folga pra troca de página e de filtro competirem com o polling.
 const POLL_INTERVAL_MS = 10000
-
-export function pollingIntervalForPages(pages: number): number {
-  return POLL_INTERVAL_MS * Math.max(1, pages)
-}
 
 const DEFAULT_RETRY_AFTER_MS = 5000
 
@@ -89,15 +132,15 @@ function parseRetryAfterMs(response: Response): number {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : DEFAULT_RETRY_AFTER_MS
 }
 
-// Paginado (useInfiniteQuery): sem isso, só os PAGE_SIZE vídeos mais recentes eram alcançáveis
-// e vídeos mais antigos somiam da listagem sem nenhuma forma de chegar até eles.
-export function useVideosQuery() {
+// Paginado por número de página (PAGE_SIZE por vez), com filtro e ordenação no servidor —
+// ordenar só o que já veio do servidor misturaria a ordem entre páginas.
+export function useVideosQuery(page: number, filters: VideoListFilters) {
   const email = useSessionStore((state) => state.session?.email)
-  return useInfiniteQuery({
-    queryKey: videoKeys.list(email),
-    queryFn: async ({ pageParam }): Promise<VideoPage> => {
+  return useQuery({
+    queryKey: videoKeys.page(email, { page, filters }),
+    queryFn: async (): Promise<VideoPage> => {
       const { data, response } = await apiClient.GET('/videos', {
-        params: { query: { page: pageParam, size: PAGE_SIZE } },
+        params: { query: { page, size: PAGE_SIZE, ...toVideoListQuery(filters) } },
       })
       if (response.status === 429) {
         throw new RateLimitedError(parseRetryAfterMs(response))
@@ -107,17 +150,14 @@ export function useVideosQuery() {
       }
       return {
         items: (data.items ?? []).map(toVideo).filter((video): video is Video => video !== null),
-        page: data.page ?? pageParam,
+        page: data.page ?? page,
         size: data.size ?? PAGE_SIZE,
         totalElements: data.totalElements ?? 0,
       }
     },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) => {
-      const loadedSoFar = (lastPage.page + 1) * lastPage.size
-      return loadedSoFar < lastPage.totalElements ? lastPage.page + 1 : undefined
-    },
     enabled: email !== undefined,
+    // Mantém a página anterior na tela enquanto a próxima carrega, em vez de piscar o skeleton.
+    placeholderData: keepPreviousData,
     // Backoff próprio via Retry-After no lugar do retry padrão do TanStack (que não olha o
     // header e tentaria de novo antes do servidor liberar a cota de novo).
     retry: false,
@@ -125,9 +165,7 @@ export function useVideosQuery() {
       if (query.state.error instanceof RateLimitedError) {
         return query.state.error.retryAfterMs
       }
-      return hasNonTerminalVideo(flattenVideoPages(query.state.data))
-        ? pollingIntervalForPages(query.state.data?.pages.length ?? 1)
-        : false
+      return hasNonTerminalVideo(query.state.data?.items) ? POLL_INTERVAL_MS : false
     },
   })
 }

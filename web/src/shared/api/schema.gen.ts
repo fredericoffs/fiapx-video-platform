@@ -398,6 +398,11 @@ export interface components {
        */
       originalFilename?: string
       /**
+       * Format: int64
+       * @description Tamanho do vídeo original em bytes — null para vídeos anteriores ao registro do tamanho
+       */
+      fileSizeBytes?: number | null
+      /**
        * @description QUEUED → PROCESSING → COMPLETED ou FAILED
        * @enum {string}
        */
@@ -509,6 +514,20 @@ export interface operations {
       query?: {
         /** @description Filtro opcional por status */
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+        /**
+         * Format: date-time
+         * @description Filtro opcional — enviado a partir desta data/hora (ISO-8601, inclusivo)
+         */
+        createdFrom?: string
+        /**
+         * Format: date-time
+         * @description Filtro opcional — enviado até esta data/hora (ISO-8601, inclusivo)
+         */
+        createdTo?: string
+        /** @description Campo de ordenação */
+        sortBy?: 'CREATED_AT' | 'FILENAME' | 'FILE_SIZE'
+        /** @description Sentido da ordenação */
+        direction?: 'ASC' | 'DESC'
         /** @description Página, começando em 0 */
         page?: number
         /** @description Itens por página (máx. 100) */
@@ -781,6 +800,20 @@ export interface operations {
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
         /** @description Filtro opcional — substring do nome do arquivo, sem diferenciar maiúsculas/minúsculas */
         filename?: string
+        /**
+         * Format: date-time
+         * @description Filtro opcional — enviado a partir desta data/hora (ISO-8601, inclusivo)
+         */
+        createdFrom?: string
+        /**
+         * Format: date-time
+         * @description Filtro opcional — enviado até esta data/hora (ISO-8601, inclusivo)
+         */
+        createdTo?: string
+        /** @description Campo de ordenação */
+        sortBy?: 'CREATED_AT' | 'FILENAME' | 'FILE_SIZE'
+        /** @description Sentido da ordenação */
+        direction?: 'ASC' | 'DESC'
         /** @description Página, começando em 0 */
         page?: number
         /** @description Itens por página (máx. 100) */

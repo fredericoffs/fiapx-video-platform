@@ -6,20 +6,28 @@ import {
   adminKeys,
   useAdminVideosQuery,
   type AdminVideo,
+  PAGE_SIZES,
   type PageSize,
 } from '@/features/admin/api/queries'
-import { AdminPagination } from '@/features/admin/components/admin-pagination'
-import { useDeleteVideoMutation } from '@/shared/api/videos'
+import {
+  DEFAULT_VIDEO_LIST_FILTERS,
+  useDeleteVideoMutation,
+  type VideoListFilters,
+} from '@/shared/api/videos'
+import { formatFileSize } from '@/shared/lib/format-file-size'
 import { Button } from '@/shared/ui/button'
+import { Pagination } from '@/shared/ui/pagination'
 import { Input } from '@/shared/ui/input'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { VideoListToolbar } from '@/shared/ui/video-list-toolbar'
 import { VideoStatusBadge } from '@/shared/ui/video-status-badge'
 
 export function AdminVideosTable() {
   const [page, setPage] = useState(0)
   const [size, setSize] = useState<PageSize>(10)
   const [filename, setFilename] = useState('')
-  const videosQuery = useAdminVideosQuery(page, size, filename)
+  const [filters, setFilters] = useState<VideoListFilters>(DEFAULT_VIDEO_LIST_FILTERS)
+  const videosQuery = useAdminVideosQuery(page, size, filename, filters)
   const deleteMutation = useDeleteVideoMutation()
   const queryClient = useQueryClient()
 
@@ -30,6 +38,11 @@ export function AdminVideosTable() {
 
   const handleFilenameChange = (value: string) => {
     setFilename(value)
+    setPage(0)
+  }
+
+  const handleFiltersChange = (newFilters: VideoListFilters) => {
+    setFilters(newFilters)
     setPage(0)
   }
 
@@ -50,16 +63,18 @@ export function AdminVideosTable() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Input
-        type="search"
-        placeholder="Filtrar por nome do vídeo…"
-        aria-label="Filtrar vídeos por nome do arquivo"
-        className="max-w-xs"
-        value={filename}
-        onChange={(event) => {
-          handleFilenameChange(event.target.value)
-        }}
-      />
+      <VideoListToolbar filters={filters} onChange={handleFiltersChange}>
+        <Input
+          type="search"
+          placeholder="Filtrar por nome do vídeo…"
+          aria-label="Filtrar vídeos por nome do arquivo"
+          className="max-w-xs"
+          value={filename}
+          onChange={(event) => {
+            handleFilenameChange(event.target.value)
+          }}
+        />
+      </VideoListToolbar>
 
       {videosQuery.isPending && (
         <div className="flex flex-col gap-2">
@@ -80,6 +95,7 @@ export function AdminVideosTable() {
                 <tr>
                   <th className="px-4 py-2 font-medium">Arquivo</th>
                   <th className="px-4 py-2 font-medium">Dono</th>
+                  <th className="px-4 py-2 font-medium">Tamanho</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">Enviado em</th>
                   <th className="px-4 py-2" />
@@ -93,6 +109,9 @@ export function AdminVideosTable() {
                       {video.ownerEmail ?? (
                         <span className="font-mono text-xs">{video.userId}</span>
                       )}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
+                      {formatFileSize(video.fileSizeBytes) ?? '—'}
                     </td>
                     <td className="px-4 py-2">
                       <VideoStatusBadge status={video.status} />
@@ -124,11 +143,12 @@ export function AdminVideosTable() {
             )}
           </div>
 
-          <AdminPagination
+          <Pagination
             page={page}
             size={size}
             totalElements={videosQuery.data.totalElements}
             onPageChange={setPage}
+            pageSizes={PAGE_SIZES}
             onSizeChange={handleSizeChange}
           />
         </>

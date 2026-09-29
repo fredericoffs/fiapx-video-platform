@@ -1,47 +1,53 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { PageSize } from '@/features/admin/api/queries'
 import { Button } from '@/shared/ui/button'
 
-const PAGE_SIZES: PageSize[] = [10, 20]
-
-interface AdminPaginationProps {
+interface PaginationProps<S extends number> {
   page: number
-  size: PageSize
+  size: S
   totalElements: number
   onPageChange: (page: number) => void
-  onSizeChange: (size: PageSize) => void
+  /** Sem estes dois, o tamanho de página é fixo e o seletor não aparece. */
+  pageSizes?: readonly S[]
+  onSizeChange?: (size: S) => void
 }
 
-export function AdminPagination({
+export function Pagination<S extends number>({
   page,
   size,
   totalElements,
   onPageChange,
+  pageSizes,
   onSizeChange,
-}: AdminPaginationProps) {
+}: PaginationProps<S>) {
   const totalPages = Math.max(1, Math.ceil(totalElements / size))
   const currentPage = page + 1
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <span>Itens por página:</span>
-        <div className="flex gap-1">
-          {PAGE_SIZES.map((pageSize) => (
-            <Button
-              key={pageSize}
-              size="sm"
-              variant={size === pageSize ? 'secondary' : 'ghost'}
-              onClick={() => {
-                onSizeChange(pageSize)
-              }}
-              aria-pressed={size === pageSize}
-            >
-              {pageSize}
-            </Button>
-          ))}
+      {pageSizes && onSizeChange ? (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <span>Itens por página:</span>
+          <div className="flex gap-1">
+            {pageSizes.map((pageSize) => (
+              <Button
+                key={pageSize}
+                size="sm"
+                variant={size === pageSize ? 'secondary' : 'ghost'}
+                onClick={() => {
+                  onSizeChange(pageSize)
+                }}
+                aria-pressed={size === pageSize}
+              >
+                {pageSize}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <span className="text-muted-foreground">
+          {totalElements} {totalElements === 1 ? 'vídeo' : 'vídeos'}
+        </span>
+      )}
 
       <div className="flex items-center gap-2">
         <Button

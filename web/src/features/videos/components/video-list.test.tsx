@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { DEFAULT_VIDEO_LIST_FILTERS } from '@/shared/api/videos'
 import { useSessionStore } from '@/shared/lib/session-store'
 import { renderWithQueryClient } from '@/test/render'
 import { VideoList } from './video-list'
@@ -34,9 +36,30 @@ function videoStub(id: string, status: 'QUEUED' | 'COMPLETED' = 'COMPLETED') {
 
 function pageResponse(items: ReturnType<typeof videoStub>[], page: number, totalElements: number) {
   return {
-    data: { items, page, size: 20, totalElements },
+    data: { items, page, size: 10, totalElements },
     response: { ok: true, status: 200, headers: new Headers() },
   }
+}
+
+// Mesmo papel da DashboardPage: dona do estado de página e filtros.
+function Harness() {
+  const [page, setPage] = useState(0)
+  const [filters, setFilters] = useState(DEFAULT_VIDEO_LIST_FILTERS)
+  return (
+    <VideoList
+      page={page}
+      filters={filters}
+      onPageChange={setPage}
+      onFiltersChange={(newFilters) => {
+        setFilters(newFilters)
+        setPage(0)
+      }}
+    />
+  )
+}
+
+function lastQuery() {
+  return (getMock.mock.lastCall?.[1] as { params: { query: Record<string, unknown> } }).params.query
 }
 
 afterEach(() => {
@@ -56,43 +79,81 @@ function loginAsUser() {
 }
 
 describe('VideoList', () => {
-  it('mostra "Carregar mais" quando há mais páginas e busca a próxima ao clicar', async () => {
+  it('pagina de 10 em 10 e busca a próxima página ao avançar', async () => {
     loginAsUser()
-    const firstPageItems = Array.from({ length: 20 }, (_, i) => videoStub(`v${String(i)}`))
-    const secondPageItems = [videoStub('v20')]
+    const firstPageItems = Array.from({ length: 10 }, (_, i) => videoStub(`v${String(i)}`))
     getMock
-      .mockResolvedValueOnce(pageResponse(firstPageItems, 0, 21))
-      .mockResolvedValueOnce(pageResponse(secondPageItems, 1, 21))
+      .mockResolvedValueOnce(pageResponse(firstPageItems, 0, 11))
+      .mockResolvedValueOnce(pageResponse([videoStub('v10')], 1, 11))
 
-    renderWithQueryClient(<VideoList />)
+    renderWithQueryClient(<Harness />)
 
     expect(await screen.findByText('v0.mp4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /carregar mais/i })).toBeInTheDocument()
-    expect(screen.queryByText('v20.mp4')).not.toBeInTheDocument()
+    expect(screen.getByText('Página 1 de 2')).toBeInTheDocument()
+    expect(lastQuery()).toMatchObject({
+      page: 0,
+      size: 10,
+      sortBy: 'CREATED_AT',
+      direction: 'DESC',
+    })
 
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /carregar mais/i }))
+    await user.click(screen.getByRole('button', { name: /próxima página/i }))
 
-    expect(await screen.findByText('v20.mp4')).toBeInTheDocument()
-    expect(getMock).toHaveBeenCalledTimes(2)
-    expect(getMock.mock.calls[1]?.[1]).toMatchObject({ params: { query: { page: 1, size: 20 } } })
+    expect(await screen.findByText('v10.mp4')).toBeInTheDocument()
+    expect(screen.queryByText('v0.mp4')).not.toBeInTheDocument()
+    expect(screen.getByText('Página 2 de 2')).toBeInTheDocument()
+    expect(lastQuery()).toMatchObject({ page: 1, size: 10 })
   })
 
-  it('não mostra "Carregar mais" quando todos os vídeos já foram carregados', async () => {
+  it('manda ordenação e período pra API e volta pra primeira página', async () => {
     loginAsUser()
-    getMock.mockResolvedValueOnce(pageResponse([videoStub('only-one')], 0, 1))
+    getMock.mockResolvedValue(pageResponse([videoStub('only-one')], 0, 1))
 
-    renderWithQueryClient(<VideoList />)
-
+    renderWithQueryClient(<Harness />)
     expect(await screen.findByText('only-one.mp4')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /carregar mais/i })).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByLabelText('Ordenar por'), 'Maior tamanho')
+    await waitFor(() => {
+      expect(lastQuery()).toMatchObject({ page: 0, sortBy: 'FILE_SIZE', direction: 'DESC' })
+    })
+
+    fireEvent.change(screen.getByLabelText('Enviado de'), { target: { value: '2026-09-29T10:00' } })
+    await waitFor(() => {
+      expect(lastQuery()).toMatchObject({
+        createdFrom: new Date('2026-09-29T10:00').toISOString(),
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: /limpar/i }))
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ page: 0, size: 10, sortBy: 'CREATED_AT', direction: 'DESC' })
+    })
+  })
+
+  it('mantém os filtros visíveis quando o período não tem vídeos', async () => {
+    loginAsUser()
+    getMock
+      .mockResolvedValueOnce(pageResponse([videoStub('only-one')], 0, 1))
+      .mockResolvedValue(pageResponse([], 0, 0))
+
+    renderWithQueryClient(<Harness />)
+    expect(await screen.findByText('only-one.mp4')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2020-01-01T00:00' } })
+
+    expect(
+      await screen.findByText('Nenhum vídeo encontrado com esses filtros.'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Até')).toBeInTheDocument()
   })
 
   it('mostra estado vazio quando o usuário não tem vídeos', async () => {
     loginAsUser()
     getMock.mockResolvedValueOnce(pageResponse([], 0, 0))
 
-    renderWithQueryClient(<VideoList />)
+    renderWithQueryClient(<Harness />)
 
     expect(await screen.findByText('Nenhum vídeo enviado ainda.')).toBeInTheDocument()
   })
@@ -105,7 +166,7 @@ describe('VideoList', () => {
       response: { ok: false, status: 429, headers },
     })
 
-    renderWithQueryClient(<VideoList />)
+    renderWithQueryClient(<Harness />)
 
     await waitFor(() => {
       expect(screen.getByText(/muitas requisições/i)).toBeInTheDocument()

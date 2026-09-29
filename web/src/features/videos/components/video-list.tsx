@@ -2,16 +2,20 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Download, LayoutGrid, List, Loader2, Trash2 } from 'lucide-react'
 import {
-  flattenVideoPages,
+  hasActiveDateFilter,
+  PAGE_SIZE,
   RateLimitedError,
   useDeleteVideoMutation,
   useVideosQuery,
   type Video,
+  type VideoListFilters,
 } from '@/shared/api/videos'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { Pagination } from '@/shared/ui/pagination'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { VideoProcessingIllustration } from '@/shared/ui/illustrations/video-processing-illustration'
+import { VideoListToolbar } from '@/shared/ui/video-list-toolbar'
 import { VideoStatusBadge } from '@/shared/ui/video-status-badge'
 import { downloadVideo } from '@/features/videos/api/download-video'
 import { friendlyProcessingError } from '@/features/videos/lib/friendly-processing-error'
@@ -19,8 +23,15 @@ import { formatFileSize } from '@/shared/lib/format-file-size'
 
 type ViewMode = 'list' | 'cards'
 
-export function VideoList() {
-  const videosQuery = useVideosQuery()
+interface VideoListProps {
+  page: number
+  filters: VideoListFilters
+  onPageChange: (page: number) => void
+  onFiltersChange: (filters: VideoListFilters) => void
+}
+
+export function VideoList({ page, filters, onPageChange, onFiltersChange }: VideoListProps) {
+  const videosQuery = useVideosQuery(page, filters)
   const deleteMutation = useDeleteVideoMutation()
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
@@ -68,9 +79,12 @@ export function VideoList() {
     return <p className="text-sm text-destructive">{message}</p>
   }
 
-  const videos = flattenVideoPages(videosQuery.data)
+  const videos = videosQuery.data.items
+  // Filtro por data ou página além do fim (ex.: excluiu o último vídeo da página) — a
+  // barra de filtros continua visível pra dar como sair do resultado vazio.
+  const isFilteredView = hasActiveDateFilter(filters) || page > 0
 
-  if (videos.length === 0) {
+  if (videos.length === 0 && !isFilteredView) {
     return (
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <VideoProcessingIllustration className="w-48" />
@@ -135,32 +149,39 @@ export function VideoList() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex justify-end gap-1">
-        <Button
-          size="icon-sm"
-          variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-          onClick={() => {
-            setViewMode('list')
-          }}
-          aria-label="Ver como lista"
-          aria-pressed={viewMode === 'list'}
-        >
-          <List />
-        </Button>
-        <Button
-          size="icon-sm"
-          variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
-          onClick={() => {
-            setViewMode('cards')
-          }}
-          aria-label="Ver como cartões"
-          aria-pressed={viewMode === 'cards'}
-        >
-          <LayoutGrid />
-        </Button>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <VideoListToolbar filters={filters} onChange={onFiltersChange} />
+        <div className="flex gap-1">
+          <Button
+            size="icon-sm"
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            onClick={() => {
+              setViewMode('list')
+            }}
+            aria-label="Ver como lista"
+            aria-pressed={viewMode === 'list'}
+          >
+            <List />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
+            onClick={() => {
+              setViewMode('cards')
+            }}
+            aria-label="Ver como cartões"
+            aria-pressed={viewMode === 'cards'}
+          >
+            <LayoutGrid />
+          </Button>
+        </div>
       </div>
 
-      {viewMode === 'list' ? (
+      {videos.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Nenhum vídeo encontrado com esses filtros.
+        </p>
+      ) : viewMode === 'list' ? (
         <ul className="flex flex-col gap-2">
           {videos.map((video) => (
             <li key={video.id} className="flex items-center justify-between gap-3 border px-4 py-3">
@@ -186,19 +207,12 @@ export function VideoList() {
         </div>
       )}
 
-      {videosQuery.hasNextPage && (
-        <Button
-          variant="outline"
-          className="self-center"
-          disabled={videosQuery.isFetchingNextPage}
-          onClick={() => {
-            void videosQuery.fetchNextPage()
-          }}
-        >
-          {videosQuery.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null}
-          Carregar mais
-        </Button>
-      )}
+      <Pagination
+        page={page}
+        size={PAGE_SIZE}
+        totalElements={videosQuery.data.totalElements}
+        onPageChange={onPageChange}
+      />
     </div>
   )
 }
