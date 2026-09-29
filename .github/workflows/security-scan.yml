@@ -106,6 +106,8 @@ jobs:
           image-ref: ${{ matrix.service }}:scan
           version: v0.74.0
           format: sarif
+          # Sem isso o SARIF traz todas as severidades, ignorando o filtro abaixo.
+          limit-severities-for-sarif: true
           output: ${{ matrix.service }}/trivy-results.sarif
           severity: CRITICAL,HIGH
 
@@ -143,6 +145,8 @@ jobs:
           image-ref: web:scan
           version: v0.74.0
           format: sarif
+          # Sem isso o SARIF traz todas as severidades, ignorando o filtro abaixo.
+          limit-severities-for-sarif: true
           output: web/trivy-results.sarif
           severity: CRITICAL,HIGH
 
@@ -170,6 +174,8 @@ jobs:
           scan-ref: k8s
           version: v0.74.0
           format: sarif
+          # Sem isso o SARIF traz todas as severidades, ignorando o filtro abaixo.
+          limit-severities-for-sarif: true
           output: trivy-iac-results.sarif
           severity: CRITICAL,HIGH
 

@@ -13,6 +13,7 @@
 | Falha de SMTP | Retentativas pela reentrega do SQS, isolamento por canal, alerta operacional e DLQ | Corrigir o canal e fazer replay controlado da DLQ; o webhook não entrega ao usuário |
 | Transação longa no upload | Upload em três fases, com reserva de limpeza de órfãos | Envio acima de 1 h é rejeitado em vez de gravar vídeo sem arquivo |
 | Certificado autoassinado | HTTPS no ingress | O navegador exige aceite explícito; não equivale a certificado público |
+| Tag de imagem sobrescrita no ECR | O deploy usa só a tag do SHA do commit; `latest` é informativa | Tags mutáveis de propósito para permitir reexecutar o CD no mesmo commit ([ADR-012](adr/ADR-012-aws-eks.md)) |
 | Credenciais compartilhadas | Schemas separados e um Secret Kubernetes por serviço | Evoluir para roles PostgreSQL e identidade AWS de menor privilégio por serviço |
 | Expiração da sessão do laboratório | Scripts de renovação e workflows idempotentes | Revalidar credenciais antes de provisionar ou destruir |
 

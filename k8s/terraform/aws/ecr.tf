@@ -7,6 +7,8 @@ locals {
 resource "aws_ecr_repository" "service" {
   for_each = toset(local.services)
 
+  # Tags MUTABLE de propósito (Trivy AWS-0031 aceito): o CD republica `latest` e pode
+  # reexecutar no mesmo SHA — ver "Imagens" no ADR-012.
   name                 = "${var.project}/${each.key}"
   image_tag_mutability = "MUTABLE"
   force_delete         = true

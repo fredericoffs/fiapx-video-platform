@@ -34,6 +34,7 @@
          (security-scan.yml, 2026-09-29) só têm correção nesses patches. Remover quando o
          Boot trouxer versões iguais ou maiores. -->
     <tomcat.version>11.0.26</tomcat.version>
+    <netty.version>4.2.18.Final</netty.version>
     <jackson-bom.version>3.1.7</jackson-bom.version>
     <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
   </properties>
