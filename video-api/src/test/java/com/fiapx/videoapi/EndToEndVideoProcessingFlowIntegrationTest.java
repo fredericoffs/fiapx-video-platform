@@ -102,9 +102,10 @@ class EndToEndVideoProcessingFlowIntegrationTest extends AbstractSqsIntegrationT
         .as("mensagem publicada na fila %s contendo %s", queueProperties.processing(), videoId)
         .isNotNull();
 
-    OutboxEventEntity publishedEvent = springDataOutboxEventRepository.findById(events.getFirst().getId())
-        .orElseThrow();
-    assertThat(publishedEvent.isPublished()).isTrue();
+    // O @Scheduled do job pode ter publicado antes da chamada acima e ainda não ter gravado o markPublished.
+    UUID eventId = events.getFirst().getId();
+    await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+        assertThat(springDataOutboxEventRepository.findById(eventId).orElseThrow().isPublished()).isTrue());
 
     String zipStorageKey = "processed/" + videoId + ".zip";
     ProcessingResultMessage resultMessage = new ProcessingResultMessage(ProcessingEventType.PROCESSING_COMPLETED,
