@@ -1,7 +1,9 @@
 name: Qodana (manual)
 
 # Análise estática JetBrains Qodana — só sob demanda (workflow_dispatch), fora da
-# esteira de CI de cada push. Dois projetos Qodana Cloud: JVM (raiz) e web.
+# esteira de CI de cada push. Linter Community (gratuito, roda sem QODANA_TOKEN):
+# a licença Ultimate venceu, e o qodana-js só existe pago — o web fica com o ESLint
+# (--max-warnings=0) do ci.yml.
 on:
   workflow_dispatch:
 
@@ -17,53 +19,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v5
-        with:
-          java-version: "21"
-          distribution: "temurin"
-          cache: "maven"
-      # `test`, não `verify`: só preciso do jacoco.xml pro Qodana ler cobertura;
-      # o gate de 90% já roda no ci.yml.
-      - name: Gerar relatórios de cobertura (JaCoCo)
-        run: |
-          set -e
-          for service in video-api video-worker notification-worker video-gateway; do
-            (cd "$service" && ./mvnw -B test)
-          done
       - uses: JetBrains/qodana-action@v2026.2
-        env:
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
         with:
-          pr-mode: false
-          use-caches: true
-          post-pr-comment: false
-          use-annotations: true
-          upload-result: true
-          push-fixes: 'none'
-
-  qodana-web:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
-      - name: Install dependencies
-        working-directory: web
-        run: npm ci
-      - name: Gerar relatório de cobertura (lcov)
-        working-directory: web
-        run: npm run test:coverage
-      - uses: JetBrains/qodana-action@v2026.2
-        env:
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_WEB }}
-        with:
-          args: '-i web'
           pr-mode: false
           use-caches: true
           post-pr-comment: false
