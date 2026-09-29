@@ -2,8 +2,8 @@ name: CD - AWS EKS
 
 # Provisiona a infra se precisar (terraform plan; apply só quando há mudanças — com
 # tudo no ar é um no-op de ~2 min), builda as 5 imagens, publica no ECR e faz o deploy
-# no EKS com o perfil aws (RDS, ElastiCache, SQS, S3). Requer sessão do Learner Lab
-# ativa (secrets AWS_* renovados). terraform-aws.yml continua disponível pra rodar
+# no EKS com o perfil aws (RDS, ElastiCache, SQS, S3). Requer os secrets
+# AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY (usuário IAM) no Environment AWS. terraform-aws.yml continua disponível pra rodar
 # plan/apply/destroy à mão; todos os workflows AWS compartilham o grupo fiapx-aws-lifecycle.
 on:
   push:
@@ -95,7 +95,6 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: terraform plan (+ apply se houver mudanças)
@@ -125,7 +124,6 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: aws-actions/amazon-ecr-login@v2
@@ -168,7 +166,6 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Gerar kubeconfig do cluster EKS
