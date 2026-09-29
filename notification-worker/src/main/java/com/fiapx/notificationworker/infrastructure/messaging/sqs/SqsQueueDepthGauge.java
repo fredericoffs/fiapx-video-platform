@@ -6,7 +6,9 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +32,7 @@ public class SqsQueueDepthGauge implements SmartLifecycle {
   private final SqsProperties properties;
   private final List<String> queueNames;
   private final Map<String, AtomicLong> depths = new ConcurrentHashMap<>();
-  private final AtomicBoolean running = new AtomicBoolean(false);
-  private Thread loop;
+  private volatile ScheduledExecutorService scheduler;
 
   public SqsQueueDepthGauge(SqsClient sqsClient, SqsQueueUrlResolver resolver, SqsProperties properties,
       MeterRegistry meterRegistry, List<String> queueNames) {
@@ -46,20 +47,11 @@ public class SqsQueueDepthGauge implements SmartLifecycle {
   }
 
   @Override
-  public void start() {
-    if (running.compareAndSet(false, true)) {
-      loop = Thread.ofVirtual().name("sqs-depth").start(() -> {
-        while (running.get()) {
-          refresh();
-          try {
-            //todo: talvez usar um ScheduledExecutorService em vez de Thread.sleep, mas não é crítico
-            Thread.sleep(properties.depthPollMillis());
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-          }
-        }
-      });
+  public synchronized void start() {
+    if (scheduler == null) {
+      // refresh() já trata a falha de cada fila, então nenhuma exceção cancela o agendamento.
+      scheduler = Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("sqs-depth").factory());
+      scheduler.scheduleWithFixedDelay(this::refresh, 0, properties.depthPollMillis(), TimeUnit.MILLISECONDS);
     }
   }
 
@@ -83,15 +75,15 @@ public class SqsQueueDepthGauge implements SmartLifecycle {
   }
 
   @Override
-  public void stop() {
-    running.set(false);
-    if (loop != null) {
-      loop.interrupt();
+  public synchronized void stop() {
+    if (scheduler != null) {
+      scheduler.shutdownNow();
+      scheduler = null;
     }
   }
 
   @Override
   public boolean isRunning() {
-    return running.get();
+    return scheduler != null;
   }
 }
