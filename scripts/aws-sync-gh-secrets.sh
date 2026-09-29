@@ -118,6 +118,7 @@ done
 
 # Os workflows nao leem mais AWS_SESSION_TOKEN; um valor velho do lab so confunde.
 if [[ -z "${AWS_SESSION_TOKEN:-}" ]]; then
-  gh secret delete AWS_SESSION_TOKEN --env "$ENVIRONMENT" "${repo_args[@]}" 2>/dev/null \
-    && echo "secret AWS_SESSION_TOKEN (obsoleto) removido do environment $ENVIRONMENT" || true
+  if gh secret delete AWS_SESSION_TOKEN --env "$ENVIRONMENT" "${repo_args[@]}" 2>/dev/null; then
+    echo "secret AWS_SESSION_TOKEN (obsoleto) removido do environment $ENVIRONMENT"
+  fi
 fi
