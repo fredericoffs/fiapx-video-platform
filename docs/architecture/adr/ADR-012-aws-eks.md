@@ -15,7 +15,7 @@ O requisito de escalabilidade pede prova de execução real. O ambiente disponí
 
 Toda a stack roda em AWS EKS, provisionado por Terraform, sem caminho de execução local paralelo.
 
-- **Cluster:** EKS 1.36 (versão em suporte padrão), 2 nós `t3.large`, roles do laboratório (`LabRole` nos nós; role de cluster localizada por padrão de nome), IMDS com hop limit 2 para os pods lerem a credencial do nó.
+- **Cluster:** EKS 1.36 (versão em suporte padrão), 3 nós `t3.large`, roles do laboratório (`LabRole` nos nós; role de cluster localizada por padrão de nome), IMDS com hop limit 2 para os pods lerem a credencial do nó.
 - **Rede:** VPC sem NAT Gateway, sub-redes em 2 AZs, um NLB na frente do ingress-nginx com TLS autoassinado (cert-manager).
 - **Entrega:** `cd-aws.yml` espera o CI aprovado **do mesmo commit** (inclusive em execução manual), aplica o Terraform só quando há diferença, publica 5 imagens no ECR, faz o deploy e termina com o E2E.
 - **Imagens:** tags do ECR ficam **mutáveis**. O CD publica `latest` junto com o SHA do commit, e reexecutar o CD no mesmo commit (comum depois de renovar as credenciais do laboratório) gera outra imagem com a mesma tag de SHA; com tags imutáveis, os dois casos quebram o deploy. O deploy referencia só a tag do SHA, então o risco de uma tag mudar por baixo de um pod em execução é baixo. Achado `AWS-0031` do Trivy de IaC aceito conscientemente.
@@ -42,5 +42,6 @@ Ambiente provisionado, validado e destruído várias vezes em 27/09/2026; o dest
 - **Checagem de migrações** — uma migração nova sem alteração em `k8s/` não acionava a verificação de que ela está no ConfigMap do Job de migração; o filtro de caminhos passou a incluir as migrações.
 - **27/09/2026** — o deploy passou a terminar com um E2E real (upload, ZIP, falha e e-mail na caixa de entrada), e um workflow manual de resiliência foi adicionado; ambos compartilham o grupo de concorrência `fiapx-aws-lifecycle` com o deploy e o destroy.
 - **29/09/2026** — o scan de IaC (`security-scan.yml`) apontou tags mutáveis no ECR (`AWS-0031`); a decisão de mantê-las foi registrada em *Imagens*, acima. No mesmo scan, as filas SQS passaram a declarar SSE-SQS explicitamente.
+- **29/09/2026** — o node group passou de 2 para 3 nós `t3.large`: sem Cluster Autoscaler, o KEDA pedia o 3º `video-worker` e ele ficava `Pending` (`Insufficient cpu`, ~220–320m livres por nó contra 500m de request). Os workers também ganharam `topologySpreadConstraints` por nó.
 
 [← Índice de ADRs](README.md) · [Arquitetura](../README.md)

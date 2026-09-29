@@ -7,11 +7,12 @@ import {
   useAdminUsersQuery,
   useDeleteUserMutation,
   type AdminUser,
+  PAGE_SIZES,
   type PageSize,
 } from '@/features/admin/api/queries'
-import { AdminPagination } from '@/features/admin/components/admin-pagination'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { Pagination } from '@/shared/ui/pagination'
 import { Input } from '@/shared/ui/input'
 import { Skeleton } from '@/shared/ui/skeleton'
 
@@ -124,11 +125,12 @@ export function AdminUsersTable() {
             )}
           </div>
 
-          <AdminPagination
+          <Pagination
             page={page}
             size={size}
             totalElements={usersQuery.data.totalElements}
             onPageChange={setPage}
+            pageSizes={PAGE_SIZES}
             onSizeChange={handleSizeChange}
           />
         </>

@@ -21,6 +21,15 @@ spec:
       # antes de sair. Com o padrão de 30s o SIGKILL chegava antes e o vídeo era refeito do
       # zero em outro pod.
       terminationGracePeriodSeconds: 1020
+      # Espalha os workers entre os nós: cada ffmpeg usa ~1 vCPU real, e dois no mesmo
+      # t3.large saturavam o nó. ScheduleAnyway para não travar o scale-up se faltar nó.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: video-worker
       containers:
         - name: video-worker
           image: fiapx/video-worker:local

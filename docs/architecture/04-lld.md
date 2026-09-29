@@ -34,11 +34,11 @@ O consumidor ignora eventos para vídeos em estado terminal. As transições dir
 | Operação | Endpoint | Regra |
 |---|---|---|
 | Cadastro e login | `POST /auth/register`, `POST /auth/login` | Cadastro público; login emite JWT; 5 falhas por e-mail a cada 60 s geram 429 |
-| Upload e listagem | `POST /videos`, `GET /videos` | Usuário autenticado; listagem paginada, só do próprio usuário |
+| Upload e listagem | `POST /videos`, `GET /videos` | Usuário autenticado; listagem paginada, só do próprio usuário, com filtro por período (`createdFrom`/`createdTo`) e ordenação (`sortBy` = `CREATED_AT`, `FILENAME` ou `FILE_SIZE`; `direction`) |
 | Detalhe e ZIP | `GET /videos/{id}`, `GET /videos/{id}/download` | Só o dono (vídeo alheio responde 404); ZIP apenas em `COMPLETED` |
 | Exclusão | `DELETE /videos/{id}` | Dono ou administrador; apenas em estado terminal |
 | Troca de senha | `PUT /users/me/password` | Reemite o token, porque a troca revoga os anteriores |
-| Administração | `/admin/users`, `/admin/videos` | Papel `ADMIN` |
+| Administração | `/admin/users`, `/admin/videos` | Papel `ADMIN`; `/admin/videos` aceita os mesmos filtros e ordenação de `GET /videos`, mais `filename` |
 
 Toda resposta passa pelo gateway com o header `X-Correlation-Id`. O JWT identifica o usuário por `sub`; a API valida assinatura, expiração, existência do usuário e revogação (`tokens_valid_after`). Métodos e DTOs completos estão no contrato OpenAPI e na [collection Postman](../postman/fiapx-video-api.postman_collection.json).
 

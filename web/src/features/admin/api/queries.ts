@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/shared/api/client'
-import type { VideoStatus } from '@/shared/api/videos'
+import { toVideoListQuery, type VideoListFilters, type VideoStatus } from '@/shared/api/videos'
 import type { components } from '@/shared/api/schema.gen'
 import type { Role } from '@/shared/lib/session-store'
 
@@ -16,6 +16,7 @@ export interface AdminVideo {
   userId: string
   ownerEmail: string | null
   originalFilename: string
+  fileSizeBytes: number | null
   status: VideoStatus
   errorMessage: string | null
   createdAt: string
@@ -30,6 +31,7 @@ export interface Page<T> {
 }
 
 export type PageSize = 10 | 20
+export const PAGE_SIZES: readonly PageSize[] = [10, 20]
 
 function toAdminUser(dto: components['schemas']['AdminUserResponse']): AdminUser | null {
   if (!dto.id) {
@@ -52,6 +54,7 @@ function toAdminVideo(dto: components['schemas']['AdminVideoResponse']): AdminVi
     userId: dto.userId ?? '',
     ownerEmail: dto.ownerEmail ?? null,
     originalFilename: dto.originalFilename ?? '',
+    fileSizeBytes: dto.fileSizeBytes ?? null,
     status: dto.status ?? 'QUEUED',
     errorMessage: dto.errorMessage ?? null,
     createdAt: dto.createdAt ?? new Date().toISOString(),
@@ -63,8 +66,8 @@ export const adminKeys = {
   all: ['admin'] as const,
   users: (page: number, size: number, email: string) =>
     [...adminKeys.all, 'users', page, size, email] as const,
-  videos: (page: number, size: number, filename: string) =>
-    [...adminKeys.all, 'videos', page, size, filename] as const,
+  videos: (page: number, size: number, filename: string, filters: VideoListFilters) =>
+    [...adminKeys.all, 'videos', page, size, filename, filters] as const,
 }
 
 export function useAdminUsersQuery(page: number, size: PageSize, email = '') {
@@ -89,12 +92,24 @@ export function useAdminUsersQuery(page: number, size: PageSize, email = '') {
   })
 }
 
-export function useAdminVideosQuery(page: number, size: PageSize, filename = '') {
+export function useAdminVideosQuery(
+  page: number,
+  size: PageSize,
+  filename: string,
+  filters: VideoListFilters,
+) {
   return useQuery({
-    queryKey: adminKeys.videos(page, size, filename),
+    queryKey: adminKeys.videos(page, size, filename, filters),
     queryFn: async (): Promise<Page<AdminVideo>> => {
       const { data, response } = await apiClient.GET('/admin/videos', {
-        params: { query: filename ? { page, size, filename } : { page, size } },
+        params: {
+          query: {
+            page,
+            size,
+            ...(filename ? { filename } : {}),
+            ...toVideoListQuery(filters),
+          },
+        },
       })
       if (!response.ok || !data) {
         throw new Error('Não foi possível carregar os vídeos')
@@ -108,6 +123,7 @@ export function useAdminVideosQuery(page: number, size: PageSize, filename = '')
         totalElements: data.totalElements ?? 0,
       }
     },
+    placeholderData: keepPreviousData,
   })
 }
 

@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useSessionStore } from '@/shared/lib/session-store'
-import { flattenVideoPages, hasNonTerminalVideo, useVideosQuery } from '@/shared/api/videos'
+import {
+  DEFAULT_VIDEO_LIST_FILTERS,
+  hasNonTerminalVideo,
+  useVideosQuery,
+  type VideoListFilters,
+} from '@/shared/api/videos'
 import { UploadProcessingScene } from '@/shared/ui/illustrations/upload-processing-scene'
 import { UploadDropzone } from '@/features/upload/components/upload-dropzone'
 import { VideoList } from '@/features/videos/components/video-list'
@@ -18,8 +23,11 @@ export const Route = createFileRoute('/_authenticated/')({
 
 function DashboardPage() {
   const [isUploading, setIsUploading] = useState(false)
-  const videosQuery = useVideosQuery()
-  const isProcessing = hasNonTerminalVideo(flattenVideoPages(videosQuery.data))
+  const [page, setPage] = useState(0)
+  const [filters, setFilters] = useState<VideoListFilters>(DEFAULT_VIDEO_LIST_FILTERS)
+  // Mesma chave da VideoList: o TanStack compartilha a consulta, sem requisição duplicada.
+  const videosQuery = useVideosQuery(page, filters)
+  const isProcessing = hasNonTerminalVideo(videosQuery.data?.items)
   const sceneState = isUploading ? 'uploading' : isProcessing ? 'processing' : 'idle'
 
   return (
@@ -33,7 +41,15 @@ function DashboardPage() {
       </div>
       <UploadProcessingScene state={sceneState} className="w-full" />
       <UploadDropzone onUploadingChange={setIsUploading} />
-      <VideoList />
+      <VideoList
+        page={page}
+        filters={filters}
+        onPageChange={setPage}
+        onFiltersChange={(newFilters) => {
+          setFilters(newFilters)
+          setPage(0)
+        }}
+      />
     </div>
   )
 }

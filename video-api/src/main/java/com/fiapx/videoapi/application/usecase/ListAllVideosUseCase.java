@@ -4,7 +4,8 @@ import com.fiapx.videoapi.application.dto.VideoWithOwner;
 import com.fiapx.videoapi.domain.model.PageResult;
 import com.fiapx.videoapi.domain.model.User;
 import com.fiapx.videoapi.domain.model.Video;
-import com.fiapx.videoapi.domain.model.VideoStatus;
+import com.fiapx.videoapi.domain.model.VideoFilter;
+import com.fiapx.videoapi.domain.model.VideoSort;
 import com.fiapx.videoapi.domain.port.UserRepository;
 import com.fiapx.videoapi.domain.port.VideoRepository;
 import java.util.List;
@@ -21,8 +22,8 @@ public class ListAllVideosUseCase {
     this.userRepository = userRepository;
   }
 
-  public PageResult<VideoWithOwner> handle(VideoStatus statusFilter, String filenameFilter, int page, int size) {
-    PageResult<Video> result = videoRepository.findAll(statusFilter, filenameFilter, page, size);
+  public PageResult<VideoWithOwner> handle(VideoFilter filter, VideoSort sort, int page, int size) {
+    PageResult<Video> result = videoRepository.findAll(filter, sort, page, size);
     List<VideoWithOwner> items = result.items().stream()
         .map(video -> new VideoWithOwner(video, resolveOwnerEmail(video)))
         .toList();

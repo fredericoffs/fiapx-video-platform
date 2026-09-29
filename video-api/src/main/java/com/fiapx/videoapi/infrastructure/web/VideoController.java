@@ -10,6 +10,9 @@ import com.fiapx.videoapi.application.usecase.ListVideosUseCase;
 import com.fiapx.videoapi.application.usecase.RequestVideoProcessingUseCase;
 import com.fiapx.videoapi.domain.model.PageResult;
 import com.fiapx.videoapi.domain.model.Video;
+import com.fiapx.videoapi.domain.model.VideoFilter;
+import com.fiapx.videoapi.domain.model.VideoSort;
+import com.fiapx.videoapi.domain.model.VideoSortField;
 import com.fiapx.videoapi.domain.model.VideoStatus;
 import com.fiapx.videoapi.infrastructure.web.dto.VideoListResponse;
 import com.fiapx.videoapi.infrastructure.web.dto.VideoStatusResponse;
@@ -25,10 +28,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -103,7 +109,8 @@ public class VideoController {
 
   @Operation(
       summary = "Lista os vídeos do usuário autenticado",
-      description = "Listagem paginada, opcionalmente filtrada por status. Nunca retorna vídeos de outros usuários."
+      description = "Listagem paginada, com filtro opcional por status e por período de envio e ordenação por "
+          + "data de envio, nome ou tamanho. Nunca retorna vídeos de outros usuários."
   )
   @ApiResponses({
       @ApiResponse(responseCode = "200", description = "OK",
@@ -114,11 +121,23 @@ public class VideoController {
   public VideoListResponse list(
       @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
       @Parameter(description = "Filtro opcional por status") @RequestParam(required = false) VideoStatus status,
+      @Parameter(description = "Filtro opcional — enviado a partir desta data/hora (ISO-8601, inclusivo)")
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+      @Parameter(description = "Filtro opcional — enviado até esta data/hora (ISO-8601, inclusivo)")
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
+      @Parameter(description = "Campo de ordenação") @RequestParam(defaultValue = "CREATED_AT") VideoSortField sortBy,
+      @Parameter(description = "Sentido da ordenação") @RequestParam(defaultValue = "DESC") Sort.Direction direction,
       @Parameter(description = "Página, começando em 0") @RequestParam(defaultValue = "0") @Min(0) int page,
       @Parameter(description = "Itens por página (máx. " + MAX_PAGE_SIZE + ")")
       @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size
   ) {
-    PageResult<Video> result = listVideosUseCase.handle(userId, status, page, size);
+    PageResult<Video> result = listVideosUseCase.handle(
+        userId,
+        new VideoFilter(status, null, createdFrom, createdTo),
+        new VideoSort(sortBy, direction.isAscending()),
+        page,
+        size
+    );
     return VideoListResponse.from(result);
   }
 

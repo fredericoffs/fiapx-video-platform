@@ -33,7 +33,7 @@ export interface paths {
     }
     /**
      * Lista os vídeos do usuário autenticado
-     * @description Listagem paginada, opcionalmente filtrada por status. Nunca retorna vídeos de outros usuários.
+     * @description Listagem paginada, com filtro opcional por status e por período de envio e ordenação por data de envio, nome ou tamanho. Nunca retorna vídeos de outros usuários.
      */
     get: operations['list']
     put?: never
@@ -141,7 +141,7 @@ export interface paths {
     }
     /**
      * Lista todos os vídeos do sistema
-     * @description Paginado, de qualquer usuário, com o e-mail do dono de cada vídeo.
+     * @description Paginado, de qualquer usuário, com o e-mail do dono de cada vídeo. Filtros opcionais por status, nome e período de envio; ordenação por data de envio, nome ou tamanho.
      */
     get: operations['listVideos']
     put?: never
@@ -398,6 +398,11 @@ export interface components {
        */
       originalFilename?: string
       /**
+       * Format: int64
+       * @description Tamanho do vídeo original em bytes — null para vídeos anteriores ao registro do tamanho
+       */
+      fileSizeBytes?: number | null
+      /**
        * @description QUEUED → PROCESSING → COMPLETED ou FAILED
        * @enum {string}
        */
@@ -509,6 +514,14 @@ export interface operations {
       query?: {
         /** @description Filtro opcional por status */
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+        /** @description Filtro opcional — enviado a partir desta data/hora (ISO-8601, inclusivo) */
+        createdFrom?: string
+        /** @description Filtro opcional — enviado até esta data/hora (ISO-8601, inclusivo) */
+        createdTo?: string
+        /** @description Campo de ordenação */
+        sortBy?: 'CREATED_AT' | 'FILENAME' | 'FILE_SIZE'
+        /** @description Sentido da ordenação */
+        direction?: 'ASC' | 'DESC'
         /** @description Página, começando em 0 */
         page?: number
         /** @description Itens por página (máx. 100) */
@@ -781,6 +794,14 @@ export interface operations {
         status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
         /** @description Filtro opcional — substring do nome do arquivo, sem diferenciar maiúsculas/minúsculas */
         filename?: string
+        /** @description Filtro opcional — enviado a partir desta data/hora (ISO-8601, inclusivo) */
+        createdFrom?: string
+        /** @description Filtro opcional — enviado até esta data/hora (ISO-8601, inclusivo) */
+        createdTo?: string
+        /** @description Campo de ordenação */
+        sortBy?: 'CREATED_AT' | 'FILENAME' | 'FILE_SIZE'
+        /** @description Sentido da ordenação */
+        direction?: 'ASC' | 'DESC'
         /** @description Página, começando em 0 */
         page?: number
         /** @description Itens por página (máx. 100) */

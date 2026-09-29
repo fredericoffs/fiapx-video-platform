@@ -30,7 +30,7 @@ Sem service mesh: a comunicação entre serviços de negócio é por fila, e ret
 ## Consequências
 
 - **Positivas:** escala real e observável; o scale-down não descarta trabalho em andamento.
-- **Negativas:** o cluster tem teto de capacidade (2 nós `t3.large`, CPU reservada acima de 70%); um pod em término pode ficar vários minutos em `Terminating`; sem mTLS entre serviços.
+- **Negativas:** o cluster tem teto de capacidade (3 nós `t3.large`, CPU reservada acima de 70%); um pod em término pode ficar vários minutos em `Terminating`; sem mTLS entre serviços.
 
 ## Evidência
 

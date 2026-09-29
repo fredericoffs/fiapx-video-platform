@@ -59,10 +59,12 @@ variable "node_instance_type" {
   default     = "t3.large"
 }
 
+# 3 e não 2: sem Cluster Autoscaler o node group fica fixo nesse valor, e com 2 nós o
+# 3º video-worker (request 500m) ficava Pending por "Insufficient cpu" (29/09/2026).
 variable "node_desired_size" {
   description = "Quantidade inicial de nós"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "node_min_size" {
