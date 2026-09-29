@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+  <!-- Falso positivo por CPE (cpe:2.3:a:jetbrains:kotlin:*): o CVE é do cache de build do
+       compilador Kotlin (desserialização de metadados), não da biblioteca de runtime. O
+       kotlin-stdlib entra no jar só como dependência do resilience4j-core. -->
+  <suppress>
+    <notes>CVE-2026-53914 afeta o cache de build do compilador, não o kotlin-stdlib.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.jetbrains\.kotlin/kotlin-stdlib.*$</packageUrl>
+    <cve>CVE-2026-53914</cve>
+  </suppress>
+</suppressions>

@@ -5,6 +5,7 @@ import com.fiapx.videoapi.infrastructure.config.QueueProperties;
 import com.fiapx.videoapi.infrastructure.messaging.sqs.SqsTestSupport;
 import com.fiapx.videoapi.infrastructure.persistence.entity.OutboxEventEntity;
 import com.fiapx.videoapi.infrastructure.persistence.repository.SpringDataOutboxEventRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
 class OutboxPublisherJobIntegrationTest extends AbstractSqsIntegrationTest {
@@ -48,8 +50,10 @@ class OutboxPublisherJobIntegrationTest extends AbstractSqsIntegrationTest {
     assertThat(message).as("mensagem publicada na fila %s contendo %s", queueProperties.processing(), videoId)
         .isNotNull();
 
-    OutboxEventEntity updated = springDataOutboxEventRepository.findById(entity.getId()).orElseThrow();
-    assertThat(updated.isPublished()).isTrue();
+    // O @Scheduled do próprio job também roda neste contexto e pode ter reservado o evento antes
+    // da chamada acima: aí a mensagem chega à fila antes de o agendador gravar o markPublished.
+    await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+        assertThat(springDataOutboxEventRepository.findById(entity.getId()).orElseThrow().isPublished()).isTrue());
   }
 
   private Message receiveContaining(String queue, String needle) {

@@ -58,4 +58,18 @@ Execuções no ambiente AWS (Learner Lab) em **27/09/2026**. A primeira rodada r
 
 As causas e as correções estão em [Riscos e resiliência](05-riscos-e-resiliencia.md#3-o-que-os-testes-revelaram) e nos históricos do [ADR-003](adr/ADR-003-entrega-e-idempotencia.md), [ADR-009](adr/ADR-009-api-gateway.md) e [ADR-010](adr/ADR-010-kubernetes-sem-service-mesh.md).
 
+### Alertas por e-mail (28/09/2026)
+
+Com o `notification-worker` escalado a 0 réplicas, o alerta `FiapxServiceDown` (critical) percorreu o ciclo completo e chegou por e-mail no endereço `+alertas` e pelo webhook, sem nenhuma falha de envio:
+
+| UTC | Evento |
+|---|---|
+| 23:20:50 | alerta pendente (0 réplicas prontas detectadas) |
+| 23:22:38 | alerta disparando, após os 2 min do `for` |
+| 23:23:32 | e-mail e webhook de disparo enviados (e-mail confirmado na caixa de entrada) |
+| 23:26:16 | réplica pronta de novo |
+| 23:28:32 | e-mail e webhook de resolvido enviados |
+
+No mesmo ambiente, `Watchdog`, `InfoInhibitor` e os alertas `info` estavam ativos e foram para o receiver `null`, sem virar e-mail. A configuração está no [ADR-006](adr/ADR-006-observabilidade.md).
+
 [← Arquitetura](README.md) · [RFC →](02-rfc.md)

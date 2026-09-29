@@ -1,6 +1,9 @@
 # 3 filas Standard + 3 DLQs (redrive após max_receive_count). Nomes batem com os defaults do
 # perfil aws dos serviços (application-aws.yml). Visibilidade da fila de processamento cobre o
 # prazo do ffmpeg; o consumer ainda estende com heartbeat enquanto trabalha.
+# Criptografia em repouso com SSE-SQS (chave gerenciada pelo próprio SQS): sem KMS, que o
+# Learner Lab restringe, e sem custo. Já é o default da AWS para filas novas — fica explícito
+# para não depender dele (e para o Trivy de IaC enxergar).
 locals {
   queues = {
     processing = {
@@ -23,6 +26,7 @@ resource "aws_sqs_queue" "dlq" {
 
   name                      = "${each.value.name}-dlq"
   message_retention_seconds = var.sqs_message_retention_seconds
+  sqs_managed_sse_enabled   = true
 
   tags = {
     Name = "${each.value.name}-dlq"
@@ -36,6 +40,7 @@ resource "aws_sqs_queue" "main" {
   visibility_timeout_seconds = each.value.visibility_timeout
   message_retention_seconds  = var.sqs_message_retention_seconds
   receive_wait_time_seconds  = 20
+  sqs_managed_sse_enabled    = true
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq[each.key].arn

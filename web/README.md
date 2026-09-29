@@ -1,8 +1,6 @@
 # FIAP X — Interface web
 
 [![CI](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/ci.yml)
-[![Qodana](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana.yml/badge.svg?branch=develop)](https://github.com/fredericoffs/fiapx-video-platform/actions/workflows/qodana.yml)
-![Cobertura](https://img.shields.io/badge/cobertura%20Qodana-82%25-yellowgreen)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)

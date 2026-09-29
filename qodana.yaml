@@ -13,20 +13,8 @@ version: "1.0"
 profile:
   base:
     name: qodana.starter
-  # Deixo o JvmCoverageInspection ativo (senão o resumo "Total coverage" some do
-  # relatório — já vi isso acontecer). Tentei baixar de ERROR pra WARNING antes, mas
-  # não mudou nada: pela tabela de mapeamento de severidade do Qodana
-  # (github.com/JetBrains/Qodana lib_qd.topic#qodana-severity-levels), ERROR→Critical,
-  # WARNING→High, WEAK WARNING→Moderate — o perfil qodana.starter já usa WARNING (High)
-  # como padrão pra essa inspeção, então setar WARNING de novo era um no-op. WEAK WARNING
-  # é o primeiro nível que realmente sai do bucket High. As classes que já decidi
-  # deliberadamente deixar de fora do gate de cobertura (S3StorageClient,
-  # FfmpegFrameExtractor, ZipFileArchiver, *Application) excluí do próprio
-  # relatório do JaCoCo (ver pom.xml de cada serviço) — o que sobra aqui são gaps reais,
-  # não ruído de infraestrutura, e não é a mesma severidade de um bug de verdade.
-  inspections:
-    - inspection: JvmCoverageInspection
-      severity: "WEAK WARNING"
+  # Sem override de JvmCoverageInspection desde 2026-09-29: cobertura é recurso do
+  # linter pago, e o Community não lê o JaCoCo (o gate de 90% continua no ci.yml).
 
 #Enable inspections
 #include:
@@ -84,5 +72,7 @@ failureConditions:
 #    failOnProhibited: true
 #    failOnUnknown: false
 
+# Community (gratuito) desde 2026-09-29, quando a licença Ultimate venceu — o mesmo
+# linter do baseline de 2026-08-16 acima.
 #Specify Qodana linter for analysis (Applied in CI/CD pipeline)
-linter: jetbrains/qodana-jvm:2026.2
+linter: jetbrains/qodana-jvm-community:2026.2

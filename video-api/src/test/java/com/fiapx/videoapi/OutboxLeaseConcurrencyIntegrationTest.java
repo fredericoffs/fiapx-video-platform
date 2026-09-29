@@ -1,6 +1,7 @@
 package com.fiapx.videoapi;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.fiapx.videoapi.application.job.OutboxPublisherJob;
 import com.fiapx.videoapi.domain.model.OutboxEvent;
@@ -77,11 +78,14 @@ class OutboxLeaseConcurrencyIntegrationTest extends AbstractSqsIntegrationTest {
     assertThat(received).as("cada evento publicado exatamente uma vez").hasSize(20);
     assertThat(received.stream().distinct().count()).isEqualTo(20);
 
-    for (UUID eventId : eventIds) {
-      OutboxEventEntity entity = springDataOutboxEventRepository.findById(eventId).orElseThrow();
-      assertThat(entity.isPublished()).isTrue();
-      assertThat(entity.getLockedUntil()).isNull();
-    }
+    // O @Scheduled do job também disputa o lote e pode ainda estar gravando o último markPublished.
+    await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+      for (UUID eventId : eventIds) {
+        OutboxEventEntity entity = springDataOutboxEventRepository.findById(eventId).orElseThrow();
+        assertThat(entity.isPublished()).isTrue();
+        assertThat(entity.getLockedUntil()).isNull();
+      }
+    });
   }
 
   @Test

@@ -286,6 +286,23 @@ class SqsMessagingIntegrationTest {
   }
 
   @Test
+  void depthGaugeLifecycleRefreshesOnStartAndStopsItsScheduler() {
+    String queue = "t-depth-lifecycle-" + System.nanoTime();
+    SqsTestSupport.createPlainQueues(sqs, List.of(queue));
+    sqs.sendMessage(SendMessageRequest.builder().queueUrl(SqsTestSupport.urlOf(sqs, queue)).messageBody("m").build());
+    SqsQueueDepthGauge gauge = new SqsQueueDepthGauge(sqs, resolver, SqsTestSupport.properties(30, 120),
+        new SimpleMeterRegistry(), List.of(queue));
+
+    gauge.start();
+    gauge.start();
+    assertThat(gauge.isRunning()).isTrue();
+    await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(gauge.depthOf(queue)).isEqualTo(1));
+    gauge.stop();
+    gauge.stop();
+    assertThat(gauge.isRunning()).isFalse();
+  }
+
+  @Test
   void consumerLifecycleStartsAndStopsItsPollingThread() {
     String queue = "t-lifecycle-" + System.nanoTime();
     SqsTestSupport.createPlainQueues(sqs, List.of(queue));

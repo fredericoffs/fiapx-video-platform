@@ -1,8 +1,8 @@
 name: Security scan (manual)
 
-# OWASP Dependency-Check (dependências Maven) + Trivy (imagens Docker) — só sob
-# demanda (workflow_dispatch), fora da esteira de CI de cada push. Relatórios
-# publicados como artefatos do run.
+# OWASP Dependency-Check (dependências Maven) + npm audit (web) + Trivy (imagens Docker,
+# IaC e segredos) — só sob demanda (workflow_dispatch), fora da esteira de CI de cada
+# push. Relatórios publicados como artefatos do run.
 on:
   workflow_dispatch:
 
@@ -10,12 +10,59 @@ permissions:
   contents: read
 
 jobs:
-  jvm:
+  # Baixa/atualiza a base NVD uma única vez e a entrega em cache aos 4 serviços.
+  # Usa os data feeds JSON 2.0 oficiais do NVD (arquivos .json.gz por ano) em vez da
+  # API REST: a API chegou a levar ~5 min a cada 10 mil registros (≈400 mil no total),
+  # estourando o timeout. Pelos feeds a base inteira baixa em ~15 min (medido local).
+  nvd-db:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
+    outputs:
+      cache-key: ${{ steps.key.outputs.key }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Chave do cache NVD (por dia)
+        id: key
+        run: echo "key=dependency-check-nvd-feed-$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurar cache NVD
+        id: restore-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .dependency-check-data
+          key: ${{ steps.key.outputs.key }}
+          restore-keys: |
+            dependency-check-nvd-feed-
+
+      # O dataDirectory do pom (../.dependency-check-data) é o mesmo para os 4 serviços,
+      # então basta rodar o update a partir de um deles.
+      - name: Atualizar base NVD (data feeds)
+        if: steps.restore-cache.outputs.cache-hit != 'true'
+        working-directory: video-gateway
+        run: >-
+          ./mvnw -B dependency-check:update-only
+          "-DnvdDatafeedUrl=https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-{0}.json.gz"
+
+      # Só salva quando o update terminou: um download interrompido não pode virar o
+      # cache do dia (os scans reaproveitariam uma base incompleta).
+      - name: Salvar cache NVD
+        if: steps.restore-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .dependency-check-data
+          key: ${{ steps.key.outputs.key }}
+
+  jvm:
+    needs: nvd-db
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
-      # Sequencial: downloads simultâneos da base NVD estouram o rate limit da API.
-      max-parallel: 1
       fail-fast: false
       matrix:
         service: [video-gateway, video-api, video-worker, notification-worker]
@@ -30,24 +77,16 @@ jobs:
           distribution: "temurin"
           cache: "maven"
 
-      # Cache da base NVD compartilhado entre os 4 serviços, key por dia.
-      - name: Get date for Dependency-Check cache key
-        id: get-date
-        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> "$GITHUB_OUTPUT"
-
-      - name: Restore Dependency-Check NVD cache
-        id: restore-cache
+      - name: Restaurar base NVD
         uses: actions/cache/restore@v6
         with:
           path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
-          restore-keys: |
-            dependency-check-nvd-
+          key: ${{ needs.nvd-db.outputs.cache-key }}
+          fail-on-cache-miss: true
 
+      # autoUpdate=false: a base já veio atualizada do job nvd-db; os scans não tocam o NVD.
       - name: OWASP Dependency-Check
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: ./mvnw -B dependency-check:check
+        run: ./mvnw -B dependency-check:check -DautoUpdate=false
 
       - name: Upload Dependency-Check report
         if: always()
@@ -67,6 +106,8 @@ jobs:
           image-ref: ${{ matrix.service }}:scan
           version: v0.74.0
           format: sarif
+          # Sem isso o SARIF traz todas as severidades, ignorando o filtro abaixo.
+          limit-severities-for-sarif: true
           output: ${{ matrix.service }}/trivy-results.sarif
           severity: CRITICAL,HIGH
 
@@ -77,13 +118,6 @@ jobs:
           name: ${{ matrix.service }}-trivy-report
           path: ${{ matrix.service }}/trivy-results.sarif
           retention-days: 30
-
-      - name: Save Dependency-Check NVD cache
-        if: always() && steps.restore-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: .dependency-check-data
-          key: dependency-check-nvd-${{ steps.get-date.outputs.date }}
 
   web:
     runs-on: ubuntu-latest
@@ -111,6 +145,8 @@ jobs:
           image-ref: web:scan
           version: v0.74.0
           format: sarif
+          # Sem isso o SARIF traz todas as severidades, ignorando o filtro abaixo.
+          limit-severities-for-sarif: true
           output: web/trivy-results.sarif
           severity: CRITICAL,HIGH
 
@@ -121,3 +157,49 @@ jobs:
           name: web-trivy-report
           path: web/trivy-results.sarif
           retention-days: 30
+
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # IaC: Terraform (k8s/terraform) e manifests Kubernetes (k8s/apps, k8s/addons).
+      # Só relatório: parte dos achados são restrições conhecidas do Learner Lab
+      # (endpoint público do EKS e subnets públicas porque não há NAT).
+      - name: Trivy misconfiguration scan (IaC)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: k8s
+          version: v0.74.0
+          format: sarif
+          # Sem isso o SARIF traz todas as severidades, ignorando o filtro abaixo.
+          limit-severities-for-sarif: true
+          output: trivy-iac-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload IaC report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iac-trivy-report
+          path: trivy-iac-results.sarif
+          retention-days: 30
+
+      # Segredos versionados no código: aqui reprova o job — nenhum segredo deveria
+      # estar no repositório (ficam no SSM e nos secrets do GitHub).
+      # TRIVY_OFFLINE_SCAN: mesmo com scanners=secret o Trivy ainda analisa os pom.xml e
+      # busca os POMs pais no Maven Central — que devolveu 429 pro IP do runner e derrubou
+      # o job. Offline, ele não faz essa consulta (nem precisa dela pra achar segredos).
+      - name: Trivy secret scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_OFFLINE_SCAN: "true"
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          version: v0.74.0
+          format: table
+          exit-code: "1"
