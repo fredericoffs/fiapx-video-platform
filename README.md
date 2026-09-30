@@ -17,7 +17,8 @@ Construí esta arquitetura de processamento de vídeos para o Hackathon da Fase 
 
 ## Para quem vai avaliar
 
-**Vídeo da apresentação:** _link a informar_.
+**Vídeo da apresentação:** https://youtu.be/JWtOxPjq-Rs
+
 
 **O ambiente não fica no ar o tempo todo.** Ele roda no AWS Academy Learner Lab, que tem limitações que definem como avaliar:
 
